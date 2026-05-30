@@ -23,14 +23,16 @@ var SCORING_DEFAULTS = {
   seuils: {
     ABS: {
       DJ: [
-        { score: 4, min: 0, max: 5 },
+        { score: 5, min: 0, max: 2 },
+        { score: 4, min: 3, max: 5 },
         { score: 3, min: 6, max: 13 },
         { score: 2, min: 14, max: 25 },
         { score: 1, min: 26, max: 999 }
       ],
       NJ: [
-        { score: 4, min: 0, max: 0 },
-        { score: 3, min: 1, max: 2 },
+        { score: 5, min: 0, max: 0 },
+        { score: 4, min: 1, max: 1 },
+        { score: 3, min: 2, max: 2 },
         { score: 2, min: 3, max: 5 },
         { score: 1, min: 6, max: 999 }
       ],
@@ -38,19 +40,22 @@ var SCORING_DEFAULTS = {
       poidsNJ: 0.4
     },
     COM: [
-      { score: 4, min: 0, max: 0 },
-      { score: 3, min: 1, max: 5 },
+      { score: 5, min: 0, max: 0 },
+      { score: 4, min: 1, max: 2 },
+      { score: 3, min: 3, max: 5 },
       { score: 2, min: 6, max: 20 },
       { score: 1, min: 21, max: 999 }
     ],
     TRA: [
-      { score: 4, min: 15, max: 20 },
+      { score: 5, min: 17, max: 20 },
+      { score: 4, min: 15, max: 16.999 },
       { score: 3, min: 12, max: 14.999 },
       { score: 2, min: 8, max: 11.999 },
       { score: 1, min: 0, max: 7.999 }
     ],
     PART: [
-      { score: 4, min: 15, max: 20 },
+      { score: 5, min: 17, max: 20 },
+      { score: 4, min: 15, max: 16.999 },
       { score: 3, min: 12, max: 14.999 },
       { score: 2, min: 8, max: 11.999 },
       { score: 1, min: 0, max: 7.999 }
@@ -59,11 +64,11 @@ var SCORING_DEFAULTS = {
 
   // Distribution percentile (si mode='percentile')
   percentile: {
-    distribution: { 1: 0.10, 2: 0.25, 3: 0.40, 4: 0.25 }
+    distribution: { 1: 0.10, 2: 0.20, 3: 0.40, 4: 0.20, 5: 0.10 }
   },
 
   // Poids des critères pour le score composite
-  poidsCriteres: { COM: 0.25, TRA: 0.40, PART: 0.10, ABS: 0.25 },
+  poidsCriteres: { COM: 0.30, TRA: 0.30, PART: 0.20, ABS: 0.20 },
 
   // Patterns de détection colonnes Pronote (indépendants du niveau)
   patterns: {
@@ -176,6 +181,61 @@ function scoringKvSet_(key, value, scope) {
 // API PUBLIQUE
 // =============================================================================
 
+function hasScoringLevel_(seuils, score) {
+  if (!Array.isArray(seuils)) return false;
+  return seuils.some(function(s) { return Number(s.score) === score; });
+}
+
+function ensureFiveLevelScoringConfig_(config) {
+  var defaults = SCORING_DEFAULTS;
+  ['COM', 'TRA', 'PART'].forEach(function(crit) {
+    if (!hasScoringLevel_(config.seuils[crit], 5)) {
+      config.seuils[crit] = JSON.parse(JSON.stringify(defaults.seuils[crit]));
+    }
+  });
+
+  if (!config.seuils.ABS) config.seuils.ABS = JSON.parse(JSON.stringify(defaults.seuils.ABS));
+  if (!hasScoringLevel_(config.seuils.ABS.DJ, 5)) {
+    config.seuils.ABS.DJ = JSON.parse(JSON.stringify(defaults.seuils.ABS.DJ));
+  }
+  if (!hasScoringLevel_(config.seuils.ABS.NJ, 5)) {
+    config.seuils.ABS.NJ = JSON.parse(JSON.stringify(defaults.seuils.ABS.NJ));
+  }
+  if (config.seuils.ABS.poidsDJ === undefined) config.seuils.ABS.poidsDJ = defaults.seuils.ABS.poidsDJ;
+  if (config.seuils.ABS.poidsNJ === undefined) config.seuils.ABS.poidsNJ = defaults.seuils.ABS.poidsNJ;
+
+  if (!config.percentile) config.percentile = {};
+  var dist = config.percentile.distribution || {};
+  if (dist[5] === undefined) {
+    config.percentile.distribution = JSON.parse(JSON.stringify(defaults.percentile.distribution));
+  } else {
+    [1, 2, 3, 4, 5].forEach(function(score) {
+      if (config.percentile.distribution[score] === undefined) {
+        config.percentile.distribution[score] = defaults.percentile.distribution[score];
+      }
+    });
+  }
+
+  var p = config.poidsCriteres || {};
+  var oldDefaults =
+    Number(p.COM) === 0.25 &&
+    Number(p.TRA) === 0.40 &&
+    Number(p.PART) === 0.10 &&
+    Number(p.ABS) === 0.25;
+  if (oldDefaults) {
+    config.poidsCriteres = JSON.parse(JSON.stringify(defaults.poidsCriteres));
+  } else {
+    config.poidsCriteres = {
+      COM: p.COM !== undefined ? Number(p.COM) : defaults.poidsCriteres.COM,
+      TRA: p.TRA !== undefined ? Number(p.TRA) : defaults.poidsCriteres.TRA,
+      PART: p.PART !== undefined ? Number(p.PART) : defaults.poidsCriteres.PART,
+      ABS: p.ABS !== undefined ? Number(p.ABS) : defaults.poidsCriteres.ABS
+    };
+  }
+
+  return ensureFiveLevelScoringConfig_(config);
+}
+
 /**
  * Retourne la configuration scoring pour un niveau donné.
  * Merge: SCORING_DEFAULTS + overrides depuis _SCORING_CONFIG.
@@ -262,6 +322,16 @@ function getScoringConfig(niveau) {
  */
 function saveScoringConfig(config, niveau) {
   var scope = niveau || 'GLOBAL';
+  if (config.seuils || config.percentile || config.poidsCriteres) {
+    var normalizedConfig = ensureFiveLevelScoringConfig_({
+      seuils: config.seuils || JSON.parse(JSON.stringify(SCORING_DEFAULTS.seuils)),
+      percentile: config.percentile || JSON.parse(JSON.stringify(SCORING_DEFAULTS.percentile)),
+      poidsCriteres: config.poidsCriteres || JSON.parse(JSON.stringify(SCORING_DEFAULTS.poidsCriteres))
+    });
+    if (config.seuils) config.seuils = normalizedConfig.seuils;
+    if (config.percentile) config.percentile = normalizedConfig.percentile;
+    if (config.poidsCriteres) config.poidsCriteres = normalizedConfig.poidsCriteres;
+  }
 
   if (config.mode) {
     scoringKvSet_('scoring.mode', config.mode, 'GLOBAL');
@@ -273,10 +343,16 @@ function saveScoringConfig(config, niveau) {
 
   if (config.percentile && config.percentile.distribution) {
     var d = config.percentile.distribution;
-    var sum = (d[1] || 0) + (d[2] || 0) + (d[3] || 0) + (d[4] || 0);
+    var sum = (d[1] || 0) + (d[2] || 0) + (d[3] || 0) + (d[4] || 0) + (d[5] || 0);
     if (sum > 0 && Math.abs(sum - 1.0) > 0.05) {
       Logger.log('⚠️ saveScoringConfig: normalisation distribution percentile (somme=' + sum.toFixed(3) + ')');
-      d = { 1: (d[1] || 0) / sum, 2: (d[2] || 0) / sum, 3: (d[3] || 0) / sum, 4: (d[4] || 0) / sum };
+      d = {
+        1: (d[1] || 0) / sum,
+        2: (d[2] || 0) / sum,
+        3: (d[3] || 0) / sum,
+        4: (d[4] || 0) / sum,
+        5: (d[5] || 0) / sum
+      };
     }
     scoringKvSet_('scoring.percentile.distribution', d, 'GLOBAL');
   }
@@ -298,7 +374,7 @@ function getScoringMode() {
 
 /**
  * Retourne la distribution percentile configurée.
- * @returns {Object} { 1: 0.10, 2: 0.25, 3: 0.40, 4: 0.25 }
+ * @returns {Object} { 1: 0.10, 2: 0.20, 3: 0.40, 4: 0.20, 5: 0.10 }
  */
 function getPercentileDistribution() {
   var distJson = scoringKvGet_('scoring.percentile.distribution', 'GLOBAL', null);

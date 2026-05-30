@@ -22,8 +22,8 @@ const HARMONY_OPT_LIST = ['CHAV', 'LATIN', 'GREC'];
 // Critères académiques utilisés pour le scoring
 const HARMONY_CRITERIA = ['COM', 'TRA', 'PART', 'ABS'];
 
-// Scores possibles (1 à 4)
-const HARMONY_SCORE_VALUES = [1, 2, 3, 4];
+// Scores possibles (1 a 5)
+const HARMONY_SCORE_VALUES = [1, 2, 3, 4, 5];
 
 /**
  * Vérifie si une valeur est une LV2 connue
@@ -84,17 +84,17 @@ function isOPTAnomalyLV2(opt) {
 }
 
 /**
- * Calcule le profil académique moyen d'un élève (COM+TRA+PART+ABS)/4
+ * Calcule le profil academique moyen d'un eleve (COM+TRA+PART+ABS)/4
  * @param {Object} row - Ligne de données
  * @param {Object} idx - Map des index de colonnes {COM: n, TRA: n, ...}
- * @returns {number} Score moyen entre 1 et 4
+ * @returns {number} Score moyen entre 1 et 5
  */
 function calculateStudentProfile(row, idx) {
   var sum = 0;
   var count = 0;
   HARMONY_CRITERIA.forEach(function(crit) {
     var val = Number(row[idx[crit]]);
-    if (val >= 1 && val <= 4) {
+    if (val >= 1 && val <= HARMONY_SCORE_VALUES.length) {
       sum += val;
       count++;
     }
@@ -210,11 +210,11 @@ function ClassState(className, studentIndices, data, headerIdx, targetSize) {
   this.sumPART = 0;
   this.sumABS = 0;
 
-  // Histogrammes [score 1..4] pour chaque critère
-  this.histCOM = [0, 0, 0, 0];
-  this.histTRA = [0, 0, 0, 0];
-  this.histPART = [0, 0, 0, 0];
-  this.histABS = [0, 0, 0, 0];
+  // Histogrammes [score 1..5] pour chaque critere
+  this.histCOM = HARMONY_SCORE_VALUES.map(function() { return 0; });
+  this.histTRA = HARMONY_SCORE_VALUES.map(function() { return 0; });
+  this.histPART = HARMONY_SCORE_VALUES.map(function() { return 0; });
+  this.histABS = HARMONY_SCORE_VALUES.map(function() { return 0; });
 
   // Initialiser depuis les données
   for (var i = 0; i < studentIndices.length; i++) {
@@ -238,11 +238,12 @@ ClassState.prototype._addStudent = function(idx, data, hIdx) {
   this.sumPART += part;
   this.sumABS += abs;
 
-  // Histogrammes (clamp 1-4)
-  var ci = Math.max(0, Math.min(3, Math.round(com) - 1));
-  var ti = Math.max(0, Math.min(3, Math.round(tra) - 1));
-  var pi = Math.max(0, Math.min(3, Math.round(part) - 1));
-  var ai = Math.max(0, Math.min(3, Math.round(abs) - 1));
+  // Histogrammes (clamp 1-5)
+  var maxScoreIndex = HARMONY_SCORE_VALUES.length - 1;
+  var ci = Math.max(0, Math.min(maxScoreIndex, Math.round(com) - 1));
+  var ti = Math.max(0, Math.min(maxScoreIndex, Math.round(tra) - 1));
+  var pi = Math.max(0, Math.min(maxScoreIndex, Math.round(part) - 1));
+  var ai = Math.max(0, Math.min(maxScoreIndex, Math.round(abs) - 1));
   this.histCOM[ci]++;
   this.histTRA[ti]++;
   this.histPART[pi]++;
@@ -268,10 +269,11 @@ ClassState.prototype._removeStudent = function(idx, data, hIdx) {
   this.sumPART -= part;
   this.sumABS -= abs;
 
-  var ci = Math.max(0, Math.min(3, Math.round(com) - 1));
-  var ti = Math.max(0, Math.min(3, Math.round(tra) - 1));
-  var pi = Math.max(0, Math.min(3, Math.round(part) - 1));
-  var ai = Math.max(0, Math.min(3, Math.round(abs) - 1));
+  var maxScoreIndex = HARMONY_SCORE_VALUES.length - 1;
+  var ci = Math.max(0, Math.min(maxScoreIndex, Math.round(com) - 1));
+  var ti = Math.max(0, Math.min(maxScoreIndex, Math.round(tra) - 1));
+  var pi = Math.max(0, Math.min(maxScoreIndex, Math.round(part) - 1));
+  var ai = Math.max(0, Math.min(maxScoreIndex, Math.round(abs) - 1));
   this.histCOM[ci]--;
   this.histTRA[ti]--;
   this.histPART[pi]--;
@@ -320,10 +322,10 @@ ClassState.prototype.computeError = function(globalStats, targetDistribution, we
       error += Math.abs(avg - target) * w;
     } else {
       // Distribution : comparer histogramme réel vs proportionnel
-      for (var v = 0; v < 4; v++) {
+      for (var v = 0; v < HARMONY_SCORE_VALUES.length; v++) {
         var expected = (targetDistribution[crit] && targetDistribution[crit][v + 1] !== undefined)
           ? targetDistribution[crit][v + 1] * this.size
-          : this.size / 4;
+          : this.size / HARMONY_SCORE_VALUES.length;
         error += Math.abs(hist[v] - expected) * w;
       }
     }

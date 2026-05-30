@@ -402,7 +402,7 @@
     generateScoreBadges(scores) {
       const badges = [];
 
-      // Scores existants (COM, TRA, PART, ABS) avec 4 couleurs distinctes
+      // Scores existants (COM, TRA, PART, ABS) avec 5 couleurs distinctes
       const scoreMap = [
         { key: 'COM', label: 'Comportement', letter: 'C' },
         { key: 'TRA', label: 'Travail', letter: 'T' },
@@ -415,7 +415,7 @@
           const score = scores[key];
           // Utiliser les classes score-pill existantes pour avoir 4 couleurs distinctes :
           // score-1 = ROUGE, score-2 = JAUNE, score-3 = VERT CLAIR, score-4 = VERT FONCÉ
-          badges.push(`<div class="score-pill score-${score}" title="${label}: ${score}/4">${letter}</div>`);
+          badges.push(`<div class="score-pill score-${score}" title="${label}: ${score}/5">${letter}</div>`);
         }
       });
 

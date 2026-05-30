@@ -577,20 +577,20 @@
             <!-- Section 1 : Mode de scoring -->
             <div class="card" style="margin-bottom: 20px;">
                 <h2>Mode de Scoring</h2>
-                <p style="color: #94a3b8; margin-bottom: 15px;">Choisissez comment les scores 1-4 sont attribués aux élèves.</p>
+                <p style="color: #94a3b8; margin-bottom: 15px;">Choisissez comment les scores 1-5 sont attribués aux élèves.</p>
                 <div style="display: flex; gap: 20px;">
                     <label style="display: flex; align-items: center; gap: 8px; cursor: pointer; padding: 15px 20px; border-radius: 8px; border: 2px solid #334155; flex: 1;" id="mode-seuils-label">
                         <input type="radio" name="scoring-mode" value="seuils" checked onchange="onScoringModeChange()">
                         <div>
                             <div style="font-weight: 700; color: #e2e8f0;">Seuils Fixes</div>
-                            <div style="font-size: 12px; color: #94a3b8;">Notes de coupure fixes (ex: 15/20 = score 4)</div>
+                            <div style="font-size: 12px; color: #94a3b8;">Notes de coupure fixes (ex: 17/20 = score 5)</div>
                         </div>
                     </label>
                     <label style="display: flex; align-items: center; gap: 8px; cursor: pointer; padding: 15px 20px; border-radius: 8px; border: 2px solid #334155; flex: 1;" id="mode-percentile-label">
                         <input type="radio" name="scoring-mode" value="percentile" onchange="onScoringModeChange()">
                         <div>
                             <div style="font-weight: 700; color: #e2e8f0;">Percentile</div>
-                            <div style="font-size: 12px; color: #94a3b8;">Rang dans la cohorte (top 25% = score 4)</div>
+                            <div style="font-size: 12px; color: #94a3b8;">Rang dans la cohorte (top 10% = score 5)</div>
                         </div>
                     </label>
                 </div>
@@ -599,12 +599,12 @@
             <!-- Section 2 : Seuils fixes (visible si mode=seuils) -->
             <div id="scoring-seuils-section" class="card" style="margin-bottom: 20px;">
                 <h2>Seuils par Critère</h2>
-                <p style="color: #94a3b8; margin-bottom: 15px;">Définissez les notes de coupure pour chaque score (1=faible, 4=excellent).</p>
+                <p style="color: #94a3b8; margin-bottom: 15px;">Définissez les notes de coupure pour chaque score (1=faible, 5=excellent).</p>
 
                 <!-- TRA -->
                 <div style="margin-bottom: 20px;">
                     <div style="font-weight: 700; color: var(--primary); margin-bottom: 8px;">TRA (Travail)</div>
-                    <div style="display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px;">
+                    <div style="display: grid; grid-template-columns: repeat(5, 1fr); gap: 10px;">
                         <div style="background:#0f172a; padding:10px; border-radius:8px; text-align:center;">
                             <div style="font-size:11px; color:#ef4444; font-weight:700;">Score 1</div>
                             <div style="font-size:12px; color:#94a3b8; margin-top:4px;">0 — <input type="number" id="seuil-tra-1" value="7.999" step="0.5" style="width:60px; background:#1e293b; border:1px solid #334155; color:#e2e8f0; border-radius:4px; padding:2px 4px; text-align:center;"></div>
@@ -619,7 +619,11 @@
                         </div>
                         <div style="background:#0f172a; padding:10px; border-radius:8px; text-align:center;">
                             <div style="font-size:11px; color:#22c55e; font-weight:700;">Score 4</div>
-                            <div style="font-size:12px; color:#94a3b8; margin-top:4px;">15 — 20</div>
+                            <div style="font-size:12px; color:#94a3b8; margin-top:4px;">15 — <input type="number" id="seuil-tra-4" value="16.999" step="0.5" style="width:60px; background:#1e293b; border:1px solid #334155; color:#e2e8f0; border-radius:4px; padding:2px 4px; text-align:center;"></div>
+                        </div>
+                        <div style="background:#0f172a; padding:10px; border-radius:8px; text-align:center;">
+                            <div style="font-size:11px; color:#10b981; font-weight:700;">Score 5</div>
+                            <div style="font-size:12px; color:#94a3b8; margin-top:4px;">17 — 20</div>
                         </div>
                     </div>
                 </div>
@@ -627,7 +631,7 @@
                 <!-- PART -->
                 <div style="margin-bottom: 20px;">
                     <div style="font-weight: 700; color: var(--primary); margin-bottom: 8px;">PART (Participation)</div>
-                    <div style="display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px;">
+                    <div style="display: grid; grid-template-columns: repeat(5, 1fr); gap: 10px;">
                         <div style="background:#0f172a; padding:10px; border-radius:8px; text-align:center;">
                             <div style="font-size:11px; color:#ef4444; font-weight:700;">Score 1</div>
                             <div style="font-size:12px; color:#94a3b8; margin-top:4px;">0 — <input type="number" id="seuil-part-1" value="7.999" step="0.5" style="width:60px; background:#1e293b; border:1px solid #334155; color:#e2e8f0; border-radius:4px; padding:2px 4px; text-align:center;"></div>
@@ -642,7 +646,11 @@
                         </div>
                         <div style="background:#0f172a; padding:10px; border-radius:8px; text-align:center;">
                             <div style="font-size:11px; color:#22c55e; font-weight:700;">Score 4</div>
-                            <div style="font-size:12px; color:#94a3b8; margin-top:4px;">15 — 20</div>
+                            <div style="font-size:12px; color:#94a3b8; margin-top:4px;">15 — <input type="number" id="seuil-part-4" value="16.999" step="0.5" style="width:60px; background:#1e293b; border:1px solid #334155; color:#e2e8f0; border-radius:4px; padding:2px 4px; text-align:center;"></div>
+                        </div>
+                        <div style="background:#0f172a; padding:10px; border-radius:8px; text-align:center;">
+                            <div style="font-size:11px; color:#10b981; font-weight:700;">Score 5</div>
+                            <div style="font-size:12px; color:#94a3b8; margin-top:4px;">17 — 20</div>
                         </div>
                     </div>
                 </div>
@@ -650,14 +658,18 @@
                 <!-- COM -->
                 <div style="margin-bottom: 20px;">
                     <div style="font-weight: 700; color: var(--primary); margin-bottom: 8px;">COM (Comportement — nb incidents)</div>
-                    <div style="display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px;">
+                    <div style="display: grid; grid-template-columns: repeat(5, 1fr); gap: 10px;">
                         <div style="background:#0f172a; padding:10px; border-radius:8px; text-align:center;">
-                            <div style="font-size:11px; color:#22c55e; font-weight:700;">Score 4</div>
+                            <div style="font-size:11px; color:#10b981; font-weight:700;">Score 5</div>
                             <div style="font-size:12px; color:#94a3b8; margin-top:4px;">0 incidents</div>
                         </div>
                         <div style="background:#0f172a; padding:10px; border-radius:8px; text-align:center;">
+                            <div style="font-size:11px; color:#22c55e; font-weight:700;">Score 4</div>
+                            <div style="font-size:12px; color:#94a3b8; margin-top:4px;">1 — <input type="number" id="seuil-com-4" value="2" step="1" style="width:50px; background:#1e293b; border:1px solid #334155; color:#e2e8f0; border-radius:4px; padding:2px 4px; text-align:center;"></div>
+                        </div>
+                        <div style="background:#0f172a; padding:10px; border-radius:8px; text-align:center;">
                             <div style="font-size:11px; color:#3b82f6; font-weight:700;">Score 3</div>
-                            <div style="font-size:12px; color:#94a3b8; margin-top:4px;">1 — <input type="number" id="seuil-com-3" value="5" step="1" style="width:50px; background:#1e293b; border:1px solid #334155; color:#e2e8f0; border-radius:4px; padding:2px 4px; text-align:center;"></div>
+                            <div style="font-size:12px; color:#94a3b8; margin-top:4px;">3 — <input type="number" id="seuil-com-3" value="5" step="1" style="width:50px; background:#1e293b; border:1px solid #334155; color:#e2e8f0; border-radius:4px; padding:2px 4px; text-align:center;"></div>
                         </div>
                         <div style="background:#0f172a; padding:10px; border-radius:8px; text-align:center;">
                             <div style="font-size:11px; color:#f59e0b; font-weight:700;">Score 2</div>
@@ -676,8 +688,9 @@
                     <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 15px;">
                         <div>
                             <div style="font-size: 12px; color: #94a3b8; margin-bottom: 6px;">Demi-journées (poids: <input type="number" id="seuil-abs-poids-dj" value="0.6" step="0.1" min="0" max="1" style="width:45px; background:#1e293b; border:1px solid #334155; color:#e2e8f0; border-radius:4px; padding:2px 4px; text-align:center;">)</div>
-                            <div style="display: grid; grid-template-columns: repeat(4, 1fr); gap: 6px;">
-                                <div style="background:#0f172a; padding:6px; border-radius:6px; text-align:center; font-size:11px;"><span style="color:#22c55e;">S4</span><br>0-5</div>
+                            <div style="display: grid; grid-template-columns: repeat(5, 1fr); gap: 6px;">
+                                <div style="background:#0f172a; padding:6px; border-radius:6px; text-align:center; font-size:11px;"><span style="color:#10b981;">S5</span><br>0-2</div>
+                                <div style="background:#0f172a; padding:6px; border-radius:6px; text-align:center; font-size:11px;"><span style="color:#22c55e;">S4</span><br>3-5</div>
                                 <div style="background:#0f172a; padding:6px; border-radius:6px; text-align:center; font-size:11px;"><span style="color:#3b82f6;">S3</span><br>6-13</div>
                                 <div style="background:#0f172a; padding:6px; border-radius:6px; text-align:center; font-size:11px;"><span style="color:#f59e0b;">S2</span><br>14-25</div>
                                 <div style="background:#0f172a; padding:6px; border-radius:6px; text-align:center; font-size:11px;"><span style="color:#ef4444;">S1</span><br>26+</div>
@@ -685,9 +698,10 @@
                         </div>
                         <div>
                             <div style="font-size: 12px; color: #94a3b8; margin-bottom: 6px;">Non-justifiées (poids: <input type="number" id="seuil-abs-poids-nj" value="0.4" step="0.1" min="0" max="1" style="width:45px; background:#1e293b; border:1px solid #334155; color:#e2e8f0; border-radius:4px; padding:2px 4px; text-align:center;">)</div>
-                            <div style="display: grid; grid-template-columns: repeat(4, 1fr); gap: 6px;">
-                                <div style="background:#0f172a; padding:6px; border-radius:6px; text-align:center; font-size:11px;"><span style="color:#22c55e;">S4</span><br>0</div>
-                                <div style="background:#0f172a; padding:6px; border-radius:6px; text-align:center; font-size:11px;"><span style="color:#3b82f6;">S3</span><br>1-2</div>
+                            <div style="display: grid; grid-template-columns: repeat(5, 1fr); gap: 6px;">
+                                <div style="background:#0f172a; padding:6px; border-radius:6px; text-align:center; font-size:11px;"><span style="color:#10b981;">S5</span><br>0</div>
+                                <div style="background:#0f172a; padding:6px; border-radius:6px; text-align:center; font-size:11px;"><span style="color:#22c55e;">S4</span><br>1</div>
+                                <div style="background:#0f172a; padding:6px; border-radius:6px; text-align:center; font-size:11px;"><span style="color:#3b82f6;">S3</span><br>2</div>
                                 <div style="background:#0f172a; padding:6px; border-radius:6px; text-align:center; font-size:11px;"><span style="color:#f59e0b;">S2</span><br>3-5</div>
                                 <div style="background:#0f172a; padding:6px; border-radius:6px; text-align:center; font-size:11px;"><span style="color:#ef4444;">S1</span><br>6+</div>
                             </div>
@@ -700,7 +714,7 @@
             <div id="scoring-percentile-section" class="card" style="margin-bottom: 20px; display: none;">
                 <h2>Distribution Percentile</h2>
                 <p style="color: #94a3b8; margin-bottom: 15px;">Répartition de la cohorte par score. Les pourcentages doivent totaliser 100%.</p>
-                <div style="display: grid; grid-template-columns: repeat(4, 1fr); gap: 15px; margin-bottom: 20px;">
+                <div style="display: grid; grid-template-columns: repeat(5, 1fr); gap: 15px; margin-bottom: 20px;">
                     <div style="background:#0f172a; padding:15px; border-radius:8px; text-align:center;">
                         <div style="font-size:12px; color:#ef4444; font-weight:700; margin-bottom:8px;">Score 1 (faible)</div>
                         <div style="display:flex; align-items:center; justify-content:center; gap:4px;">
@@ -711,7 +725,7 @@
                     <div style="background:#0f172a; padding:15px; border-radius:8px; text-align:center;">
                         <div style="font-size:12px; color:#f59e0b; font-weight:700; margin-bottom:8px;">Score 2</div>
                         <div style="display:flex; align-items:center; justify-content:center; gap:4px;">
-                            <input type="number" id="pct-score-2" value="25" min="0" max="100" step="5" style="width:55px; background:#1e293b; border:1px solid #334155; color:#e2e8f0; border-radius:4px; padding:4px; text-align:center; font-size:16px; font-weight:700;" onchange="updatePctTotal()">
+                            <input type="number" id="pct-score-2" value="20" min="0" max="100" step="5" style="width:55px; background:#1e293b; border:1px solid #334155; color:#e2e8f0; border-radius:4px; padding:4px; text-align:center; font-size:16px; font-weight:700;" onchange="updatePctTotal()">
                             <span style="color:#94a3b8;">%</span>
                         </div>
                     </div>
@@ -723,9 +737,16 @@
                         </div>
                     </div>
                     <div style="background:#0f172a; padding:15px; border-radius:8px; text-align:center;">
-                        <div style="font-size:12px; color:#22c55e; font-weight:700; margin-bottom:8px;">Score 4 (excellent)</div>
+                        <div style="font-size:12px; color:#22c55e; font-weight:700; margin-bottom:8px;">Score 4</div>
                         <div style="display:flex; align-items:center; justify-content:center; gap:4px;">
-                            <input type="number" id="pct-score-4" value="25" min="0" max="100" step="5" style="width:55px; background:#1e293b; border:1px solid #334155; color:#e2e8f0; border-radius:4px; padding:4px; text-align:center; font-size:16px; font-weight:700;" onchange="updatePctTotal()">
+                            <input type="number" id="pct-score-4" value="20" min="0" max="100" step="5" style="width:55px; background:#1e293b; border:1px solid #334155; color:#e2e8f0; border-radius:4px; padding:4px; text-align:center; font-size:16px; font-weight:700;" onchange="updatePctTotal()">
+                            <span style="color:#94a3b8;">%</span>
+                        </div>
+                    </div>
+                    <div style="background:#0f172a; padding:15px; border-radius:8px; text-align:center;">
+                        <div style="font-size:12px; color:#10b981; font-weight:700; margin-bottom:8px;">Score 5 (excellent)</div>
+                        <div style="display:flex; align-items:center; justify-content:center; gap:4px;">
+                            <input type="number" id="pct-score-5" value="10" min="0" max="100" step="5" style="width:55px; background:#1e293b; border:1px solid #334155; color:#e2e8f0; border-radius:4px; padding:4px; text-align:center; font-size:16px; font-weight:700;" onchange="updatePctTotal()">
                             <span style="color:#94a3b8;">%</span>
                         </div>
                     </div>
@@ -740,19 +761,19 @@
                 <div style="display: grid; grid-template-columns: repeat(4, 1fr); gap: 15px;">
                     <div style="text-align:center;">
                         <div style="font-size:12px; color:var(--primary); font-weight:700; margin-bottom:6px;">COM</div>
-                        <input type="number" id="poids-com" value="0.25" step="0.05" min="0" max="1" style="width:65px; background:#0f172a; border:1px solid #334155; color:#e2e8f0; border-radius:6px; padding:6px; text-align:center; font-weight:700;">
+                        <input type="number" id="poids-com" value="0.30" step="0.05" min="0" max="1" style="width:65px; background:#0f172a; border:1px solid #334155; color:#e2e8f0; border-radius:6px; padding:6px; text-align:center; font-weight:700;">
                     </div>
                     <div style="text-align:center;">
                         <div style="font-size:12px; color:var(--primary); font-weight:700; margin-bottom:6px;">TRA</div>
-                        <input type="number" id="poids-tra" value="0.40" step="0.05" min="0" max="1" style="width:65px; background:#0f172a; border:1px solid #334155; color:#e2e8f0; border-radius:6px; padding:6px; text-align:center; font-weight:700;">
+                        <input type="number" id="poids-tra" value="0.30" step="0.05" min="0" max="1" style="width:65px; background:#0f172a; border:1px solid #334155; color:#e2e8f0; border-radius:6px; padding:6px; text-align:center; font-weight:700;">
                     </div>
                     <div style="text-align:center;">
                         <div style="font-size:12px; color:var(--primary); font-weight:700; margin-bottom:6px;">PART</div>
-                        <input type="number" id="poids-part" value="0.10" step="0.05" min="0" max="1" style="width:65px; background:#0f172a; border:1px solid #334155; color:#e2e8f0; border-radius:6px; padding:6px; text-align:center; font-weight:700;">
+                        <input type="number" id="poids-part" value="0.20" step="0.05" min="0" max="1" style="width:65px; background:#0f172a; border:1px solid #334155; color:#e2e8f0; border-radius:6px; padding:6px; text-align:center; font-weight:700;">
                     </div>
                     <div style="text-align:center;">
                         <div style="font-size:12px; color:var(--primary); font-weight:700; margin-bottom:6px;">ABS</div>
-                        <input type="number" id="poids-abs" value="0.25" step="0.05" min="0" max="1" style="width:65px; background:#0f172a; border:1px solid #334155; color:#e2e8f0; border-radius:6px; padding:6px; text-align:center; font-weight:700;">
+                        <input type="number" id="poids-abs" value="0.20" step="0.05" min="0" max="1" style="width:65px; background:#0f172a; border:1px solid #334155; color:#e2e8f0; border-radius:6px; padding:6px; text-align:center; font-weight:700;">
                     </div>
                 </div>
             </div>
@@ -1713,7 +1734,8 @@
             var s2 = parseFloat(document.getElementById('pct-score-2').value) || 0;
             var s3 = parseFloat(document.getElementById('pct-score-3').value) || 0;
             var s4 = parseFloat(document.getElementById('pct-score-4').value) || 0;
-            var total = s1 + s2 + s3 + s4;
+            var s5 = parseFloat(document.getElementById('pct-score-5').value) || 0;
+            var total = s1 + s2 + s3 + s4 + s5;
             var el = document.getElementById('pct-total-bar');
             if (el) {
                 el.textContent = 'Total : ' + total + '%';
@@ -1745,9 +1767,10 @@
                 if (res.percentile && res.percentile.distribution) {
                     var d = res.percentile.distribution;
                     document.getElementById('pct-score-1').value = Math.round((d[1] || 0.10) * 100);
-                    document.getElementById('pct-score-2').value = Math.round((d[2] || 0.25) * 100);
+                    document.getElementById('pct-score-2').value = Math.round((d[2] || 0.20) * 100);
                     document.getElementById('pct-score-3').value = Math.round((d[3] || 0.40) * 100);
-                    document.getElementById('pct-score-4').value = Math.round((d[4] || 0.25) * 100);
+                    document.getElementById('pct-score-4').value = Math.round((d[4] || 0.20) * 100);
+                    document.getElementById('pct-score-5').value = Math.round((d[5] || 0.10) * 100);
                     updatePctTotal();
                 }
 
@@ -1757,6 +1780,7 @@
                         if (s.score === 1) document.getElementById('seuil-tra-1').value = s.max;
                         if (s.score === 2) document.getElementById('seuil-tra-2').value = s.max;
                         if (s.score === 3) document.getElementById('seuil-tra-3').value = s.max;
+                        if (s.score === 4) document.getElementById('seuil-tra-4').value = s.max;
                     });
                 }
                 if (res.seuils && res.seuils.PART) {
@@ -1764,10 +1788,12 @@
                         if (s.score === 1) document.getElementById('seuil-part-1').value = s.max;
                         if (s.score === 2) document.getElementById('seuil-part-2').value = s.max;
                         if (s.score === 3) document.getElementById('seuil-part-3').value = s.max;
+                        if (s.score === 4) document.getElementById('seuil-part-4').value = s.max;
                     });
                 }
                 if (res.seuils && res.seuils.COM) {
                     res.seuils.COM.forEach(function(s) {
+                        if (s.score === 4) document.getElementById('seuil-com-4').value = s.max;
                         if (s.score === 3) document.getElementById('seuil-com-3').value = s.max;
                         if (s.score === 2) document.getElementById('seuil-com-2').value = s.max;
                     });
@@ -1810,35 +1836,39 @@
             var config = {
                 mode: mode,
                 poidsCriteres: {
-                    COM: parseFloat(document.getElementById('poids-com').value) || 0.25,
-                    TRA: parseFloat(document.getElementById('poids-tra').value) || 0.40,
-                    PART: parseFloat(document.getElementById('poids-part').value) || 0.10,
-                    ABS: parseFloat(document.getElementById('poids-abs').value) || 0.25
+                    COM: parseFloat(document.getElementById('poids-com').value) || 0.30,
+                    TRA: parseFloat(document.getElementById('poids-tra').value) || 0.30,
+                    PART: parseFloat(document.getElementById('poids-part').value) || 0.20,
+                    ABS: parseFloat(document.getElementById('poids-abs').value) || 0.20
                 },
                 percentile: {
                     distribution: {
                         1: (parseFloat(document.getElementById('pct-score-1').value) || 10) / 100,
-                        2: (parseFloat(document.getElementById('pct-score-2').value) || 25) / 100,
+                        2: (parseFloat(document.getElementById('pct-score-2').value) || 20) / 100,
                         3: (parseFloat(document.getElementById('pct-score-3').value) || 40) / 100,
-                        4: (parseFloat(document.getElementById('pct-score-4').value) || 25) / 100
+                        4: (parseFloat(document.getElementById('pct-score-4').value) || 20) / 100,
+                        5: (parseFloat(document.getElementById('pct-score-5').value) || 10) / 100
                     }
                 },
                 seuils: {
                     TRA: [
-                        { score: 4, min: parseFloat(document.getElementById('seuil-tra-3').value) + 0.001, max: 20 },
+                        { score: 5, min: parseFloat(document.getElementById('seuil-tra-4').value) + 0.001, max: 20 },
+                        { score: 4, min: parseFloat(document.getElementById('seuil-tra-3').value) + 0.001, max: parseFloat(document.getElementById('seuil-tra-4').value) },
                         { score: 3, min: parseFloat(document.getElementById('seuil-tra-2').value) + 0.001, max: parseFloat(document.getElementById('seuil-tra-3').value) },
                         { score: 2, min: parseFloat(document.getElementById('seuil-tra-1').value) + 0.001, max: parseFloat(document.getElementById('seuil-tra-2').value) },
                         { score: 1, min: 0, max: parseFloat(document.getElementById('seuil-tra-1').value) }
                     ],
                     PART: [
-                        { score: 4, min: parseFloat(document.getElementById('seuil-part-3').value) + 0.001, max: 20 },
+                        { score: 5, min: parseFloat(document.getElementById('seuil-part-4').value) + 0.001, max: 20 },
+                        { score: 4, min: parseFloat(document.getElementById('seuil-part-3').value) + 0.001, max: parseFloat(document.getElementById('seuil-part-4').value) },
                         { score: 3, min: parseFloat(document.getElementById('seuil-part-2').value) + 0.001, max: parseFloat(document.getElementById('seuil-part-3').value) },
                         { score: 2, min: parseFloat(document.getElementById('seuil-part-1').value) + 0.001, max: parseFloat(document.getElementById('seuil-part-2').value) },
                         { score: 1, min: 0, max: parseFloat(document.getElementById('seuil-part-1').value) }
                     ],
                     COM: [
-                        { score: 4, min: 0, max: 0 },
-                        { score: 3, min: 1, max: parseInt(document.getElementById('seuil-com-3').value) || 5 },
+                        { score: 5, min: 0, max: 0 },
+                        { score: 4, min: 1, max: parseInt(document.getElementById('seuil-com-4').value) || 2 },
+                        { score: 3, min: (parseInt(document.getElementById('seuil-com-4').value) || 2) + 1, max: parseInt(document.getElementById('seuil-com-3').value) || 5 },
                         { score: 2, min: (parseInt(document.getElementById('seuil-com-3').value) || 5) + 1, max: parseInt(document.getElementById('seuil-com-2').value) || 20 },
                         { score: 1, min: (parseInt(document.getElementById('seuil-com-2').value) || 20) + 1, max: 999 }
                     ]
@@ -1966,18 +1996,20 @@
             // Histogram
             var histEl = document.getElementById('scoring-histogram');
             if (histEl && data.distribution) {
-                var total = (data.distribution[1] || 0) + (data.distribution[2] || 0) + (data.distribution[3] || 0) + (data.distribution[4] || 0);
-                var colors = ['#ef4444', '#f59e0b', '#3b82f6', '#22c55e'];
-                var labels = ['Score 1', 'Score 2', 'Score 3', 'Score 4'];
+                var scoreValues = [1, 2, 3, 4, 5];
+                var total = scoreValues.reduce(function(sum, s) { return sum + (data.distribution[s] || 0); }, 0);
+                var colors = ['#ef4444', '#f59e0b', '#3b82f6', '#22c55e', '#10b981'];
+                var labels = ['Score 1', 'Score 2', 'Score 3', 'Score 4', 'Score 5'];
                 var html = '<div style="display: flex; gap: 10px; align-items: flex-end; height: 120px;">';
-                for (var s = 1; s <= 4; s++) {
+                for (var i = 0; i < scoreValues.length; i++) {
+                    var s = scoreValues[i];
                     var count = data.distribution[s] || 0;
                     var pct = total > 0 ? Math.round(count / total * 100) : 0;
                     var h = total > 0 ? Math.max(5, Math.round(count / total * 100)) : 5;
                     html += '<div style="flex:1; text-align:center;">';
                     html += '<div style="font-size:11px; color:#e2e8f0; font-weight:700; margin-bottom:4px;">' + count + ' (' + pct + '%)</div>';
-                    html += '<div style="height:' + h + 'px; background:' + colors[s-1] + '; border-radius:4px 4px 0 0;"></div>';
-                    html += '<div style="font-size:10px; color:#94a3b8; margin-top:4px;">' + labels[s-1] + '</div>';
+                    html += '<div style="height:' + h + 'px; background:' + colors[i] + '; border-radius:4px 4px 0 0;"></div>';
+                    html += '<div style="font-size:10px; color:#94a3b8; margin-top:4px;">' + labels[i] + '</div>';
                     html += '</div>';
                 }
                 html += '</div>';
@@ -2137,16 +2169,19 @@
             }
             var distEl = document.getElementById('scoring-status-dist');
             if (distEl && data.distribution) {
-                var colors = ['#ef4444', '#f59e0b', '#3b82f6', '#22c55e'];
-                var total = (data.distribution[1]||0) + (data.distribution[2]||0) + (data.distribution[3]||0) + (data.distribution[4]||0);
+                var scoreValues = [1, 2, 3, 4, 5];
+                var colors = ['#ef4444', '#f59e0b', '#3b82f6', '#22c55e', '#10b981'];
+                var total = scoreValues.reduce(function(sum, s) { return sum + (data.distribution[s] || 0); }, 0);
                 var html = '<div style="display:flex; height:6px; border-radius:3px; overflow:hidden; margin-top:6px;">';
-                for (var s = 1; s <= 4; s++) {
-                    var pct = total > 0 ? ((data.distribution[s]||0) / total * 100) : 25;
-                    html += '<div style="width:' + pct + '%; background:' + colors[s-1] + ';"></div>';
+                for (var i = 0; i < scoreValues.length; i++) {
+                    var s = scoreValues[i];
+                    var pct = total > 0 ? ((data.distribution[s]||0) / total * 100) : 20;
+                    html += '<div style="width:' + pct + '%; background:' + colors[i] + ';"></div>';
                 }
                 html += '</div>';
                 html += '<div style="display:flex; justify-content:space-between; margin-top:4px; font-size:10px; color:#94a3b8;">';
-                for (var s = 1; s <= 4; s++) {
+                for (var i = 0; i < scoreValues.length; i++) {
+                    var s = scoreValues[i];
                     html += '<span>S' + s + ': ' + (data.distribution[s]||0) + '</span>';
                 }
                 html += '</div>';

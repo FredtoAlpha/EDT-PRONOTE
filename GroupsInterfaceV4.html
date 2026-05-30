@@ -460,7 +460,7 @@ const GroupsInterfaceV4 = (function() {
     /**
      * Crée un badge coloré pour un critère (COM/TRA/PART/ABS)
      * @param {string} type - 'com' | 'tra' | 'part' | 'abs'
-     * @param {number} value - Valeur du score (0-4)
+     * @param {number} value - Valeur du score (0-5)
      * @returns {string} - HTML string
      */
     const labels = {
@@ -471,7 +471,7 @@ const GroupsInterfaceV4 = (function() {
     };
 
     return `
-      <span class="groups-badge groups-badge-${type}" title="${labels[type]}: ${value.toFixed(1)}/4">
+      <span class="groups-badge groups-badge-${type}" title="${labels[type]}: ${value.toFixed(1)}/5">
         <i class="fas fa-circle" style="font-size: 6px;"></i>
         ${labels[type]} ${value.toFixed(1)}
       </span>
@@ -2947,10 +2947,10 @@ const GroupsInterfaceV4 = (function() {
                   </span>
                   <!-- Pastilles COM/TRA/PART/ABS (système SCORE INTERFACE) -->
                   <span class="scores" style="display: flex; align-items: center; gap: 4px;">
-                    ${(student.com && student.com > 0) ? `<div class="score-pill score-${Math.round(student.com)}" title="Comportement: ${student.com}/4">C</div>` : ''}
-                    ${(student.tra && student.tra > 0) ? `<div class="score-pill score-${Math.round(student.tra)}" title="Travail: ${student.tra}/4">T</div>` : ''}
-                    ${(student.part && student.part > 0) ? `<div class="score-pill score-${Math.round(student.part)}" title="Participation: ${student.part}/4">P</div>` : ''}
-                    ${(student.abs && student.abs > 0) ? `<div class="score-pill score-${Math.round(student.abs)}" title="Absences: ${student.abs}/4">A</div>` : ''}
+                    ${(student.com && student.com > 0) ? `<div class="score-pill score-${Math.round(student.com)}" title="Comportement: ${student.com}/5">C</div>` : ''}
+                    ${(student.tra && student.tra > 0) ? `<div class="score-pill score-${Math.round(student.tra)}" title="Travail: ${student.tra}/5">T</div>` : ''}
+                    ${(student.part && student.part > 0) ? `<div class="score-pill score-${Math.round(student.part)}" title="Participation: ${student.part}/5">P</div>` : ''}
+                    ${(student.abs && student.abs > 0) ? `<div class="score-pill score-${Math.round(student.abs)}" title="Absences: ${student.abs}/5">A</div>` : ''}
                   </span>
                   <i class="fas fa-grip-vertical" style="color: #d1d5db;"></i>
                 </div>

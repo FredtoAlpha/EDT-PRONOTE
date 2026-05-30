@@ -224,7 +224,7 @@ function v3_calculerTousScores() {
     Logger.log('=== RÉSULTAT INJECTION: ' + injected.updated + ' mis à jour, ' + injected.notFound + ' non trouvés ===');
 
     // Construire le tableau détaillé pour affichage immédiat côté client
-    // Scores bruts 1-4 (identiques à ce qui est injecté dans les onglets sources)
+    // Scores bruts 1-5 (identiques à ce qui est injecté dans les onglets sources)
     var preview = [];
     for (var nom in fusion) {
       var e = fusion[nom];
@@ -314,7 +314,7 @@ function v3_getScoresPreview() {
 
     var fusion = fusionnerScores_(absResults, comResults, traResults, partResults, cohort);
 
-    // Scores bruts 1-4 (identiques à ce qui est dans les onglets sources)
+    // Scores bruts 1-5 (identiques à ce qui est dans les onglets sources)
     var preview = [];
     for (var nom in fusion) {
       var e = fusion[nom];
@@ -1090,13 +1090,13 @@ function injecterScoresDansOngletsSources_(ss, fusion) {
 // =============================================================================
 
 /**
- * Mappe un score 1-4 (échelle Pronote) vers 0-5 (échelle app).
- * 1 → 1, 2 → 2.5, 3 → 3.5, 4 → 5
+ * Normalise un score vers l'echelle 1-5.
  */
-function mapScore_(score14) {
-  if (score14 === null || score14 === undefined) return 2;
-  var map = { 1: 1, 2: 2.5, 3: 3.5, 4: 5 };
-  return map[score14] !== undefined ? map[score14] : 2;
+function mapScore_(score) {
+  if (score === null || score === undefined) return 3;
+  var n = Number(score);
+  if (isNaN(n)) return 3;
+  return Math.max(1, Math.min(5, n));
 }
 
 /**

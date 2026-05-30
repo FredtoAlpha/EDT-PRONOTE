@@ -1467,17 +1467,40 @@ function runPhase4CoreLoop_V3_(data, headers, hIdx, byClass, weights, maxSwaps, 
  * Calcule la distribution cible des scores pour chaque critère.
  * @returns {Object} ex: { COM: { '1': 0.1, '2': 0.2, ... }, ... }
  */
+function getHarmonyScoreValues_V3_() {
+  if (typeof HARMONY_SCORE_VALUES !== 'undefined' && HARMONY_SCORE_VALUES && HARMONY_SCORE_VALUES.length) {
+    return HARMONY_SCORE_VALUES;
+  }
+  return [1, 2, 3, 4, 5];
+}
+
+function emptyScoreBuckets_V3_(includeAvg) {
+  var buckets = {};
+  getHarmonyScoreValues_V3_().forEach(function(score) {
+    buckets[score] = 0;
+  });
+  if (includeAvg) buckets.avg = 0;
+  return buckets;
+}
+
+function addAuditScore_V3_(bucket, value) {
+  var score = Number(value || 3);
+  if (bucket[score] === undefined) bucket[score] = 0;
+  bucket[score]++;
+}
+
 function calculateTargetDistribution_V3(data, headers, byClass) {
   const criteria = ['COM', 'TRA', 'PART', 'ABS'];
   const totalStudents = data.length - 1;
   const globalCounts = {};
+  const scoreValues = getHarmonyScoreValues_V3_();
 
   criteria.forEach(crit => {
     const idx = headers.indexOf(crit);
-    globalCounts[crit] = { '1': 0, '2': 0, '3': 0, '4': 0 };
+    globalCounts[crit] = emptyScoreBuckets_V3_(false);
     for (let i = 1; i < data.length; i++) {
-      const score = String(data[i][idx] || '3');
-      if (globalCounts[crit][score]) {
+      const score = Number(data[i][idx] || 3);
+      if (globalCounts[crit][score] !== undefined) {
         globalCounts[crit][score]++;
       } else {
         globalCounts[crit][score] = 1; // Handle potential other values
@@ -1488,9 +1511,9 @@ function calculateTargetDistribution_V3(data, headers, byClass) {
   const targetDistribution = {};
   criteria.forEach(crit => {
     targetDistribution[crit] = {};
-    for (let s = 1; s <= 4; s++) {
+    scoreValues.forEach(function(s) {
       targetDistribution[crit][s] = globalCounts[crit][s] / totalStudents;
-    }
+    });
   });
 
   return targetDistribution;
@@ -1502,20 +1525,21 @@ function calculateTargetDistribution_V3(data, headers, byClass) {
 function calculateHarmonyError_V3(byClass, data, headers, criterion, targetDistribution) {
   const idx = headers.indexOf(criterion);
   let totalError = 0;
+  const scoreValues = getHarmonyScoreValues_V3_();
 
   for (const cls in byClass) {
     const classSize = byClass[cls].length;
-    const currentCounts = { '1': 0, '2': 0, '3': 0, '4': 0 };
+    const currentCounts = emptyScoreBuckets_V3_(false);
 
     byClass[cls].forEach(studentIdx => {
-      const score = String(data[studentIdx][idx] || '3');
-      if (currentCounts[score]) currentCounts[score]++; else currentCounts[score] = 1;
+      const score = Number(data[studentIdx][idx] || 3);
+      if (currentCounts[score] !== undefined) currentCounts[score]++; else currentCounts[score] = 1;
     });
 
-    for (let s = 1; s <= 4; s++) {
-      const targetCount = targetDistribution[criterion][s] * classSize;
+    scoreValues.forEach(function(s) {
+      const targetCount = (targetDistribution[criterion][s] || 0) * classSize;
       totalError += Math.abs(currentCounts[s] - targetCount);
-    }
+    });
   }
   return totalError;
 }
@@ -1559,7 +1583,7 @@ function calculateCompositeSwapScore_V3(data, headers, byClass, targetDistributi
   // Erreur de parité
   totalError += calculateParityError_V3(byClass, data, headers) * (weights.parity || 1.0);
 
-  // Erreurs d'harmonie (distribution des scores 1-4)
+  // Erreurs d'harmonie (distribution des scores)
   criteria.forEach(crit => {
     totalError += calculateHarmonyError_V3(byClass, data, headers, crit, targetDistribution) * (weights[crit.toLowerCase()] || 0.1);
   });
@@ -1846,10 +1870,10 @@ function generateOptimizationAudit_V3(ctx, data, headers, byClass, distributions
       male: 0,
       parityRatio: 0,
       scores: {
-        COM: { 1: 0, 2: 0, 3: 0, 4: 0, avg: 0 },
-        TRA: { 1: 0, 2: 0, 3: 0, 4: 0, avg: 0 },
-        PART: { 1: 0, 2: 0, 3: 0, 4: 0, avg: 0 },
-        ABS: { 1: 0, 2: 0, 3: 0, 4: 0, avg: 0 }
+        COM: emptyScoreBuckets_V3_(true),
+        TRA: emptyScoreBuckets_V3_(true),
+        PART: emptyScoreBuckets_V3_(true),
+        ABS: emptyScoreBuckets_V3_(true)
       },
       lv2: {},
       opt: {},
@@ -1868,10 +1892,10 @@ function generateOptimizationAudit_V3(ctx, data, headers, byClass, distributions
       const part = Number(data[idx][idxPART] || 3);
       const abs = Number(data[idx][idxABS] || 3);
 
-      classData.scores.COM[com]++;
-      classData.scores.TRA[tra]++;
-      classData.scores.PART[part]++;
-      classData.scores.ABS[abs]++;
+      addAuditScore_V3_(classData.scores.COM, com);
+      addAuditScore_V3_(classData.scores.TRA, tra);
+      addAuditScore_V3_(classData.scores.PART, part);
+      addAuditScore_V3_(classData.scores.ABS, abs);
 
       // LV2 et OPT
       const lv2 = String(data[idx][idxLV2] || '').trim().toUpperCase();
@@ -1901,10 +1925,10 @@ function generateOptimizationAudit_V3(ctx, data, headers, byClass, distributions
     ['COM', 'TRA', 'PART', 'ABS'].forEach(function(scoreType) {
       let sum = 0;
       let count = 0;
-      for (let score = 1; score <= 4; score++) {
+      getHarmonyScoreValues_V3_().forEach(function(score) {
         sum += score * classData.scores[scoreType][score];
         count += classData.scores[scoreType][score];
-      }
+      });
       classData.scores[scoreType].avg = count > 0 ? (sum / count).toFixed(2) : 0;
     });
 

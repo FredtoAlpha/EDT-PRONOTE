@@ -1316,6 +1316,31 @@ function v3_getScoringMatieres(niveau) {
  * Retourne la distribution et un échantillon.
  * @returns {Object} { success, distribution, sample, total }
  */
+function v3_getScoreValues_() {
+  if (typeof HARMONY_SCORE_VALUES !== 'undefined' && HARMONY_SCORE_VALUES && HARMONY_SCORE_VALUES.length) {
+    return HARMONY_SCORE_VALUES;
+  }
+  return [1, 2, 3, 4, 5];
+}
+
+function v3_emptyScoreDistribution_(includeNull) {
+  var dist = {};
+  v3_getScoreValues_().forEach(function(score) {
+    dist[score] = 0;
+  });
+  if (includeNull) dist['null'] = 0;
+  return dist;
+}
+
+function v3_countScore_(dist, value) {
+  var score = Number(value);
+  if (dist[score] !== undefined) {
+    dist[score]++;
+  } else if (dist['null'] !== undefined) {
+    dist['null']++;
+  }
+}
+
 function v3_computeScoresPreview() {
   var runId = RunAudit_createId();
   var timer = RunAudit_startTimer();
@@ -1358,21 +1383,24 @@ function v3_computeScoresPreview() {
     }
 
     // Distribution par critère
-    var distTRA = { 1: 0, 2: 0, 3: 0, 4: 0, null: 0 };
-    var distPART = { 1: 0, 2: 0, 3: 0, 4: 0, null: 0 };
-    var distABS = { 1: 0, 2: 0, 3: 0, 4: 0, null: 0 };
-    var distCOM = { 1: 0, 2: 0, 3: 0, 4: 0, null: 0 };
+    var distTRA = v3_emptyScoreDistribution_(true);
+    var distPART = v3_emptyScoreDistribution_(true);
+    var distABS = v3_emptyScoreDistribution_(true);
+    var distCOM = v3_emptyScoreDistribution_(true);
     var total = mergedArr.length;
     for (var i = 0; i < mergedArr.length; i++) {
       var e = mergedArr[i];
-      if (e.scoreTRA >= 1 && e.scoreTRA <= 4) distTRA[e.scoreTRA]++; else distTRA.null++;
-      if (e.scorePART >= 1 && e.scorePART <= 4) distPART[e.scorePART]++; else distPART.null++;
-      if (e.scoreABS >= 1 && e.scoreABS <= 4) distABS[e.scoreABS]++; else distABS.null++;
-      if (e.scoreCOM >= 1 && e.scoreCOM <= 4) distCOM[e.scoreCOM]++; else distCOM.null++;
+      v3_countScore_(distTRA, e.scoreTRA);
+      v3_countScore_(distPART, e.scorePART);
+      v3_countScore_(distABS, e.scoreABS);
+      v3_countScore_(distCOM, e.scoreCOM);
     }
 
     // Legacy dist format (TRA-based)
-    var dist = { 1: distTRA[1], 2: distTRA[2], 3: distTRA[3], 4: distTRA[4] };
+    var dist = v3_emptyScoreDistribution_(false);
+    v3_getScoreValues_().forEach(function(score) {
+      dist[score] = distTRA[score] || 0;
+    });
 
     Logger.log('[SCORING] Distribution TRA: ' + JSON.stringify(distTRA));
     Logger.log('[SCORING] Distribution PART: ' + JSON.stringify(distPART));
@@ -1472,11 +1500,10 @@ function v3_applyScores() {
     }
 
     // Construire preview pour retour
-    var dist = { 1: 0, 2: 0, 3: 0, 4: 0 };
+    var dist = v3_emptyScoreDistribution_(false);
     var total = mergedArr.length;
     for (var i = 0; i < mergedArr.length; i++) {
-      var s = mergedArr[i].scoreTRA;
-      if (s >= 1 && s <= 4) { dist[s]++; }
+      v3_countScore_(dist, mergedArr[i].scoreTRA);
     }
     var sample = [];
     for (var i = 0; i < mergedArr.length; i++) {

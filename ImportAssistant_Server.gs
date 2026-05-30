@@ -26,7 +26,8 @@ function ia_parseStudents(rows) {
     var result = v3_parseListeEleves(rows);
     if (!result || !result.success) return result || { success: false, error: 'Analyse eleves impossible' };
 
-    result.diagnostics = ia_analyzeStudents_(result.eleves || []);
+    var parserDiagnostics = result.diagnostics || {};
+    result.diagnostics = ia_mergeObjects_(parserDiagnostics, ia_analyzeStudents_(result.eleves || []));
     return result;
   } catch (e) {
     return ia_error_(e);
@@ -103,6 +104,8 @@ function ia_buildImportPreflight(payload) {
     var observationsList = ia_extractArray_(state.observations, 'observations');
     var punitionsList = ia_extractArray_(state.punitions, 'punitions');
     var incidentsList = ia_extractArray_(state.incidents, 'incidents');
+    var directScoreMode = !!(state.eleves && (state.eleves.directScores || state.eleves.sourceType === 'EDT_PRONOTE_CLASSEMENT')) ||
+      elevesList.some(function(e) { return e && (e.directScores || e.scores); });
 
     if (elevesList.length === 0) {
       issues.push(ia_issue_('error', 'NO_STUDENTS', 'Aucune liste eleves valide. L etape 1 est obligatoire.'));
@@ -112,7 +115,7 @@ function ia_buildImportPreflight(payload) {
     var matchIndex = studentBuild.matchIndex;
     issues = issues.concat(studentBuild.issues);
 
-    if (notesResults.length === 0) {
+    if (notesResults.length === 0 && !directScoreMode) {
       if (skips.notes) {
         issues.push(ia_issue_('warning', 'NOTES_SKIPPED', 'Notes ignorees volontairement. Les scores TRA et PART seront incomplets.'));
       } else {
@@ -120,7 +123,7 @@ function ia_buildImportPreflight(payload) {
       }
     }
 
-    if (absencesList.length === 0) {
+    if (absencesList.length === 0 && !directScoreMode) {
       if (skips.absences) {
         issues.push(ia_issue_('warning', 'ABSENCES_SKIPPED', 'Absences ignorees volontairement. Le score ABS sera calcule sans donnees d absence.'));
       } else {
@@ -128,7 +131,7 @@ function ia_buildImportPreflight(payload) {
       }
     }
 
-    if (observationsList.length === 0 && punitionsList.length === 0 && incidentsList.length === 0) {
+    if (observationsList.length === 0 && punitionsList.length === 0 && incidentsList.length === 0 && !directScoreMode) {
       if (skips.behavior) {
         issues.push(ia_issue_('warning', 'BEHAVIOR_SKIPPED', 'Vie scolaire ignoree volontairement. Le score COM sera calcule sans donnees de comportement.'));
       } else {
@@ -169,7 +172,8 @@ function ia_buildImportPreflight(payload) {
       writePlan: writePlan,
       meta: {
         executionTimeMs: Date.now() - t0,
-        matchingMode: 'indexed'
+        matchingMode: 'indexed',
+        directScoreMode: directScoreMode
       }
     };
   } catch (e) {
@@ -274,6 +278,25 @@ function ia_analyzeStudents_(eleves) {
   };
 }
 
+function ia_mergeObjects_(base, extra) {
+  var out = {};
+  base = base || {};
+  extra = extra || {};
+  Object.keys(base).forEach(function(k) { out[k] = base[k]; });
+  Object.keys(extra).forEach(function(k) { out[k] = extra[k]; });
+  return out;
+}
+
+function ia_normalizePreviewScore_(value) {
+  if (value === null || value === undefined || value === '') return null;
+  var n = Number(value);
+  if (isNaN(n)) return null;
+  n = Math.round(n);
+  if (n < 1) return null;
+  if (n > 5) n = 5;
+  return n;
+}
+
 function ia_extractStudents_(state) {
   return (state.eleves && state.eleves.eleves) ? state.eleves.eleves : [];
 }
@@ -325,7 +348,12 @@ function ia_buildStudentMap_(eleves) {
       nbObservations: 0,
       nbPunitions: 0,
       nbIncidents: 0,
-      nbEncourage: 0
+      nbEncourage: 0,
+      directScores: !!(e.directScores || e.scores),
+      directScoreCOM: ia_normalizePreviewScore_(e.scores && e.scores.COM !== undefined ? e.scores.COM : e.scoreCOM),
+      directScoreTRA: ia_normalizePreviewScore_(e.scores && e.scores.TRA !== undefined ? e.scores.TRA : e.scoreTRA),
+      directScorePART: ia_normalizePreviewScore_(e.scores && e.scores.PART !== undefined ? e.scores.PART : e.scorePART),
+      directScoreABS: ia_normalizePreviewScore_(e.scores && e.scores.ABS !== undefined ? e.scores.ABS : e.scoreABS)
     };
 
     if (!classe) {
@@ -586,10 +614,10 @@ function ia_buildScoringPreview_(studentMap, matchIndex, notesResults, absencesL
   for (key in studentMap) {
     var st = studentMap[key];
     var scores = {
-      COM: ia_calcScoreCOMPreview_(st.nbPunitions, st.nbIncidents, st.nbObservations, st.nbEncourage, cfg),
-      TRA: ia_calcScoreTRAPreview_(st.moyennes, cfg),
-      PART: ia_calcScorePARTPreview_(st.oraux, cfg),
-      ABS: ia_calcScoreABSPreview_(st.dj, st.nj, cfg)
+      COM: st.directScoreCOM !== null ? st.directScoreCOM : ia_calcScoreCOMPreview_(st.nbPunitions, st.nbIncidents, st.nbObservations, st.nbEncourage, cfg),
+      TRA: st.directScoreTRA !== null ? st.directScoreTRA : ia_calcScoreTRAPreview_(st.moyennes, cfg),
+      PART: st.directScorePART !== null ? st.directScorePART : ia_calcScorePARTPreview_(st.oraux, cfg),
+      ABS: st.directScoreABS !== null ? st.directScoreABS : ia_calcScoreABSPreview_(st.dj, st.nj, cfg)
     };
 
     Object.keys(scores).forEach(function(crit) {
@@ -619,33 +647,38 @@ function ia_getPreviewScoringCfg_() {
   return {
     seuils: {
       TRA: [
-        { score: 4, min: 15, max: 20 },
+        { score: 5, min: 17, max: 20 },
+        { score: 4, min: 15, max: 16.999 },
         { score: 3, min: 12, max: 14.999 },
         { score: 2, min: 8, max: 11.999 },
         { score: 1, min: 0, max: 7.999 }
       ],
       PART: [
-        { score: 4, min: 15, max: 20 },
+        { score: 5, min: 17, max: 20 },
+        { score: 4, min: 15, max: 16.999 },
         { score: 3, min: 12, max: 14.999 },
         { score: 2, min: 8, max: 11.999 },
         { score: 1, min: 0, max: 7.999 }
       ],
       COM: [
-        { score: 4, min: 0, max: 0 },
-        { score: 3, min: 1, max: 5 },
+        { score: 5, min: 0, max: 0 },
+        { score: 4, min: 1, max: 2 },
+        { score: 3, min: 3, max: 5 },
         { score: 2, min: 6, max: 20 },
         { score: 1, min: 21, max: 999 }
       ],
       ABS: {
         DJ: [
-          { score: 4, min: 0, max: 5 },
+          { score: 5, min: 0, max: 2 },
+          { score: 4, min: 3, max: 5 },
           { score: 3, min: 6, max: 13 },
           { score: 2, min: 14, max: 25 },
           { score: 1, min: 26, max: 999 }
         ],
         NJ: [
-          { score: 4, min: 0, max: 0 },
-          { score: 3, min: 1, max: 2 },
+          { score: 5, min: 0, max: 0 },
+          { score: 4, min: 1, max: 1 },
+          { score: 3, min: 2, max: 2 },
           { score: 2, min: 3, max: 5 },
           { score: 1, min: 6, max: 999 }
         ],
@@ -694,7 +727,7 @@ function ia_calcScorePARTPreview_(oraux, cfg) {
 }
 
 function ia_calcScoreABSPreview_(dj, nj, cfg) {
-  if (dj === 0 && nj === 0) return 4;
+  if (dj === 0 && nj === 0) return 5;
   var seuils = cfg.seuils.ABS;
   var scoreDJ = ia_scoreByThreshold_(dj, seuils.DJ);
   var scoreNJ = ia_scoreByThreshold_(nj, seuils.NJ);
@@ -711,7 +744,7 @@ function ia_calcScoreCOMPreview_(nbPunitions, nbIncidents, nbObservations, nbEnc
 }
 
 function ia_emptyScoreDistribution_() {
-  return { '1': 0, '2': 0, '3': 0, '4': 0 };
+  return { '1': 0, '2': 0, '3': 0, '4': 0, '5': 0 };
 }
 
 function ia_buildWritePlan_(classeGroups) {

@@ -12,7 +12,7 @@
  *   3. Absences         -> ABS (recap avec justifications)
  *   4. Comportement     -> COM (observations + punitions + incidents)
  *
- * COMPILATION : fusionne toutes les donnees, calcule les scores 1-4,
+ * COMPILATION : fusionne toutes les donnees, calcule les scores 1-5,
  * peuple les onglets sources avec listes deroulantes.
  *
  * @version 2.0.0 - Architecture multi-paste
@@ -49,6 +49,16 @@ function parseNote_(val) {
   s = s.replace(',', '.');
   var n = parseFloat(s);
   return isNaN(n) ? null : n;
+}
+
+function normalizeImportScore_(val) {
+  if (val === null || val === undefined || val === '') return null;
+  var n = Number(val);
+  if (isNaN(n)) return null;
+  n = Math.round(n);
+  if (n < 1) return null;
+  if (n > 5) n = 5;
+  return n;
 }
 
 /**
@@ -215,6 +225,10 @@ function v3_parseListeEleves(rows) {
       return { success: false, error: 'Donnees insuffisantes. Collez la liste eleves depuis Pronote.' };
     }
 
+    if (isEdtPronoteClassement_(rows)) {
+      return v3_parseEdtPronoteClassement_(rows);
+    }
+
     var headerRow = 0;
     var maxText = 0;
     for (var r = 0; r < Math.min(rows.length, 3); r++) {
@@ -311,6 +325,273 @@ function v3_parseListeEleves(rows) {
 
   } catch (e) {
     Logger.log('Erreur v3_parseListeEleves: ' + e.toString());
+    return { success: false, error: e.toString() };
+  }
+}
+
+/**
+ * Detecte le modele EDT/PRONOTE "classement" avec deux lignes d'en-tete :
+ * ligne 1 = colonnes generales + groupe "Criteres"
+ * ligne 2 = Niveau scolaire, Comportement, Absenteisme, A definir.
+ */
+function isEdtPronoteClassement_(rows) {
+  if (!rows || rows.length < 3) return false;
+  var first = rows[0].map(function(v) { return normalizeImportHeader_(v); }).join('|');
+  var second = rows[1].map(function(v) { return normalizeImportHeader_(v); }).join('|');
+  return first.indexOf('ANCIEN MEF') >= 0 &&
+    first.indexOf('OPTIONS PRECEDENTES') >= 0 &&
+    second.indexOf('NIVEAU SCOLAIRE') >= 0 &&
+    second.indexOf('COMPORTEMENT') >= 0 &&
+    second.indexOf('ABSENTEISME') >= 0;
+}
+
+function normalizeImportHeader_(value) {
+  return String(value || '')
+    .trim()
+    .replace(/[\u00A0\u2007\u202F\u200B\u200C\u200D\uFEFF]/g, ' ')
+    .replace(/\s+/g, ' ')
+    .toUpperCase()
+    .normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+}
+
+function buildEdtHeaderIndex_(rows) {
+  var h1 = rows[0] || [];
+  var h2 = rows[1] || [];
+  var idx = {};
+  var max = Math.max(h1.length, h2.length);
+  for (var c = 0; c < max; c++) {
+    var label = String(h2[c] || '').trim() || String(h1[c] || '').trim();
+    if (!label) continue;
+    idx[normalizeImportHeader_(label)] = c;
+  }
+  return idx;
+}
+
+function getEdtCol_(idx, names) {
+  for (var i = 0; i < names.length; i++) {
+    var key = normalizeImportHeader_(names[i]);
+    if (idx[key] !== undefined) return idx[key];
+  }
+  return -1;
+}
+
+function readActiveImportNiveau_() {
+  try {
+    var config = getConfig();
+    if (config && config.NIVEAU) return String(config.NIVEAU);
+  } catch (e) {
+    Logger.log('[WARN] readActiveImportNiveau_: getConfig impossible: ' + e);
+  }
+  return '5\u00b0';
+}
+
+function targetNiveauNumber_(niveau) {
+  var n = normalizeImportHeader_(niveau);
+  if (n.indexOf('6') === 0 || n.indexOf('SIX') === 0) return '6';
+  if (n.indexOf('5') === 0 || n.indexOf('CINQ') === 0) return '5';
+  if (n.indexOf('4') === 0 || n.indexOf('QUAT') === 0) return '4';
+  if (n.indexOf('3') === 0 || n.indexOf('TROIS') === 0) return '3';
+  return '';
+}
+
+function sourceMefForTarget_(niveau) {
+  switch (targetNiveauNumber_(niveau)) {
+    case '6': return 'CM2';
+    case '5': return '6EME';
+    case '4': return '5EME';
+    case '3': return '4EME';
+    default: return '';
+  }
+}
+
+function targetMefForNiveau_(niveau) {
+  switch (targetNiveauNumber_(niveau)) {
+    case '6': return '6EME';
+    case '5': return '5EME';
+    case '4': return '4EME';
+    case '3': return '3EME';
+    default: return '';
+  }
+}
+
+function shouldKeepEdtRowForNiveau_(row, colAncienMef, colMefPrev, niveau) {
+  var ancienMef = normalizeImportHeader_(colAncienMef >= 0 ? row[colAncienMef] : '');
+  var mefPrev = normalizeImportHeader_(colMefPrev >= 0 ? row[colMefPrev] : '');
+  var expectedSource = sourceMefForTarget_(niveau);
+  var expectedTarget = targetMefForNiveau_(niveau);
+
+  if (expectedTarget && mefPrev && mefPrev !== 'AUCUN' && mefPrev.indexOf(expectedTarget) >= 0) return true;
+  if (expectedSource && ancienMef.indexOf(expectedSource) >= 0) return true;
+  return false;
+}
+
+function parseEdtSexe_(value) {
+  var s = String(value || '').trim().toUpperCase();
+  if (s === 'G' || s.indexOf('GAR') === 0) return 'M';
+  if (s === 'F') return 'F';
+  return parseSexe_(value);
+}
+
+function edtGradeToScore_(letter, fallbackScore) {
+  var s = normalizeImportHeader_(letter);
+  if (s === 'A') return 5;
+  if (s === 'B') return 4;
+  if (s === 'C') return 3;
+  if (s === 'D') return 2;
+  if (s === 'E') return 1;
+  return fallbackScore === undefined ? null : fallbackScore;
+}
+
+function defaultSourceClassForEdt_(niveau, offset) {
+  var prefix = '';
+  try {
+    prefix = determinerPrefixeSource(niveau);
+  } catch (e) {
+    prefix = sourceMefForTarget_(niveau).replace('EME', '\u00b0');
+  }
+  if (!prefix) prefix = 'SOURCE';
+  if (prefix !== 'ECOLE' && prefix.indexOf('\u00b0') < 0 && prefix.indexOf('Â°') < 0) {
+    prefix += '\u00b0';
+  }
+
+  var nbSources = 1;
+  try {
+    var cfg = getConfig();
+    nbSources = parseInt(cfg.NB_SOURCES, 10) || 1;
+  } catch (e2) {}
+  return prefix + ((offset % nbSources) + 1);
+}
+
+function v3_parseEdtPronoteClassement_(rows) {
+  try {
+    var niveau = readActiveImportNiveau_();
+    var idx = buildEdtHeaderIndex_(rows);
+
+    var colNom = getEdtCol_(idx, ['Nom']);
+    var colPrenom = getEdtCol_(idx, ['Prenom', 'Pr\u00e9nom']);
+    var colSexe = getEdtCol_(idx, ['Sexe']);
+    var colAncienneClasse = getEdtCol_(idx, ['Ancienne classe']);
+    var colAncienMef = getEdtCol_(idx, ['Ancien MEF']);
+    var colOptionsPrec = getEdtCol_(idx, ['Options precedentes', 'Options pr\u00e9c\u00e9dentes']);
+    var colOptionsPrev = getEdtCol_(idx, ['Options previsionnelles', 'Options pr\u00e9visionnelles']);
+    var colMefPrev = getEdtCol_(idx, ['MEF previsionnel', 'MEF pr\u00e9visionnel']);
+    var colTRA = getEdtCol_(idx, ['Niveau scolaire']);
+    var colCOM = getEdtCol_(idx, ['Comportement']);
+    var colABS = getEdtCol_(idx, ['Absenteisme', 'Absent\u00e9isme']);
+    var colPART = getEdtCol_(idx, ['A definir', '\u00c0 d\u00e9finir']);
+    var colRegroupe = getEdtCol_(idx, ['Regroupe avec', 'Regroup\u00e9 avec']);
+    var colSepare = getEdtCol_(idx, ['Separe de', 'S\u00e9par\u00e9 de']);
+    var colVerrou = getEdtCol_(idx, ['Verrou']);
+
+    if (colNom === -1) return { success: false, error: 'CSV EDT/PRONOTE: colonne Nom introuvable.' };
+    if (colAncienMef === -1 && colMefPrev === -1) {
+      return { success: false, error: 'CSV EDT/PRONOTE: colonnes Ancien MEF / MEF previsionnel introuvables.' };
+    }
+
+    var eleves = [];
+    var classes = {};
+    var excluded = 0;
+    var defaulted = 0;
+    var missingSourceClass = 0;
+    var syntheticOffset = 0;
+
+    for (var r = 2; r < rows.length; r++) {
+      var row = rows[r] || [];
+      var nom = String(row[colNom] || '').trim();
+      if (!nom) continue;
+      if (!shouldKeepEdtRowForNiveau_(row, colAncienMef, colMefPrev, niveau)) {
+        excluded++;
+        continue;
+      }
+
+      var prenom = colPrenom >= 0 ? String(row[colPrenom] || '').trim() : '';
+      var sexe = colSexe >= 0 ? parseEdtSexe_(row[colSexe]) : '';
+      var ancienneClasse = colAncienneClasse >= 0 ? normaliserClasse_(row[colAncienneClasse]) : '';
+      if (!ancienneClasse) {
+        ancienneClasse = defaultSourceClassForEdt_(niveau, syntheticOffset++);
+        missingSourceClass++;
+      }
+
+      var optionsRaw = (colOptionsPrev >= 0 && row[colOptionsPrev]) ? row[colOptionsPrev] :
+        (colOptionsPrec >= 0 ? row[colOptionsPrec] : '');
+      var opts = parseOptions_(optionsRaw);
+
+      var rawTRA = colTRA >= 0 ? row[colTRA] : '';
+      var rawCOM = colCOM >= 0 ? row[colCOM] : '';
+      var rawABS = colABS >= 0 ? row[colABS] : '';
+      var rawPART = colPART >= 0 ? row[colPART] : '';
+
+      var scoreTRA = edtGradeToScore_(rawTRA, 3);
+      var scoreCOM = edtGradeToScore_(rawCOM, 3);
+      var scoreABS = edtGradeToScore_(rawABS, 3);
+      var scorePART = edtGradeToScore_(rawPART, 3);
+      if (!rawTRA || !rawCOM || !rawABS || !rawPART) defaulted++;
+
+      var eleve = {
+        nom: nom.toUpperCase(),
+        prenom: prenom,
+        sexe: sexe,
+        classe: ancienneClasse,
+        lv2: opts.lv2,
+        opt: opts.opt,
+        dispo: parseDispo_(String(row[colAncienMef] || '') + ' ' + String(optionsRaw || '')),
+        scoreCOM: scoreCOM,
+        scoreTRA: scoreTRA,
+        scorePART: scorePART,
+        scoreABS: scoreABS,
+        scores: { COM: scoreCOM, TRA: scoreTRA, PART: scorePART, ABS: scoreABS },
+        criteriaLetters: {
+          TRA: String(rawTRA || 'C').trim().toUpperCase(),
+          COM: String(rawCOM || 'C').trim().toUpperCase(),
+          PART: String(rawPART || 'C').trim().toUpperCase(),
+          ABS: String(rawABS || 'C').trim().toUpperCase()
+        },
+        directScores: true,
+        edtMeta: {
+          niveauActif: niveau,
+          ancienMef: colAncienMef >= 0 ? row[colAncienMef] : '',
+          mefPrevisionnel: colMefPrev >= 0 ? row[colMefPrev] : '',
+          sourceClasseOriginale: colAncienneClasse >= 0 ? row[colAncienneClasse] : '',
+          regroupeAvec: colRegroupe >= 0 ? row[colRegroupe] : '',
+          separeDe: colSepare >= 0 ? row[colSepare] : '',
+          verrou: colVerrou >= 0 ? row[colVerrou] : ''
+        }
+      };
+
+      eleves.push(eleve);
+      classes[ancienneClasse] = (classes[ancienneClasse] || 0) + 1;
+    }
+
+    Logger.log('CSV EDT/PRONOTE: niveau=' + niveau + ' eleves=' + eleves.length +
+      ' classes=' + Object.keys(classes).length + ' exclus=' + excluded +
+      ' criteresDefaut=' + defaulted + ' sourceManquante=' + missingSourceClass);
+
+    return {
+      success: true,
+      sourceType: 'EDT_PRONOTE_CLASSEMENT',
+      directScores: true,
+      eleves: eleves,
+      count: eleves.length,
+      classes: classes,
+      niveau: niveau,
+      diagnostics: {
+        excludedByLevel: excluded,
+        criteriaDefaulted: defaulted,
+        missingSourceClass: missingSourceClass,
+        criteriaMapping: {
+          'Niveau scolaire': 'TRA',
+          'Comportement': 'COM',
+          'Absent\u00e9isme': 'ABS',
+          '\u00c0 d\u00e9finir': 'PART'
+        }
+      },
+      optColumnDetected: colOptionsPrec >= 0 || colOptionsPrev >= 0,
+      lv2ColumnDetected: colOptionsPrec >= 0 || colOptionsPrev >= 0,
+      dispoColumnDetected: colAncienMef >= 0,
+      sexeColumnDetected: colSexe >= 0
+    };
+  } catch (e) {
+    Logger.log('Erreur v3_parseEdtPronoteClassement_: ' + e.toString());
     return { success: false, error: e.toString() };
   }
 }
@@ -1155,12 +1436,20 @@ function v3_compileImport(data) {
       var e = elevesList[i];
       var classe = normaliserClasse_(e.classe);
       var cle = cleEleve_(e.nom, e.prenom);
+      var directScores = e.scores || {};
       studentMap[cle] = {
         nom: e.nom, prenom: e.prenom, sexe: e.sexe || '', classe: classe,
         lv2: e.lv2 || '', opt: e.opt || '', dispo: e.dispo || '',
         moyennes: {}, oraux: {},
         dj: 0, nj: 0,
-        nbObservations: 0, nbPunitions: 0, nbIncidents: 0, nbEncourage: 0
+        nbObservations: 0, nbPunitions: 0, nbIncidents: 0, nbEncourage: 0,
+        directScores: !!(e.directScores || e.sourceType === 'EDT_PRONOTE_CLASSEMENT' || e.scores),
+        directScoreCOM: normalizeImportScore_(directScores.COM !== undefined ? directScores.COM : e.scoreCOM),
+        directScoreTRA: normalizeImportScore_(directScores.TRA !== undefined ? directScores.TRA : e.scoreTRA),
+        directScorePART: normalizeImportScore_(directScores.PART !== undefined ? directScores.PART : e.scorePART),
+        directScoreABS: normalizeImportScore_(directScores.ABS !== undefined ? directScores.ABS : e.scoreABS),
+        criteriaLetters: e.criteriaLetters || null,
+        edtMeta: e.edtMeta || null
       };
       if (!classeGroups[classe]) classeGroups[classe] = [];
       classeGroups[classe].push(cle);
@@ -1266,14 +1555,14 @@ function v3_compileImport(data) {
       ' ABS=' + !!importCfg.seuils.ABS);
 
     var scoresCount = 0;
-    var diagTRA = { total: 0, null: 0, s1: 0, s2: 0, s3: 0, s4: 0, samples: [] };
-    var diagPART = { total: 0, null: 0, s1: 0, s2: 0, s3: 0, s4: 0 };
+    var diagTRA = { total: 0, null: 0, s1: 0, s2: 0, s3: 0, s4: 0, s5: 0, samples: [] };
+    var diagPART = { total: 0, null: 0, s1: 0, s2: 0, s3: 0, s4: 0, s5: 0 };
     for (var cleS in studentMap) {
       var st = studentMap[cleS];
-      st.scoreTRA = calcScoreTRA_import_(st.moyennes);
-      st.scorePART = calcScorePART_import_(st.oraux);
-      st.scoreABS = calcScoreABS_import_(st.dj, st.nj);
-      st.scoreCOM = calcScoreCOM_import_(st.nbPunitions, st.nbIncidents, st.nbObservations, st.nbEncourage);
+      st.scoreTRA = st.directScoreTRA !== null ? st.directScoreTRA : calcScoreTRA_import_(st.moyennes);
+      st.scorePART = st.directScorePART !== null ? st.directScorePART : calcScorePART_import_(st.oraux);
+      st.scoreABS = st.directScoreABS !== null ? st.directScoreABS : calcScoreABS_import_(st.dj, st.nj);
+      st.scoreCOM = st.directScoreCOM !== null ? st.directScoreCOM : calcScoreCOM_import_(st.nbPunitions, st.nbIncidents, st.nbObservations, st.nbEncourage);
       if (st.scoreTRA || st.scorePART || st.scoreABS || st.scoreCOM) scoresCount++;
 
       // Diagnostic TRA
@@ -1292,10 +1581,10 @@ function v3_compileImport(data) {
 
     Logger.log('Scores calcules: ' + scoresCount);
     Logger.log('[DIAG] TRA repartition: null=' + diagTRA.null + ' score1=' + diagTRA.s1 +
-      ' score2=' + diagTRA.s2 + ' score3=' + diagTRA.s3 + ' score4=' + diagTRA.s4);
+      ' score2=' + diagTRA.s2 + ' score3=' + diagTRA.s3 + ' score4=' + diagTRA.s4 + ' score5=' + diagTRA.s5);
     Logger.log('[DIAG] TRA exemples: ' + diagTRA.samples.join(' | '));
     Logger.log('[DIAG] PART repartition: null=' + diagPART.null + ' score1=' + diagPART.s1 +
-      ' score2=' + diagPART.s2 + ' score3=' + diagPART.s3 + ' score4=' + diagPART.s4);
+      ' score2=' + diagPART.s2 + ' score3=' + diagPART.s3 + ' score4=' + diagPART.s4 + ' score5=' + diagPART.s5);
 
     // 8. ECRIRE DANS LES ONGLETS SOURCES
     var sourceHeaders = [
@@ -1304,7 +1593,7 @@ function v3_compileImport(data) {
     ];
 
     var ruleCRIT = SpreadsheetApp.newDataValidation()
-      .requireValueInList(['', '1', '2', '3', '4'], true)
+      .requireValueInList(['', '1', '2', '3', '4', '5'], true)
       .setAllowInvalid(false)
       .build();
 
@@ -1528,33 +1817,38 @@ function getImportScoringCfg_() {
     _source: 'fallback statique',
     seuils: {
       TRA: [
-        { score: 4, min: 15, max: 20 },
+        { score: 5, min: 17, max: 20 },
+        { score: 4, min: 15, max: 16.999 },
         { score: 3, min: 12, max: 14.999 },
         { score: 2, min: 8, max: 11.999 },
         { score: 1, min: 0, max: 7.999 }
       ],
       PART: [
-        { score: 4, min: 15, max: 20 },
+        { score: 5, min: 17, max: 20 },
+        { score: 4, min: 15, max: 16.999 },
         { score: 3, min: 12, max: 14.999 },
         { score: 2, min: 8, max: 11.999 },
         { score: 1, min: 0, max: 7.999 }
       ],
       COM: [
-        { score: 4, min: 0, max: 0 },
-        { score: 3, min: 1, max: 5 },
+        { score: 5, min: 0, max: 0 },
+        { score: 4, min: 1, max: 2 },
+        { score: 3, min: 3, max: 5 },
         { score: 2, min: 6, max: 20 },
         { score: 1, min: 21, max: 999 }
       ],
       ABS: {
         DJ: [
-          { score: 4, min: 0, max: 5 },
+          { score: 5, min: 0, max: 2 },
+          { score: 4, min: 3, max: 5 },
           { score: 3, min: 6, max: 13 },
           { score: 2, min: 14, max: 25 },
           { score: 1, min: 26, max: 999 }
         ],
         NJ: [
-          { score: 4, min: 0, max: 0 },
-          { score: 3, min: 1, max: 2 },
+          { score: 5, min: 0, max: 0 },
+          { score: 4, min: 1, max: 1 },
+          { score: 3, min: 2, max: 2 },
           { score: 2, min: 3, max: 5 },
           { score: 1, min: 6, max: 999 }
         ],
@@ -1597,7 +1891,7 @@ function calcScorePART_import_(oraux) {
 }
 
 function calcScoreABS_import_(dj, nj) {
-  if (dj === 0 && nj === 0) return 4;
+  if (dj === 0 && nj === 0) return 5;
   var cfg = getImportScoringCfg_();
   var seuils = cfg.seuils.ABS;
   var scoreDJ = attribuerScoreParSeuil_(dj, seuils.DJ);

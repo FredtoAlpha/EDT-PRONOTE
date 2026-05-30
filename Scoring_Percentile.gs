@@ -1,45 +1,69 @@
 /**
  * ===================================================================
- * SCORING_PERCENTILE.JS — Moteur de scoring par percentile
+ * SCORING_PERCENTILE.JS - Moteur de scoring par percentile
  * ===================================================================
  *
- * Calcule les scores 1-4 en se basant sur le rang de chaque élève
- * dans la cohorte, plutôt que sur des seuils fixes.
+ * Calcule les scores 1-5 en se basant sur le rang de chaque eleve dans
+ * la cohorte, plutot que sur des seuils fixes.
  *
- * Distribution configurable : { 1: 0.10, 2: 0.25, 3: 0.40, 4: 0.25 }
- * → score 1 = bottom 10%, score 2 = next 25%, score 3 = next 40%, score 4 = top 25%
+ * Distribution configurable par defaut :
+ * { 1: 0.10, 2: 0.20, 3: 0.40, 4: 0.20, 5: 0.10 }
  *
- * @version 1.0.0
+ * @version 1.1.0
  * ===================================================================
  */
 
+function getPercentileScoreValues_() {
+  if (typeof HARMONY_SCORE_VALUES !== 'undefined' && HARMONY_SCORE_VALUES && HARMONY_SCORE_VALUES.length) {
+    return HARMONY_SCORE_VALUES;
+  }
+  return [1, 2, 3, 4, 5];
+}
+
+function getDefaultPercentileDistribution_() {
+  return { 1: 0.10, 2: 0.20, 3: 0.40, 4: 0.20, 5: 0.10 };
+}
+
+function normalizePercentileDistribution_(distribution) {
+  var scoreValues = getPercentileScoreValues_();
+  var fallback = getDefaultPercentileDistribution_();
+  var normalized = {};
+  var distSum = 0;
+  distribution = distribution || fallback;
+
+  scoreValues.forEach(function(score) {
+    var raw = distribution[score] !== undefined ? Number(distribution[score]) : (fallback[score] || 0);
+    normalized[score] = isNaN(raw) ? 0 : raw;
+    distSum += normalized[score];
+  });
+
+  if (distSum <= 0) return fallback;
+
+  if (Math.abs(distSum - 1.0) > 0.05) {
+    if (typeof Logger !== 'undefined') {
+      Logger.log('Distribution percentile invalide (somme=' + distSum.toFixed(3) + '), normalisation...');
+    }
+    scoreValues.forEach(function(score) {
+      normalized[score] = normalized[score] / distSum;
+    });
+  }
+
+  return normalized;
+}
+
 /**
- * Calcule les scores 1-4 par percentile pour un tableau de valeurs.
+ * Calcule les scores 1-5 par percentile pour un tableau de valeurs.
  *
  * @param {Array} entries - Tableau de { index: number, valeur: number|null }
- *   - index = identifiant unique de l'élève (position dans le tableau original)
- *   - valeur = note brute (null = pas de note → exclu du calcul)
- * @param {Object} distribution - { 1: fraction, 2: fraction, 3: fraction, 4: fraction }
- *   Les fractions doivent sommer à 1.0 (±0.01)
- * @returns {Array} Tableau de { index, valeur, score } (mêmes entries + score ajouté)
+ * @param {Object} distribution - Fractions par score, ex { 1:.10, ..., 5:.10 }
+ * @returns {Array} Tableau de { index, valeur, score }
  */
 function computePercentileScores(entries, distribution) {
   if (!entries || entries.length === 0) return [];
-  if (!distribution) distribution = { 1: 0.10, 2: 0.25, 3: 0.40, 4: 0.25 };
 
-  // Valider que la distribution somme à ~1.0, normaliser sinon
-  var distSum = (distribution[1] || 0) + (distribution[2] || 0) + (distribution[3] || 0) + (distribution[4] || 0);
-  if (distSum > 0 && Math.abs(distSum - 1.0) > 0.05) {
-    Logger.log('⚠️ Distribution percentile invalide (somme=' + distSum.toFixed(3) + '), normalisation...');
-    distribution = {
-      1: (distribution[1] || 0) / distSum,
-      2: (distribution[2] || 0) / distSum,
-      3: (distribution[3] || 0) / distSum,
-      4: (distribution[4] || 0) / distSum
-    };
-  }
+  var scoreValues = getPercentileScoreValues_();
+  distribution = normalizePercentileDistribution_(distribution);
 
-  // Séparer les entrées avec/sans valeur
   var withValue = [];
   var withoutValue = [];
 
@@ -55,109 +79,93 @@ function computePercentileScores(entries, distribution) {
     return withoutValue;
   }
 
-  // Trier par valeur croissante
   withValue.sort(function(a, b) { return a.valeur - b.valeur; });
 
   var N = withValue.length;
+  var cuts = [];
+  var cumulative = 0;
 
-  // Calculer les seuils de coupure cumulés (0 est une valeur valide, ne pas remplacer par défaut)
-  var cumul1 = distribution[1] !== undefined ? distribution[1] : 0.10;
-  var cumul2 = cumul1 + (distribution[2] !== undefined ? distribution[2] : 0.25);
-  var cumul3 = cumul2 + (distribution[3] !== undefined ? distribution[3] : 0.40);
-  // Le reste va au score 4
-
-  // Indices de coupure
-  var cut1 = Math.floor(N * cumul1);
-  var cut2 = Math.floor(N * cumul2);
-  var cut3 = Math.floor(N * cumul3);
-
-  // Assigner les scores
-  for (var i = 0; i < withValue.length; i++) {
-    if (i < cut1) {
-      withValue[i].score = 1;
-    } else if (i < cut2) {
-      withValue[i].score = 2;
-    } else if (i < cut3) {
-      withValue[i].score = 3;
-    } else {
-      withValue[i].score = 4;
-    }
+  for (var c = 0; c < scoreValues.length - 1; c++) {
+    cumulative += distribution[scoreValues[c]] || 0;
+    cuts.push(Math.floor(N * cumulative));
   }
 
-  // Fusionner et retourner
+  for (var j = 0; j < withValue.length; j++) {
+    var assigned = scoreValues[scoreValues.length - 1];
+    for (var k = 0; k < cuts.length; k++) {
+      if (j < cuts[k]) {
+        assigned = scoreValues[k];
+        break;
+      }
+    }
+    withValue[j].score = assigned;
+  }
+
   return withValue.concat(withoutValue);
 }
 
 /**
- * Calcule les seuils de coupure percentile pour une série de valeurs.
- * Utile pour l'affichage dans l'UI (montrer les notes de coupure).
+ * Calcule les seuils de coupure percentile pour une serie de valeurs.
  *
- * @param {number[]} valeurs - Notes brutes (exclure les null avant d'appeler)
- * @param {Object} distribution - { 1: fraction, 2: fraction, 3: fraction, 4: fraction }
- * @returns {Object} {
- *   cutoffs: [c1, c2, c3], // notes de coupure entre score 1-2, 2-3, 3-4
- *   counts: [n1, n2, n3, n4], // nombre d'élèves par score
- *   total: number
- * }
+ * @param {number[]} valeurs - Notes brutes valides ou nulles
+ * @param {Object} distribution - Fractions par score
+ * @returns {Object} { cutoffs, counts, total }
  */
 function computePercentileSeuils(valeurs, distribution) {
-  if (!valeurs || valeurs.length === 0) {
-    return { cutoffs: [0, 0, 0], counts: [0, 0, 0, 0], total: 0 };
-  }
-  if (!distribution) distribution = { 1: 0.10, 2: 0.25, 3: 0.40, 4: 0.25 };
+  var scoreValues = getPercentileScoreValues_();
+  var emptyCutoffs = [];
+  var emptyCounts = [];
+  for (var z = 0; z < scoreValues.length - 1; z++) emptyCutoffs.push(0);
+  for (var y = 0; y < scoreValues.length; y++) emptyCounts.push(0);
 
-  // Filtrer les valeurs valides et trier
+  if (!valeurs || valeurs.length === 0) {
+    return { cutoffs: emptyCutoffs, counts: emptyCounts, total: 0 };
+  }
+
+  distribution = normalizePercentileDistribution_(distribution);
+
   var sorted = valeurs.filter(function(v) {
     return v !== null && v !== undefined && !isNaN(v);
   }).sort(function(a, b) { return a - b; });
 
   var N = sorted.length;
   if (N === 0) {
-    return { cutoffs: [0, 0, 0], counts: [0, 0, 0, 0], total: 0 };
+    return { cutoffs: emptyCutoffs, counts: emptyCounts, total: 0 };
   }
 
-  var cumul1 = distribution[1] !== undefined ? distribution[1] : 0.10;
-  var cumul2 = cumul1 + (distribution[2] !== undefined ? distribution[2] : 0.25);
-  var cumul3 = cumul2 + (distribution[3] !== undefined ? distribution[3] : 0.40);
+  var cutoffs = [];
+  var counts = [];
+  var cumulative = 0;
+  var previousCut = 0;
 
-  var idx1 = Math.max(0, Math.floor(N * cumul1) - 1);
-  var idx2 = Math.max(0, Math.floor(N * cumul2) - 1);
-  var idx3 = Math.max(0, Math.floor(N * cumul3) - 1);
-
-  var cut1 = Math.floor(N * cumul1);
-  var cut2 = Math.floor(N * cumul2);
-  var cut3 = Math.floor(N * cumul3);
+  for (var i = 0; i < scoreValues.length - 1; i++) {
+    cumulative += distribution[scoreValues[i]] || 0;
+    var cut = Math.floor(N * cumulative);
+    var idx = Math.max(0, Math.min(N - 1, cut - 1));
+    cutoffs.push(Math.round(sorted[idx] * 100) / 100);
+    counts.push(cut - previousCut);
+    previousCut = cut;
+  }
+  counts.push(N - previousCut);
 
   return {
-    cutoffs: [
-      Math.round(sorted[idx1] * 100) / 100,
-      Math.round(sorted[idx2] * 100) / 100,
-      Math.round(sorted[idx3] * 100) / 100
-    ],
-    counts: [
-      cut1,
-      cut2 - cut1,
-      cut3 - cut2,
-      N - cut3
-    ],
+    cutoffs: cutoffs,
+    counts: counts,
     total: N
   };
 }
 
 /**
- * Applique le scoring percentile sur un critère complet.
- * Wrapper de haut niveau pour le pipeline Backend_Scores.
+ * Applique le scoring percentile sur un critere complet.
  *
- * @param {Array} resultats - Tableau de résultats bruts
- *   Chaque élément doit avoir: { nom, classe, valeurBrute }
- * @param {string} scoreField - Nom du champ score à remplir (ex: 'scoreTRA')
- * @param {Object} [distribution] - Distribution personnalisée
- * @returns {Array} Mêmes résultats avec le champ score rempli
+ * @param {Array} resultats - Tableau de resultats bruts
+ * @param {string} scoreField - Nom du champ score a remplir (ex: 'scoreTRA')
+ * @param {Object} [distribution] - Distribution personnalisee
+ * @returns {Array} Memes resultats avec le champ score rempli
  */
 function applyPercentileToResults(resultats, scoreField, distribution) {
   if (!resultats || resultats.length === 0) return resultats;
 
-  // Construire les entries pour le moteur
   var entries = [];
   for (var i = 0; i < resultats.length; i++) {
     entries.push({
@@ -166,10 +174,8 @@ function applyPercentileToResults(resultats, scoreField, distribution) {
     });
   }
 
-  // Calculer les scores
   var scored = computePercentileScores(entries, distribution);
 
-  // Réinjecter dans les résultats
   for (var j = 0; j < scored.length; j++) {
     var idx = scored[j].index;
     resultats[idx][scoreField] = scored[j].score;

@@ -490,6 +490,11 @@
       background: #eff6ff;
     }
 
+    .issue.success {
+      border-left-color: var(--green);
+      background: #f0fdf4;
+    }
+
     .issue strong {
       display: block;
       margin-bottom: 2px;
@@ -1458,6 +1463,7 @@
         var classes = diagnostics.classes || {};
         var duplicates = diagnostics.duplicates || [];
         var duplicateCount = duplicates.length;
+        var directScores = !!(res.directScores || res.sourceType === 'EDT_PRONOTE_CLASSEMENT');
         var html = '<div class="metric-grid">' +
           metric(res.count || 0, 'eleves') +
           metric(Object.keys(classes).length, 'classes detectees') +
@@ -1465,6 +1471,13 @@
           metric(duplicateCount, 'doublons NOM/PRENOM') +
           '</div>' +
           '<div class="chips">' + classesChips(classes) + '</div>';
+        if (directScores) {
+          html += '<div class="issue success"><strong>Mode EDT/PRONOTE detecte</strong>' +
+            '<div>Le CSV respecte le modele a deux lignes d en-tete. Mapping applique : Niveau scolaire -> TRA, Comportement -> COM, Absenteisme -> ABS, A definir -> PART.</div>' +
+            '<div class="muted">Niveau actif : ' + escapeHtml(res.niveau || '-') +
+            ' | exclus hors niveau : ' + (diagnostics.excludedByLevel || 0) +
+            ' | criteres vides passes a C : ' + (diagnostics.criteriaDefaulted || 0) + '</div></div>';
+        }
         if (duplicateCount > 0) {
           html += '<div class="issue warning"><strong>' + duplicateCount + ' doublon(s) NOM/PRENOM</strong>';
           html += 'La compilation sera bloquee tant qu ils ne sont pas leves. ';
@@ -1861,8 +1874,8 @@
     }
 
     function renderDistribution(dist) {
-      var max = Math.max(1, dist['1'] || 0, dist['2'] || 0, dist['3'] || 0, dist['4'] || 0);
-      return ['1', '2', '3', '4'].map(function(score) {
+      var max = Math.max(1, dist['1'] || 0, dist['2'] || 0, dist['3'] || 0, dist['4'] || 0, dist['5'] || 0);
+      return ['1', '2', '3', '4', '5'].map(function(score) {
         var value = dist[score] || 0;
         return '<div class="dist"><strong>' + score + '</strong><div class="bar"><span style="width:' + ((value / max) * 100) + '%"></span></div><span>' + value + '</span></div>';
       }).join('');
