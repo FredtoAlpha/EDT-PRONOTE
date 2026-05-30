@@ -66,6 +66,11 @@ Le même code se comporte différemment selon ce sélecteur, verrouillé après 
 ```
 src/                  ← SOURCE DE VÉRITÉ. Seul dossier poussé par clasp. Code propre 1-5.
   appsscript.json     ← manifeste Apps Script
+  Score.gs            ← échelle 1-5 UNIQUE : mapping A-E↔5-1, libellés, composite, helpers
+  Config.gs           ← _CONFIG (get/set) + getNiveau() unifié (format "6e")
+  ScoreSeuils.gs      ← seuils valeur→score 1-5 (mode Pronote-moyennes, optionnel)
+  Matieres.gs         ← coefficients matières par niveau (table UNIQUE)
+tests/                ← non déployé. run_tests.js (Node) + Tests_Score.gs (éditeur GAS)
 legacy/               ← ancien code score-pilotage-classes. RÉFÉRENCE LECTURE SEULE.
                         Jamais déployé. On y relit les briques à réécrire propre, on n'y touche pas.
 scripts/deploy.sh     ← déploiement multi-tenant (1 commande → 1 ou 4 instances)
@@ -109,10 +114,22 @@ deployments.json      ← table des 4 cibles (scriptId + spreadsheetId par nivea
 ## Plan de chantier
 
 - [x] **Sprint 0 — Mise en place** : accès dépôt, branche, structure clasp, `deployments.json`, README, décisions ouvertes tranchées.
-- [ ] **Sprint 1 — Socle scoring 1-5 + config niveau** : `Score.gs` (échelle unique, mapping A-E↔5-1, libellés, `isEnDifficulte`/`isExcellent`), `Config.gs` (niveau unifié format `"6e"`), seuils 5 niveaux, coefficients matières uniques, tests.
+- [x] **Sprint 1 — Socle scoring 1-5 + config niveau** : `Score.gs` (échelle unique, mapping A-E↔5-1 paramétrable, libellés, `isEnDifficulte`/`isExcellent`, composite pondéré), `Config.gs` (niveau unifié `getNiveau()` format `"6e"`, remplace les 2 doublons), `ScoreSeuils.gs` (seuils 1-5 + percentile, mode Pronote optionnel), `Matieres.gs` (table coefficients unique). **47 tests Node OK**.
 - [ ] **Sprint 2 — Parser EDT + import** : `ImportEDT.gs` (double en-tête, mapping configurable, 3 états, filtrage `_CONFIG.NIVEAU`, LV2/OPT, MEF spéciaux), preflight, **UI d'import unique**, dry-run sur CSV réel.
 - [ ] **Sprint 3 — Contraintes EDT + répartition** : modèle élève étendu (regroupeAvec / separeDe / verrou), moteur adapté (verrou = dur, regroupé/séparé = forts), affichage conflits résiduels.
 - [ ] **Sprint 4 — Multi-tenant + finition** : `deploy.sh` 4 instances, badge niveau permanent, console direction (option), mot de passe admin robuste en `_CONFIG!B2` (RGPD).
+
+---
+
+## Tests
+
+```bash
+npm test            # logique pure du socle scoring (Node, sans Apps Script)
+```
+
+Les modules `src/*.gs` exposent un `module.exports` sous garde `typeof module`,
+inerte sous Apps Script mais permettant de tester la logique pure en Node. Les
+fonctions touchant `SpreadsheetApp` se testent dans l'éditeur via `tests/Tests_Score.gs`.
 
 ---
 
