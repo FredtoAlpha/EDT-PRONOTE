@@ -74,6 +74,10 @@ src/                  ← SOURCE DE VÉRITÉ. Seul dossier poussé par clasp. Co
                         filtrage niveau, options (O)/(F)/(X), MEF spéciaux, preflight, dry-run
   Repartition.gs      ← moteur de répartition UNIQUE : équilibrage (effectif/parité/niveau)
                         + moves + swaps, contraintes VERROU/ASSO/DISSO, rapport de conflits
+  Admin.gs            ← mot de passe admin robuste (sel+SHA-256, jamais admin123/1234)
+  EcritureClasses.gs  ← écriture répartition → onglets de classes + BILAN
+  Code.gs             ← points d'entrée (menu, web app doGet, API serveur) — couche fine
+  Interface.html      ← UI UNIQUE : badge niveau permanent, import dry-run, répartition
 tests/                ← non déployé. run_tests*.js (Node) + Tests_Score.gs (éditeur GAS)
                         fixtures/*.local.csv (gitignoré, RGPD)
 legacy/               ← ancien code score-pilotage-classes. RÉFÉRENCE LECTURE SEULE.
@@ -122,7 +126,7 @@ deployments.json      ← table des 4 cibles (scriptId + spreadsheetId par nivea
 - [x] **Sprint 1 — Socle scoring 1-5 + config niveau** : `Score.gs` (échelle unique, mapping A-E↔5-1 paramétrable, libellés, `isEnDifficulte`/`isExcellent`, composite pondéré), `Config.gs` (niveau unifié `getNiveau()` format `"6e"`, remplace les 2 doublons), `ScoreSeuils.gs` (seuils 1-5 + percentile, mode Pronote optionnel), `Matieres.gs` (table coefficients unique). **47 tests Node OK**.
 - [x] **Sprint 2 — Parser EDT (dry-run)** : `ImportEDT.gs` — CSV quote-aware, double en-tête, mapping colonnes auto, **3 états** (absent/vide/rempli), filtrage par niveau (MEF prévisionnel), `parseOptions` avec statuts (O)/(F)/(X), MEF spéciaux (UPE2A/ULIS), preflight (homonymes, profils, contraintes) + dry-run. **53 tests Node OK + smoke test sur le CSV réel (157 élèves)**. _Reste : UI d'import unique + écriture (quand les Google Sheets seront prêts)._
 - [x] **Sprint 3 — Contraintes EDT + répartition** : `Repartition.gs` — moteur unique réécrit (remplace Orchestration_V14I + Phases_BASEOPTI_V3 + Phase4 + doublons LEGACY/NAUTILUS). Équilibrage multi-critères (effectif, parité F/G, niveau composite, élèves en difficulté) par **moves + swaps** ; **VERROU** (dur), **REGROUPÉ/ASSO** (fort, cassé seulement si impossible + signalement), **SÉPARÉ/DISSO** (fort, conflits résiduels signalés). **16 tests Node OK** dont répartition réelle 157→5 classes (31/32, parité et niveau homogènes). _Reste : UI d'affichage des conflits (avec les Sheets)._
-- [ ] **Sprint 4 — Multi-tenant + finition** : `deploy.sh` 4 instances, badge niveau permanent, console direction (option), mot de passe admin robuste en `_CONFIG!B2` (RGPD).
+- [x] **Sprint 4 — Multi-tenant + finition** : `scripts/deploy.sh` (4 instances depuis `deployments.json`), **UI unique** `Interface.html` avec badge niveau permanent, glue `Code.gs` (menu + web app + API), écriture `EcritureClasses.gs` (onglets de classes + BILAN), **mot de passe admin robuste** `Admin.gs` (sel+SHA-256 dans `_CONFIG`, anciens défauts `admin123`/`1234` explicitement refusés). **13 tests Node OK**. _Reste : Script IDs des 4 Sheets à renseigner + test live (console direction optionnelle non implémentée)._
 
 ---
 
