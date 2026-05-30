@@ -1,6 +1,6 @@
 {
-  "_comment": "Cibles de deploiement multi-tenant. UN code source (src/), QUATRE Google Sheets / projets Apps Script. Renseigner chaque scriptId reel puis deployer via npm run push:<niveau> (voir scripts/deploy.sh).",
-  "rootDir": "src",
+  "_comment": "Cibles de deploiement multi-tenant. UN code source (racine du depot), QUATRE Google Sheets / projets Apps Script. Renseigner chaque scriptId reel puis deployer via scripts/deploy.sh <niveau>.",
+  "rootDir": ".",
   "deployments": [
     {
       "niveau": "6e",

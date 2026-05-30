@@ -1,0 +1,92 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <base target="_top">
+  <meta charset="utf-8">
+  <style>
+    :root { --indigo:#6366f1; --teal:#0f766e; --bg:#f8fafc; --txt:#1e293b; --muted:#64748b; }
+    * { box-sizing:border-box; }
+    body { font-family:-apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif; margin:0; background:var(--bg); color:var(--txt); }
+    header { display:flex; align-items:center; gap:12px; padding:14px 20px; background:#fff; border-bottom:1px solid #e2e8f0; position:sticky; top:0; }
+    header h1 { font-size:16px; margin:0; flex:1; }
+    .badge { background:var(--indigo); color:#fff; font-weight:700; padding:6px 14px; border-radius:999px; font-size:14px; letter-spacing:.5px; }
+    main { padding:20px; max-width:860px; margin:0 auto; }
+    .card { background:#fff; border:1px solid #e2e8f0; border-radius:12px; padding:18px; margin-bottom:16px; }
+    .card h2 { font-size:14px; margin:0 0 12px; color:var(--muted); text-transform:uppercase; letter-spacing:.5px; }
+    textarea { width:100%; height:140px; border:1px solid #cbd5e1; border-radius:8px; padding:10px; font-family:monospace; font-size:12px; resize:vertical; }
+    .row { display:flex; gap:10px; align-items:center; flex-wrap:wrap; margin-top:12px; }
+    label { font-size:13px; color:var(--muted); }
+    input[type=number] { width:70px; padding:6px; border:1px solid #cbd5e1; border-radius:6px; }
+    button { background:var(--indigo); color:#fff; border:none; padding:9px 16px; border-radius:8px; font-weight:600; cursor:pointer; }
+    button.secondary { background:#fff; color:var(--indigo); border:1px solid var(--indigo); }
+    button:disabled { opacity:.5; cursor:not-allowed; }
+    pre { background:#0f172a; color:#e2e8f0; padding:14px; border-radius:8px; font-size:12px; overflow:auto; white-space:pre-wrap; }
+    .conflits { color:#b91c1c; font-weight:600; }
+    .ok { color:var(--teal); }
+    .hint { font-size:12px; color:var(--muted); margin-top:6px; }
+  </style>
+</head>
+<body>
+  <header>
+    <span class="badge" id="badgeNiveau">Niveau …</span>
+    <h1>EDT-PRONOTE — Repartition des eleves</h1>
+  </header>
+  <main>
+    <div class="card">
+      <h2>1. Fichier EDT (coller le CSV)</h2>
+      <textarea id="csv" placeholder="Coller ici le contenu du fichier EDT (avec les 2 lignes d'en-tete)…"></textarea>
+      <div class="hint">Seuls les eleves du niveau <b id="hintNiveau">courant</b> seront conserves (filtrage par MEF previsionnel).</div>
+      <div class="row">
+        <button class="secondary" id="btnApercu">Apercu (dry-run)</button>
+        <label>Nombre de classes</label>
+        <input type="number" id="nbClasses" value="4" min="1" max="20">
+        <button id="btnRepartir">Importer et repartir</button>
+      </div>
+    </div>
+
+    <div class="card" id="cardResultat" style="display:none">
+      <h2>Resultat</h2>
+      <pre id="sortie"></pre>
+    </div>
+  </main>
+
+  <script>
+    var ctx = null;
+    function setBusy(b) { document.getElementById('btnApercu').disabled = b; document.getElementById('btnRepartir').disabled = b; }
+    function show(txt) { document.getElementById('cardResultat').style.display = 'block'; document.getElementById('sortie').textContent = txt; }
+
+    google.script.run.withSuccessHandler(function (c) {
+      ctx = c;
+      document.getElementById('badgeNiveau').textContent = 'Niveau ' + c.niveau;
+      document.getElementById('hintNiveau').textContent = c.niveau;
+    }).apiContexte();
+
+    document.getElementById('btnApercu').onclick = function () {
+      var csv = document.getElementById('csv').value;
+      if (!csv.trim()) { show('Coller d\'abord le contenu du fichier EDT.'); return; }
+      setBusy(true); show('Analyse en cours…');
+      google.script.run.withSuccessHandler(function (r) {
+        setBusy(false);
+        show(r.ok ? r.resume : ('Erreur : ' + r.message));
+      }).withFailureHandler(function (e) { setBusy(false); show('Erreur : ' + e.message); }).apiApercuImport(csv);
+    };
+
+    document.getElementById('btnRepartir').onclick = function () {
+      var csv = document.getElementById('csv').value;
+      var nb = parseInt(document.getElementById('nbClasses').value, 10) || 4;
+      if (!csv.trim()) { show('Coller d\'abord le contenu du fichier EDT.'); return; }
+      if (!confirm('Importer et repartir en ' + nb + ' classes pour le niveau ' + ctx.niveau + ' ?\nLes onglets de classes seront (re)ecrits.')) return;
+      setBusy(true); show('Repartition en cours…');
+      google.script.run.withSuccessHandler(function (r) {
+        setBusy(false);
+        if (!r.ok) { show('Erreur : ' + r.message); return; }
+        var t = '=== IMPORT ===\n' + r.resumeImport + '\n\n=== REPARTITION ===\n' + r.resumeRepartition;
+        var nbConflits = (r.conflits.assoCasse.length + r.conflits.dissoNonResolu.length);
+        t += '\n\n' + (nbConflits ? ('⚠ ' + nbConflits + ' conflit(s) residuel(s).') : '✓ Aucun conflit residuel.');
+        t += '\n\nOnglets ecrits : ' + r.onglets.join(', ');
+        show(t);
+      }).withFailureHandler(function (e) { setBusy(false); show('Erreur : ' + e.message); }).apiImporterEtRepartir(csv, nb);
+    };
+  </script>
+</body>
+</html>
