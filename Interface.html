@@ -28,8 +28,17 @@
 </head>
 <body>
   <header>
-    <span class="badge" id="badgeNiveau">Niveau …</span>
+    <label class="badge" style="display:flex;align-items:center;gap:6px;">Niveau
+      <select id="selNiveau" style="border:none;background:transparent;color:#fff;font-weight:700;font-size:14px;cursor:pointer;">
+        <option value="">…</option>
+        <option value="6e">6e</option>
+        <option value="5e">5e</option>
+        <option value="4e">4e</option>
+        <option value="3e">3e</option>
+      </select>
+    </label>
     <h1>EDT-PRONOTE — Repartition des eleves</h1>
+    <span id="msgNiveau" class="hint" style="margin:0;"></span>
   </header>
   <main>
     <div class="card">
@@ -55,11 +64,27 @@
     function setBusy(b) { document.getElementById('btnApercu').disabled = b; document.getElementById('btnRepartir').disabled = b; }
     function show(txt) { document.getElementById('cardResultat').style.display = 'block'; document.getElementById('sortie').textContent = txt; }
 
+    function majNiveauUI(niv) {
+      document.getElementById('selNiveau').value = niv;
+      document.getElementById('hintNiveau').textContent = niv;
+    }
+
     google.script.run.withSuccessHandler(function (c) {
       ctx = c;
-      document.getElementById('badgeNiveau').textContent = 'Niveau ' + c.niveau;
-      document.getElementById('hintNiveau').textContent = c.niveau;
+      majNiveauUI(c.niveau);
     }).apiContexte();
+
+    // Changement de niveau immediat, sans menu ni verrou.
+    document.getElementById('selNiveau').onchange = function () {
+      var niv = this.value;
+      if (!niv) return;
+      var msg = document.getElementById('msgNiveau');
+      msg.textContent = 'Changement…';
+      google.script.run.withSuccessHandler(function (r) {
+        if (r.ok) { ctx.niveau = r.niveau; majNiveauUI(r.niveau); msg.textContent = 'Niveau : ' + r.niveau; }
+        else { msg.textContent = r.message; }
+      }).withFailureHandler(function (e) { msg.textContent = 'Erreur : ' + e.message; }).apiDefinirNiveau(niv);
+    };
 
     document.getElementById('btnApercu').onclick = function () {
       var csv = document.getElementById('csv').value;

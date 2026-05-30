@@ -15,8 +15,7 @@ function onOpen() {
     .createMenu('EDT-PRONOTE')
     .addItem('Ouvrir la console', 'ouvrirConsole')
     .addSeparator()
-    .addItem('Definir le niveau de cette instance', 'dialogueNiveau')
-    .addItem('Definir le mot de passe admin', 'dialogueMotDePasse')
+    .addItem('Changer le niveau', 'dialogueNiveau')
     .addToUi();
 }
 
@@ -46,8 +45,7 @@ function include(nom) {
 function apiContexte() {
   return {
     niveau: getNiveau(),
-    niveauVerrouille: String(configGet('NIVEAU_LOCKED', 'false')).toLowerCase() === 'true',
-    motDePasseConfigure: motDePasseAdminConfigure(),
+    niveaux: NIVEAUX_VALIDES,
     libelles: SCORE_LIBELLES
   };
 }
@@ -87,41 +85,19 @@ function apiImporterEtRepartir(csvText, nbClasses) {
   }
 }
 
-/** Definit le niveau de l'instance (verrou). */
+/** Change le niveau de l'instance (librement). */
 function apiDefinirNiveau(niveau) {
   return setNiveau(niveau);
 }
 
-/** Definit le mot de passe admin. */
-function apiDefinirMotDePasse(pwd) {
-  return definirMotDePasseAdmin(pwd);
-}
-
 // =============================================================================
-// Dialogues simples (menu)
+// Dialogue simple (menu)
 // =============================================================================
 
 function dialogueNiveau() {
   var ui = SpreadsheetApp.getUi();
-  var r = ui.prompt('Niveau de cette instance', 'Saisir : 6e, 5e, 4e ou 3e', ui.ButtonSet.OK_CANCEL);
+  var r = ui.prompt('Changer le niveau', 'Saisir : 6e, 5e, 4e ou 3e (actuel : ' + getNiveau() + ')', ui.ButtonSet.OK_CANCEL);
   if (r.getSelectedButton() !== ui.Button.OK) return;
   var res = setNiveau(r.getResponseText());
   ui.alert(res.message);
-}
-
-function dialogueMotDePasse() {
-  var ui = SpreadsheetApp.getUi();
-  var r = ui.prompt('Mot de passe admin',
-    'Min 10 caracteres, 1 maj, 1 min, 1 chiffre. (vide = generer un mot de passe robuste)',
-    ui.ButtonSet.OK_CANCEL);
-  if (r.getSelectedButton() !== ui.Button.OK) return;
-  var pwd = r.getResponseText();
-  if (!pwd) {
-    pwd = genererMotDePasse(14);
-    var res = definirMotDePasseAdmin(pwd);
-    ui.alert(res.ok ? ('Mot de passe genere (a noter) :\n\n' + pwd) : res.message);
-    return;
-  }
-  var def = definirMotDePasseAdmin(pwd);
-  ui.alert(def.ok ? def.message : (def.message + '\n- ' + (def.raisons || []).join('\n- ')));
 }

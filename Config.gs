@@ -9,8 +9,8 @@
  * au profit d'UNE seule fonction getNiveau(), format canonique unique "6e".
  *
  * Multi-tenant : chaque spreadsheet porte son niveau dans _CONFIG.NIVEAU.
- * Le meme code se comporte differemment selon ce selecteur, verrouille
- * apres init (NIVEAU_LOCKED).
+ * Le meme code se comporte differemment selon ce selecteur, modifiable
+ * librement a tout moment (aucun verrou).
  *
  * Schema de l'onglet _CONFIG : table cle/valeur en colonnes A (PARAM) / B (VALEUR).
  * ===================================================================
@@ -151,28 +151,18 @@ function getNiveau() {
 }
 
 /**
- * Fixe le niveau du spreadsheet (init multi-tenant) puis le verrouille.
- * Refuse de changer un niveau deja verrouille (securite prof : evite qu'un
- * import croise reecrive le niveau d'une instance).
+ * Fixe le niveau du spreadsheet. Modifiable librement a tout moment.
  *
  * @param {string} niveau
- * @param {boolean} [force] true pour outrepasser le verrou (admin)
  * @returns {{ok:boolean, niveau:string, message:string}}
  */
-function setNiveau(niveau, force) {
+function setNiveau(niveau) {
   var canon = normalizeNiveau(niveau);
   if (!isNiveauValide(canon)) {
-    return { ok: false, niveau: null, message: 'Niveau invalide: ' + niveau };
-  }
-  var locked = String(configGet('NIVEAU_LOCKED', 'false')).toLowerCase() === 'true';
-  var current = normalizeNiveau(configGet('NIVEAU', null));
-  if (locked && current && current !== canon && !force) {
-    return { ok: false, niveau: current,
-      message: 'Niveau verrouille sur ' + current + ' (force requis pour changer).' };
+    return { ok: false, niveau: null, message: 'Niveau invalide: ' + niveau + ' (attendu 6e/5e/4e/3e).' };
   }
   configSet('NIVEAU', canon);
-  configSet('NIVEAU_LOCKED', 'true');
-  return { ok: true, niveau: canon, message: 'Niveau fixe sur ' + canon + ' (verrouille).' };
+  return { ok: true, niveau: canon, message: 'Niveau change : ' + canon + '.' };
 }
 
 // Export Node pour les tests (inerte sous Apps Script).
