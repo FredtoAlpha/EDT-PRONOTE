@@ -4,7 +4,7 @@
 <head>
     <base target="_top">
     <meta charset="UTF-8">
-    <title>PILOTAGE EXPERT V3</title>
+    <title>Console Admin</title>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;800&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
     <style>
@@ -438,7 +438,7 @@
     <div id="welcome-overlay" class="welcome-overlay">
         <div class="modal" onclick="event.stopPropagation()">
             <div class="modal-icon info"><i class="fas fa-hand-sparkles"></i></div>
-            <h2 class="modal-title">Bienvenue dans le Pilotage V3</h2>
+            <h2 class="modal-title">Bienvenue dans la Console Admin</h2>
             <p class="modal-message">Choisissez comment démarrer : reprendre une session existante ou repartir de zéro.</p>
             <div class="modal-buttons" style="gap: 10px;">
                 <button id="btn-new-config" class="modal-btn modal-btn-secondary" onclick="handleNewConfiguration()">
@@ -453,7 +453,7 @@
     </div>
 
     <aside class="sidebar">
-        <div class="brand"><i class="fas fa-rocket"></i> PILOTE V3</div>
+        <div class="brand"><i class="fas fa-rocket"></i> Console Admin</div>
         <nav>
             <div class="nav-item active" onclick="goTo(1)" id="nav-1"><i class="fas fa-hammer"></i> INIT</div>
             <div class="nav-item" onclick="goTo('import')" id="nav-import"><i class="fas fa-file-import"></i> IMPORT</div>
@@ -740,19 +740,19 @@
                 <div style="display: grid; grid-template-columns: repeat(4, 1fr); gap: 15px;">
                     <div style="text-align:center;">
                         <div style="font-size:12px; color:var(--primary); font-weight:700; margin-bottom:6px;">COM</div>
-                        <input type="number" id="poids-com" value="0.25" step="0.05" min="0" max="1" style="width:65px; background:#0f172a; border:1px solid #334155; color:#e2e8f0; border-radius:6px; padding:6px; text-align:center; font-weight:700;">
+                        <input type="number" id="poids-com" value="0.30" step="0.05" min="0" max="1" style="width:65px; background:#0f172a; border:1px solid #334155; color:#e2e8f0; border-radius:6px; padding:6px; text-align:center; font-weight:700;">
                     </div>
                     <div style="text-align:center;">
                         <div style="font-size:12px; color:var(--primary); font-weight:700; margin-bottom:6px;">TRA</div>
-                        <input type="number" id="poids-tra" value="0.40" step="0.05" min="0" max="1" style="width:65px; background:#0f172a; border:1px solid #334155; color:#e2e8f0; border-radius:6px; padding:6px; text-align:center; font-weight:700;">
+                        <input type="number" id="poids-tra" value="0.30" step="0.05" min="0" max="1" style="width:65px; background:#0f172a; border:1px solid #334155; color:#e2e8f0; border-radius:6px; padding:6px; text-align:center; font-weight:700;">
                     </div>
                     <div style="text-align:center;">
                         <div style="font-size:12px; color:var(--primary); font-weight:700; margin-bottom:6px;">PART</div>
-                        <input type="number" id="poids-part" value="0.10" step="0.05" min="0" max="1" style="width:65px; background:#0f172a; border:1px solid #334155; color:#e2e8f0; border-radius:6px; padding:6px; text-align:center; font-weight:700;">
+                        <input type="number" id="poids-part" value="0.20" step="0.05" min="0" max="1" style="width:65px; background:#0f172a; border:1px solid #334155; color:#e2e8f0; border-radius:6px; padding:6px; text-align:center; font-weight:700;">
                     </div>
                     <div style="text-align:center;">
                         <div style="font-size:12px; color:var(--primary); font-weight:700; margin-bottom:6px;">ABS</div>
-                        <input type="number" id="poids-abs" value="0.25" step="0.05" min="0" max="1" style="width:65px; background:#0f172a; border:1px solid #334155; color:#e2e8f0; border-radius:6px; padding:6px; text-align:center; font-weight:700;">
+                        <input type="number" id="poids-abs" value="0.20" step="0.05" min="0" max="1" style="width:65px; background:#0f172a; border:1px solid #334155; color:#e2e8f0; border-radius:6px; padding:6px; text-align:center; font-weight:700;">
                     </div>
                 </div>
             </div>

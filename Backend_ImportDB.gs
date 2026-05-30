@@ -1304,7 +1304,7 @@ function v3_compileImport(data) {
     ];
 
     var ruleCRIT = SpreadsheetApp.newDataValidation()
-      .requireValueInList(['', '1', '2', '3', '4'], true)
+      .requireValueInList(['', '1', '2', '3', '4', '5'], true)
       .setAllowInvalid(false)
       .build();
 

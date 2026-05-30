@@ -22,8 +22,8 @@ const HARMONY_OPT_LIST = ['CHAV', 'LATIN', 'GREC'];
 // Critères académiques utilisés pour le scoring
 const HARMONY_CRITERIA = ['COM', 'TRA', 'PART', 'ABS'];
 
-// Scores possibles (1 à 4)
-const HARMONY_SCORE_VALUES = [1, 2, 3, 4];
+// Scores possibles (1 à 5) — echelle EDT/PRONOTE A=5..E=1
+const HARMONY_SCORE_VALUES = [1, 2, 3, 4, 5];
 
 /**
  * Vérifie si une valeur est une LV2 connue
@@ -94,7 +94,7 @@ function calculateStudentProfile(row, idx) {
   var count = 0;
   HARMONY_CRITERIA.forEach(function(crit) {
     var val = Number(row[idx[crit]]);
-    if (val >= 1 && val <= 4) {
+    if (val >= 1 && val <= 5) {
       sum += val;
       count++;
     }
