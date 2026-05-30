@@ -171,6 +171,7 @@ function onOpen() {
     .createMenu('🚀 PILOTAGE CLASSE')
     .addItem('📊 Ouvrir SCORE CONSOLE', 'ouvrirConsolePilotageV3')
     .addItem('Assistant Import Pronote', 'ouvrirImportAssistant')
+    .addItem('📥 Importer fichier EDT/PRONOTE', 'ouvrirImportEDT')
     .addSeparator()
     .addSubMenu(SpreadsheetApp.getUi().createMenu('🛠️ Outils Spécifiques')
         .addItem('➕ Intégrer un Nouvel Élève', 'ouvrirModuleNouvelEleve')
