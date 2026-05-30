@@ -1,0 +1,2096 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <base target="_top">
+  <meta charset="utf-8">
+  <style>
+    :root {
+      --bg: #f6f7f9;
+      --panel: #ffffff;
+      --ink: #15202b;
+      --muted: #65717f;
+      --line: #d9dee7;
+      --line-strong: #bcc6d4;
+      --blue: #2563eb;
+      --green: #15803d;
+      --amber: #b45309;
+      --red: #b91c1c;
+      --teal: #0f766e;
+      --shadow: 0 8px 24px rgba(15, 23, 42, 0.08);
+    }
+
+    * {
+      box-sizing: border-box;
+    }
+
+    body {
+      margin: 0;
+      font-family: Arial, Helvetica, sans-serif;
+      background: var(--bg);
+      color: var(--ink);
+      font-size: 14px;
+      line-height: 1.45;
+    }
+
+    button,
+    input,
+    textarea {
+      font: inherit;
+    }
+
+    button {
+      border: 1px solid var(--line-strong);
+      border-radius: 6px;
+      background: #fff;
+      color: var(--ink);
+      cursor: pointer;
+      padding: 9px 12px;
+      min-height: 38px;
+    }
+
+    button:hover:not(:disabled) {
+      border-color: var(--blue);
+      color: var(--blue);
+    }
+
+    button:disabled {
+      cursor: not-allowed;
+      opacity: 0.52;
+    }
+
+    .primary {
+      background: var(--blue);
+      border-color: var(--blue);
+      color: #fff;
+      font-weight: 700;
+    }
+
+    .primary:hover:not(:disabled) {
+      background: #1d4ed8;
+      color: #fff;
+    }
+
+    .danger {
+      border-color: #fecaca;
+      color: var(--red);
+      background: #fff7f7;
+    }
+
+    .quiet {
+      color: var(--muted);
+      background: #f8fafc;
+    }
+
+    .shell {
+      display: grid;
+      grid-template-columns: 320px minmax(0, 1fr);
+      min-height: 100vh;
+    }
+
+    .side {
+      border-right: 1px solid var(--line);
+      background: #fff;
+      padding: 18px;
+      position: sticky;
+      top: 0;
+      height: 100vh;
+      overflow: auto;
+    }
+
+    .brand {
+      margin-bottom: 18px;
+    }
+
+    .brand h1 {
+      margin: 0 0 4px;
+      font-size: 20px;
+      line-height: 1.15;
+    }
+
+    .brand p {
+      margin: 0;
+      color: var(--muted);
+    }
+
+    .lock-banner {
+      display: none;
+      border: 1px solid #fbbf24;
+      background: #fffbeb;
+      color: #78350f;
+      border-radius: 8px;
+      padding: 10px;
+      margin: 12px 0;
+      font-size: 13px;
+    }
+
+    .steps {
+      display: grid;
+      gap: 8px;
+      margin-top: 16px;
+    }
+
+    .step-nav {
+      width: 100%;
+      text-align: left;
+      display: grid;
+      grid-template-columns: 30px 1fr auto;
+      align-items: center;
+      gap: 10px;
+      padding: 10px;
+      border-radius: 8px;
+      border: 1px solid var(--line);
+      background: #fff;
+    }
+
+    .step-nav.active {
+      border-color: var(--blue);
+      box-shadow: 0 0 0 2px rgba(37, 99, 235, 0.11);
+    }
+
+    .step-nav.done .step-index {
+      background: var(--green);
+      color: #fff;
+    }
+
+    .step-index {
+      width: 26px;
+      height: 26px;
+      display: grid;
+      place-items: center;
+      border-radius: 999px;
+      background: #e5e7eb;
+      color: #334155;
+      font-weight: 700;
+      font-size: 12px;
+    }
+
+    .step-title {
+      font-weight: 700;
+    }
+
+    .step-sub {
+      color: var(--muted);
+      font-size: 12px;
+      margin-top: 1px;
+    }
+
+    .badge {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      min-width: 22px;
+      min-height: 22px;
+      border-radius: 999px;
+      background: #eef2ff;
+      color: #3730a3;
+      font-size: 12px;
+      font-weight: 700;
+      padding: 2px 8px;
+    }
+
+    .main {
+      padding: 20px 24px 32px;
+      overflow: auto;
+    }
+
+    .topbar {
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-start;
+      gap: 16px;
+      margin-bottom: 16px;
+    }
+
+    .topbar h2 {
+      margin: 0 0 5px;
+      font-size: 26px;
+      line-height: 1.15;
+    }
+
+    .topbar p {
+      margin: 0;
+      color: var(--muted);
+      max-width: 860px;
+    }
+
+    .status-pill {
+      border: 1px solid var(--line);
+      background: #fff;
+      border-radius: 999px;
+      padding: 7px 10px;
+      color: var(--muted);
+      white-space: nowrap;
+    }
+
+    .stage {
+      display: none;
+    }
+
+    .stage.active {
+      display: block;
+    }
+
+    .layout {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) 360px;
+      gap: 16px;
+      align-items: start;
+    }
+
+    .panel {
+      border: 1px solid var(--line);
+      background: var(--panel);
+      border-radius: 8px;
+      box-shadow: var(--shadow);
+      padding: 16px;
+    }
+
+    .panel + .panel {
+      margin-top: 14px;
+    }
+
+    .panel h3 {
+      margin: 0 0 10px;
+      font-size: 17px;
+    }
+
+    .panel p {
+      margin: 0 0 10px;
+      color: var(--muted);
+    }
+
+    .input-grid {
+      display: grid;
+      gap: 10px;
+    }
+
+    textarea {
+      width: 100%;
+      min-height: 250px;
+      resize: vertical;
+      border: 1px solid var(--line-strong);
+      border-radius: 8px;
+      padding: 12px;
+      background: #fbfdff;
+      color: #0f172a;
+      white-space: pre;
+      overflow: auto;
+    }
+
+    textarea.small {
+      min-height: 170px;
+    }
+
+    .file-row,
+    .actions,
+    .inline-row {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      align-items: center;
+    }
+
+    .file-row {
+      justify-content: space-between;
+      border: 1px dashed var(--line-strong);
+      background: #f8fafc;
+      border-radius: 8px;
+      padding: 10px;
+      transition: border-color 0.15s ease, background 0.15s ease, box-shadow 0.15s ease;
+    }
+
+    .file-row input {
+      max-width: 260px;
+    }
+
+    .file-row.drop-ready {
+      cursor: copy;
+    }
+
+    .file-row.drag-over {
+      border-color: var(--blue);
+      background: #eff6ff;
+      box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.12);
+    }
+
+    .drop-caption {
+      color: var(--muted);
+      font-size: 12px;
+      margin-left: 8px;
+      white-space: nowrap;
+    }
+
+    .actions {
+      justify-content: space-between;
+      border-top: 1px solid var(--line);
+      margin-top: 14px;
+      padding-top: 14px;
+    }
+
+    details {
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      background: #fff;
+      margin-bottom: 10px;
+      overflow: hidden;
+    }
+
+    details[open] {
+      box-shadow: 0 4px 16px rgba(15, 23, 42, 0.05);
+    }
+
+    summary {
+      cursor: pointer;
+      padding: 10px 12px;
+      font-weight: 700;
+      color: #0f172a;
+      list-style-position: inside;
+    }
+
+    .help-body {
+      padding: 0 12px 12px;
+      color: var(--muted);
+    }
+
+    .help-body ul {
+      margin: 8px 0 0 18px;
+      padding: 0;
+    }
+
+    .help-body li {
+      margin: 4px 0;
+    }
+
+    .example-table {
+      width: 100%;
+      border-collapse: collapse;
+      margin-top: 10px;
+      font-size: 12px;
+      color: #1f2937;
+    }
+
+    .example-table th,
+    .example-table td {
+      border: 1px solid var(--line);
+      padding: 6px;
+      text-align: left;
+      vertical-align: top;
+    }
+
+    .example-table th {
+      background: #f1f5f9;
+    }
+
+    .result {
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      background: #f8fafc;
+      padding: 12px;
+      min-height: 70px;
+    }
+
+    .result.ok {
+      border-color: #bbf7d0;
+      background: #f0fdf4;
+      color: #14532d;
+    }
+
+    .result.warn {
+      border-color: #fed7aa;
+      background: #fff7ed;
+      color: #7c2d12;
+    }
+
+    .result.error {
+      border-color: #fecaca;
+      background: #fef2f2;
+      color: #7f1d1d;
+    }
+
+    .metric-grid {
+      display: grid;
+      grid-template-columns: repeat(4, minmax(0, 1fr));
+      gap: 10px;
+      margin: 10px 0;
+    }
+
+    .metric {
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      padding: 10px;
+      background: #fff;
+    }
+
+    .metric .value {
+      font-size: 23px;
+      font-weight: 800;
+      line-height: 1.1;
+    }
+
+    .metric .label {
+      color: var(--muted);
+      font-size: 12px;
+      margin-top: 3px;
+    }
+
+    .chips {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 6px;
+      margin-top: 8px;
+    }
+
+    .chip {
+      border: 1px solid var(--line);
+      border-radius: 999px;
+      padding: 4px 8px;
+      background: #fff;
+      color: #334155;
+      font-size: 12px;
+    }
+
+    .chip.green {
+      border-color: #bbf7d0;
+      background: #f0fdf4;
+      color: #166534;
+    }
+
+    .chip.amber {
+      border-color: #fed7aa;
+      background: #fff7ed;
+      color: #9a3412;
+    }
+
+    .chip.red {
+      border-color: #fecaca;
+      background: #fef2f2;
+      color: #991b1b;
+    }
+
+    .issue {
+      border-left: 4px solid var(--line-strong);
+      background: #fff;
+      border-radius: 6px;
+      padding: 9px 10px;
+      margin: 8px 0;
+    }
+
+    .issue.error {
+      border-left-color: var(--red);
+      background: #fef2f2;
+    }
+
+    .issue.warning {
+      border-left-color: var(--amber);
+      background: #fff7ed;
+    }
+
+    .issue.info {
+      border-left-color: var(--blue);
+      background: #eff6ff;
+    }
+
+    .issue strong {
+      display: block;
+      margin-bottom: 2px;
+    }
+
+    .match-row {
+      display: grid;
+      grid-template-columns: 130px 1fr 74px;
+      gap: 10px;
+      align-items: center;
+      padding: 8px 0;
+      border-bottom: 1px solid var(--line);
+    }
+
+    .match-row:last-child {
+      border-bottom: 0;
+    }
+
+    .bar {
+      height: 9px;
+      background: #e5e7eb;
+      border-radius: 999px;
+      overflow: hidden;
+    }
+
+    .bar > span {
+      display: block;
+      height: 100%;
+      background: var(--teal);
+      border-radius: 999px;
+    }
+
+    .score-grid {
+      display: grid;
+      grid-template-columns: repeat(4, minmax(0, 1fr));
+      gap: 10px;
+    }
+
+    .score-card {
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      padding: 10px;
+      background: #fff;
+    }
+
+    .score-card h4 {
+      margin: 0 0 8px;
+      font-size: 14px;
+    }
+
+    .dist {
+      display: grid;
+      grid-template-columns: 26px 1fr 30px;
+      gap: 7px;
+      align-items: center;
+      margin: 4px 0;
+      color: #334155;
+      font-size: 12px;
+    }
+
+    .loader {
+      display: none;
+      align-items: center;
+      gap: 8px;
+      color: var(--muted);
+    }
+
+    .loader.on {
+      display: inline-flex;
+    }
+
+    .spinner {
+      width: 16px;
+      height: 16px;
+      border: 2px solid #cbd5e1;
+      border-top-color: var(--blue);
+      border-radius: 999px;
+      animation: spin 0.8s linear infinite;
+    }
+
+    @keyframes spin {
+      to { transform: rotate(360deg); }
+    }
+
+    .hint {
+      position: relative;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      width: 18px;
+      height: 18px;
+      border-radius: 999px;
+      border: 1px solid var(--line-strong);
+      color: var(--muted);
+      font-size: 12px;
+      font-weight: 700;
+      cursor: help;
+    }
+
+    .hint .tip {
+      display: none;
+      position: absolute;
+      z-index: 20;
+      left: 22px;
+      top: -8px;
+      width: 260px;
+      padding: 9px 10px;
+      border-radius: 8px;
+      border: 1px solid var(--line-strong);
+      background: #0f172a;
+      color: #fff;
+      box-shadow: var(--shadow);
+      font-weight: 400;
+      line-height: 1.35;
+    }
+
+    .hint:hover .tip {
+      display: block;
+    }
+
+    .footer-nav {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 10px;
+      margin-top: 16px;
+    }
+
+    .muted {
+      color: var(--muted);
+    }
+
+    .mono {
+      font-family: Consolas, Monaco, monospace;
+    }
+
+    .hidden {
+      display: none !important;
+    }
+
+    .pronote-guide > summary {
+      color: #1e3a8a;
+    }
+
+    .pronote-figure {
+      margin: 0 0 12px;
+      padding: 0;
+      border: 1px dashed #cbd5e1;
+      border-radius: 8px;
+      background: #f1f5f9;
+      overflow: hidden;
+    }
+
+    .pronote-figure img {
+      display: block;
+      max-width: 100%;
+      height: auto;
+      margin: 0 auto;
+    }
+
+    .pronote-figure img[src=""],
+    .pronote-figure img:not([src]) {
+      display: none;
+    }
+
+    .pronote-figure figcaption {
+      padding: 18px 12px;
+      color: #64748b;
+      font-size: 12px;
+      font-style: italic;
+      text-align: center;
+    }
+
+    .pronote-figure img[src]:not([src=""]) ~ figcaption {
+      padding: 6px 10px;
+      background: #e2e8f0;
+      font-style: normal;
+      text-align: left;
+    }
+
+    .pronote-steps {
+      margin: 8px 0 0 22px;
+      padding: 0;
+    }
+
+    .pronote-steps li {
+      margin: 6px 0;
+    }
+
+    .tip-box {
+      margin-top: 10px;
+      padding: 8px 10px;
+      background: #fef3c7;
+      border-left: 3px solid #f59e0b;
+      border-radius: 4px;
+      font-size: 13px;
+      color: #78350f;
+    }
+
+    .tip-box strong {
+      display: block;
+      margin-bottom: 4px;
+      color: #92400e;
+    }
+
+    @media (max-width: 1120px) {
+      .shell {
+        grid-template-columns: 1fr;
+      }
+
+      .side {
+        position: static;
+        height: auto;
+        border-right: 0;
+        border-bottom: 1px solid var(--line);
+      }
+
+      .layout {
+        grid-template-columns: 1fr;
+      }
+
+      .metric-grid,
+      .score-grid {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+      }
+    }
+  </style>
+</head>
+<body>
+  <div class="shell">
+    <aside class="side">
+      <div class="brand">
+        <h1>Assistant Import Pronote</h1>
+        <p>Un tunnel guide pour importer, verifier, puis ecrire les onglets sources.</p>
+      </div>
+
+      <div id="lockBanner" class="lock-banner"></div>
+
+      <div class="steps" id="stepNav"></div>
+    </aside>
+
+    <main class="main">
+      <div class="topbar">
+        <div>
+          <h2 id="stageTitle">Liste eleves</h2>
+          <p id="stageIntro">Colle ou importe la liste eleves Pronote. Cette etape cree la base de matching pour toutes les autres donnees.</p>
+        </div>
+        <div class="status-pill" id="globalStatus">Etape 1 / 6</div>
+      </div>
+
+      <section class="stage active" data-stage="students">
+        <div class="layout">
+          <div>
+            <div class="panel">
+              <h3>1. Liste eleves</h3>
+              <p>Colle la liste exportee depuis Pronote. Elle doit contenir au minimum les noms et les classes.</p>
+              <div class="input-grid">
+                <div class="file-row">
+                  <span>Collage direct, fichier ou glisser-deposer <span class="drop-caption">CSV / TSV / TXT</span></span>
+                  <input type="file" data-file-target="studentsInput" accept=".csv,.tsv,.txt">
+                </div>
+                <textarea id="studentsInput" placeholder="Colle ici la liste eleves Pronote..."></textarea>
+              </div>
+              <div class="actions">
+                <button class="quiet" data-clear="studentsInput">Vider</button>
+                <div class="inline-row">
+                  <span class="loader" data-loader="students"><span class="spinner"></span>Analyse...</span>
+                  <button class="primary" id="analyzeStudentsBtn">Analyser la liste eleves</button>
+                </div>
+              </div>
+            </div>
+
+            <div class="panel">
+              <h3>Resultat</h3>
+              <div id="studentsResult" class="result">Aucune analyse lancee.</div>
+            </div>
+          </div>
+
+          <aside>
+            <details class="pronote-guide" open>
+              <summary>Comment exporter depuis Pronote</summary>
+              <div class="help-body">
+                <figure class="pronote-figure">
+                  <!-- Pour activer la demonstration : remplace src="" par l'URL d'un GIF (5-10 sec)
+                       qui montre la sequence dans Pronote. Hebergement recommande :
+                       Drive (lien partage public, format https://drive.google.com/uc?id=ID_FICHIER)
+                       ou base64 inline. La caption au-dessous changera de style automatiquement. -->
+                  <img src="" alt="Demonstration Pronote - liste eleves">
+                  <figcaption>Emplacement reserve pour un GIF Pronote (a ajouter par l'admin).</figcaption>
+                </figure>
+                <ol class="pronote-steps">
+                  <li>Ouvre dans Pronote la vue qui liste tes eleves par classe.</li>
+                  <li>Affiche au minimum les colonnes <span class="mono">NOM</span>, <span class="mono">PRENOM</span>, <span class="mono">CLASSE</span>, <span class="mono">S.</span> (sexe).</li>
+                  <li>Ajoute si possible <span class="mono">Toutes les options</span>, <span class="mono">LV2</span> (ou Langue vivante 2) et <span class="mono">Dispositif d'accompagnement</span>.</li>
+                  <li>Selectionne tout le tableau (Ctrl+A) puis copie (Ctrl+C).</li>
+                  <li>Reviens ici, colle dans la zone a gauche, clique <strong>Analyser eleves</strong>.</li>
+                </ol>
+                <div class="tip-box">
+                  <strong>A eviter</strong>
+                  Ne fais qu'UN seul export pour toute la cohorte. Si tu colles deux fois la meme classe, tu auras des doublons NOM/PRENOM bloquants au preflight.
+                </div>
+              </div>
+            </details>
+            <details>
+              <summary>Format attendu</summary>
+              <div class="help-body">
+                <p>Tu ne saisis pas une tranche de niveau ici. Tu donnes la liste brute des eleves.</p>
+                <ul>
+                  <li>Obligatoire : <span class="mono">NOM</span>, <span class="mono">CLASSE</span>.</li>
+                  <li>Fortement conseille : <span class="mono">PRENOM</span>, <span class="mono">SEXE</span>.</li>
+                  <li>Optionnel : <span class="mono">LV2</span>, <span class="mono">OPTIONS</span>, <span class="mono">DISPO</span>.</li>
+                </ul>
+                <table class="example-table">
+                  <thead><tr><th>NOM</th><th>PRENOM</th><th>CLASSE</th><th>SEXE</th><th>LV2</th><th>OPTIONS</th></tr></thead>
+                  <tbody><tr><td>DURAND</td><td>Lea</td><td>5A</td><td>F</td><td>ESP2</td><td>LATIN</td></tr></tbody>
+                </table>
+              </div>
+            </details>
+            <details>
+              <summary>Pourquoi cette etape est obligatoire ?</summary>
+              <div class="help-body">
+                <p>Les notes, absences et faits de vie scolaire sont rattaches aux eleves par NOM/PRENOM. Sans liste eleves propre, le reste ne peut pas etre controle.</p>
+              </div>
+            </details>
+            <details>
+              <summary>Ce que l'assistant controle</summary>
+              <div class="help-body">
+                <ul>
+                  <li>Eleves sans nom.</li>
+                  <li>Eleves sans classe.</li>
+                  <li>Doublons NOM/PRENOM.</li>
+                  <li>Sexe ou LV2 manquants, en avertissement.</li>
+                </ul>
+              </div>
+            </details>
+          </aside>
+        </div>
+      </section>
+
+      <section class="stage" data-stage="notes">
+        <div class="layout">
+          <div>
+            <div class="panel">
+              <h3>2. Notes</h3>
+              <p>Importe les exports CSV Pronote de notes. Le format recommande est simple : un CSV par classe, ajoute un ou plusieurs fichiers, puis controle le recapitulatif.</p>
+              <div class="input-grid">
+                <div class="file-row">
+                  <span>Ajouter des exports notes Pronote <span class="drop-caption">CSV, plusieurs fichiers acceptes</span></span>
+                  <input type="file" data-file-target="notesInput" accept=".csv,.tsv,.txt" multiple>
+                </div>
+                <textarea id="notesInput" placeholder="Ou colle ici le contenu d'un export CSV Pronote pour une classe..."></textarea>
+              </div>
+              <div class="actions">
+                <button class="quiet" data-clear="notesInput">Vider</button>
+                <div class="inline-row">
+                  <span class="loader" data-loader="notes"><span class="spinner"></span>Analyse...</span>
+                  <button id="skipNotesBtn">Je n'ai pas de notes</button>
+                  <button class="primary" id="addNotesBtn">Analyser le collage</button>
+                </div>
+              </div>
+            </div>
+
+            <div class="panel">
+              <h3>Notes ajoutees</h3>
+              <div id="notesResult" class="result">Aucun tableau ajoute.</div>
+            </div>
+          </div>
+
+          <aside>
+            <details class="pronote-guide" open>
+              <summary>Comment exporter depuis Pronote</summary>
+              <div class="help-body">
+                <figure class="pronote-figure">
+                  <!-- A faire : remplace src="" par un GIF (5-10 sec) qui montre l'export
+                       du tableau de moyennes par classe. Voir commentaire de l'etape 1
+                       pour les options d'hebergement. -->
+                  <img src="" alt="Demonstration Pronote - moyennes par classe">
+                  <figcaption>Emplacement reserve pour un GIF Pronote (a ajouter par l'admin).</figcaption>
+                </figure>
+                <ol class="pronote-steps">
+                  <li>Dans Pronote, ouvre le tableau des moyennes pour UNE classe (vue par classe, pas par eleve).</li>
+                  <li>Verifie que les colonnes affichees sont les <strong>moyennes par matiere</strong> (et l'<strong>oral</strong> pour anglais et LV2 si pertinent), pas les notes individuelles.</li>
+                  <li>Exporte au format CSV ou copie le tableau directement.</li>
+                  <li>Repete pour <strong>chaque classe</strong> du niveau : un fichier ou un collage par classe.</li>
+                  <li>Glisse les CSV dans la zone fichier, ou colle le contenu, puis clique <strong>Analyser le collage</strong>.</li>
+                </ol>
+                <div class="tip-box">
+                  <strong>A eviter</strong>
+                  Ne mixe pas l'export "toutes classes" avec les CSV par classe : tu importerais deux fois les memes notes. Choisis l'un ou l'autre.
+                </div>
+              </div>
+            </details>
+            <details>
+              <summary>Format attendu</summary>
+              <div class="help-body">
+                <p>Format attendu : export CSV Pronote, idealement un fichier par classe. Tu peux selectionner ou glisser plusieurs CSV d'un coup.</p>
+                <ul>
+                  <li>Noms acceptes : <span class="mono">NOM</span> + <span class="mono">PRENOM</span>, ou colonne <span class="mono">ELEVE</span>.</li>
+                  <li>Colonne conseillee : <span class="mono">Classe</span>, pour verifier que chaque CSV correspond bien a une classe.</li>
+                  <li>Matieres detectees : francais, maths, HG, anglais, LV2, EPS, sciences, techno, arts, musique, latin.</li>
+                  <li>Les colonnes <span class="mono">Abs</span> liees aux notes sont ignorees.</li>
+                  <li>Evite l'export global toutes classes si tu importes deja les CSV par classe : cela creerait des doublons de notes.</li>
+                </ul>
+              </div>
+            </details>
+            <details>
+              <summary>Que deviennent les notes ?</summary>
+              <div class="help-body">
+                <p>Tu fournis les moyennes et parfois les oraux exportes par Pronote. Le backend les transforme en scores internes TRA et PART. L'utilisateur ne renseigne pas les tranches.</p>
+              </div>
+            </details>
+            <details>
+              <summary>Si je n'ai pas de notes</summary>
+              <div class="help-body">
+                <p>Clique sur "Je n'ai pas de notes". L'import restera possible, mais le preflight signalera que les scores TRA/PART seront incomplets.</p>
+              </div>
+            </details>
+          </aside>
+        </div>
+      </section>
+
+      <section class="stage" data-stage="absences">
+        <div class="layout">
+          <div>
+            <div class="panel">
+              <h3>3. Absences</h3>
+              <p>Colle un recapitulatif par eleve ou une liste evenementielle. Le moteur calcule ensuite ABS.</p>
+              <div class="input-grid">
+                <div class="file-row">
+                  <span>Collage direct, fichier ou glisser-deposer <span class="drop-caption">CSV / TSV / TXT</span></span>
+                  <input type="file" data-file-target="absencesInput" accept=".csv,.tsv,.txt">
+                </div>
+                <textarea id="absencesInput" placeholder="Colle ici les absences Pronote..."></textarea>
+              </div>
+              <div class="actions">
+                <button class="quiet" data-clear="absencesInput">Vider</button>
+                <div class="inline-row">
+                  <span class="loader" data-loader="absences"><span class="spinner"></span>Analyse...</span>
+                  <button id="skipAbsencesBtn">Je n'ai pas d'absences</button>
+                  <button class="primary" id="analyzeAbsencesBtn">Analyser les absences</button>
+                </div>
+              </div>
+            </div>
+
+            <div class="panel">
+              <h3>Resultat</h3>
+              <div id="absencesResult" class="result">Aucune analyse lancee.</div>
+            </div>
+          </div>
+
+          <aside>
+            <details class="pronote-guide" open>
+              <summary>Comment exporter depuis Pronote</summary>
+              <div class="help-body">
+                <figure class="pronote-figure">
+                  <!-- A faire : remplace src="" par un GIF montrant l'export du tableau
+                       absences (recap par eleve avec DJ / NJ). Voir etape 1 pour le hosting. -->
+                  <img src="" alt="Demonstration Pronote - absences">
+                  <figcaption>Emplacement reserve pour un GIF Pronote (a ajouter par l'admin).</figcaption>
+                </figure>
+                <ol class="pronote-steps">
+                  <li>Dans Pronote, ouvre la vue des absences pour la <strong>periode visee</strong> (trimestre courant ou annee a date).</li>
+                  <li>Choisis si possible la vue <strong>recapitulative par eleve</strong> : tu obtiens directement <span class="mono">DJ</span> (demi-journees) et <span class="mono">NJ</span> (non justifiees).</li>
+                  <li>A defaut, prends la liste evenementielle (une ligne par absence avec une date) : l'assistant agregera.</li>
+                  <li>Copie le tableau et colle ici, puis clique <strong>Analyser les absences</strong>.</li>
+                </ol>
+                <div class="tip-box">
+                  <strong>A eviter</strong>
+                  Garde une periode coherente avec le reste de l'import. Si les notes couvrent le trimestre 2, ne colle pas les absences de l'annee complete : le score ABS sera disproportionne.
+                </div>
+              </div>
+            </details>
+            <details>
+              <summary>Format attendu</summary>
+              <div class="help-body">
+                <p>Deux formats sont acceptes.</p>
+                <ul>
+                  <li>Recapitulatif : une ligne par eleve avec <span class="mono">DJ</span> ou demi-journees.</li>
+                  <li>Evenementiel : une ligne par absence avec une colonne date.</li>
+                </ul>
+                <table class="example-table">
+                  <thead><tr><th>NOM</th><th>PRENOM</th><th>CLASSE</th><th>DJ</th><th>NJ</th></tr></thead>
+                  <tbody><tr><td>DURAND</td><td>Lea</td><td>5A</td><td>4</td><td>1</td></tr></tbody>
+                </table>
+              </div>
+            </details>
+            <details>
+              <summary>Ce que l'assistant calcule</summary>
+              <div class="help-body">
+                <p>Le score ABS est calcule a partir des demi-journees et des absences non justifiees.</p>
+              </div>
+            </details>
+          </aside>
+        </div>
+      </section>
+
+      <section class="stage" data-stage="behavior">
+        <div class="layout">
+          <div>
+            <div class="panel">
+              <h3>4. Vie scolaire</h3>
+              <p>Colle uniquement les tableaux que tu as. Observations, punitions et incidents sont analyses ensemble pour le score COM.</p>
+              <div class="input-grid">
+                <label class="inline-row">
+                  Observations
+                  <span class="hint">?
+                    <span class="tip">Observations positives/negatives, encouragements, lecon non apprise, oubli materiel, travail non fait.</span>
+                  </span>
+                </label>
+                <div class="file-row">
+                  <span>Fichier observations <span class="drop-caption">glisser-deposer accepte</span></span>
+                  <input type="file" data-file-target="observationsInput" accept=".csv,.tsv,.txt">
+                </div>
+                <textarea id="observationsInput" class="small" placeholder="Colle ici les observations Pronote..."></textarea>
+
+                <label class="inline-row">
+                  Punitions
+                  <span class="hint">?
+                    <span class="tip">Recapitulatif avec une colonne nombre, ou liste evenementielle. Le moteur agregue par eleve.</span>
+                  </span>
+                </label>
+                <div class="file-row">
+                  <span>Fichier punitions <span class="drop-caption">glisser-deposer accepte</span></span>
+                  <input type="file" data-file-target="punitionsInput" accept=".csv,.tsv,.txt">
+                </div>
+                <textarea id="punitionsInput" class="small" placeholder="Colle ici les punitions Pronote..."></textarea>
+
+                <label class="inline-row">
+                  Incidents
+                  <span class="hint">?
+                    <span class="tip">Recapitulatif avec une colonne nombre, ou liste evenementielle. Le moteur agregue par eleve.</span>
+                  </span>
+                </label>
+                <div class="file-row">
+                  <span>Fichier incidents <span class="drop-caption">glisser-deposer accepte</span></span>
+                  <input type="file" data-file-target="incidentsInput" accept=".csv,.tsv,.txt">
+                </div>
+                <textarea id="incidentsInput" class="small" placeholder="Colle ici les incidents Pronote..."></textarea>
+              </div>
+              <div class="actions">
+                <button class="quiet" id="clearBehaviorBtn">Vider les 3 zones</button>
+                <div class="inline-row">
+                  <span class="loader" data-loader="behavior"><span class="spinner"></span>Analyse...</span>
+                  <button id="skipBehaviorBtn">Je n'ai pas ces donnees</button>
+                  <button class="primary" id="analyzeBehaviorBtn">Analyser la vie scolaire</button>
+                </div>
+              </div>
+            </div>
+
+            <div class="panel">
+              <h3>Resultat</h3>
+              <div id="behaviorResult" class="result">Aucune analyse lancee.</div>
+            </div>
+          </div>
+
+          <aside>
+            <details class="pronote-guide" open>
+              <summary>Comment exporter depuis Pronote</summary>
+              <div class="help-body">
+                <figure class="pronote-figure">
+                  <!-- A faire : remplace src="" par un GIF montrant les trois vues
+                       (observations / punitions / incidents) cote a cote. Voir etape 1
+                       pour le hosting. -->
+                  <img src="" alt="Demonstration Pronote - vie scolaire">
+                  <figcaption>Emplacement reserve pour un GIF Pronote (a ajouter par l'admin).</figcaption>
+                </figure>
+                <p>Dans Pronote, les trois donnees sont dans des vues distinctes. Tu remplis uniquement les zones pertinentes ; les zones laissees vides sont ignorees au calcul.</p>
+                <ol class="pronote-steps">
+                  <li><strong>Observations</strong> : ouvre le cahier d'observations / saisies de l'enseignant. Recupere le tableau recap par eleve, copie, colle dans la zone Observations.</li>
+                  <li><strong>Punitions</strong> : ouvre la vue punitions, recupere le tableau recap par eleve (avec colonne <span class="mono">Nombre</span> si dispo), colle dans la zone Punitions.</li>
+                  <li><strong>Incidents</strong> : ouvre la vue incidents / faits graves, recupere le recap par eleve, colle dans la zone Incidents.</li>
+                  <li>Clique <strong>Analyser la vie scolaire</strong>.</li>
+                </ol>
+                <div class="tip-box">
+                  <strong>A eviter</strong>
+                  Ne colle pas le meme tableau dans deux zones. Le score COM serait double et faussement degrade. Si tu n'as qu'une vue qui melange tout, mets-la dans Observations et laisse les autres vides.
+                </div>
+              </div>
+            </details>
+            <details>
+              <summary>Format attendu</summary>
+              <div class="help-body">
+                <ul>
+                  <li>Observations : NOM/PRENOM ou ELEVE, CLASSE, OBSERVATION, ENCOURAGEMENT, LECON, OUBLI, TRAVAIL.</li>
+                  <li>Punitions : NOM/PRENOM ou ELEVE, CLASSE, NB ou liste detaillee.</li>
+                  <li>Incidents : NOM/PRENOM ou ELEVE, CLASSE, NB ou liste detaillee.</li>
+                </ul>
+              </div>
+            </details>
+            <details>
+              <summary>Pourquoi trois zones ?</summary>
+              <div class="help-body">
+                <p>Parce que Pronote sort souvent ces donnees dans des tableaux differents. L'assistant les rassemble avant le calcul COM.</p>
+              </div>
+            </details>
+          </aside>
+        </div>
+      </section>
+
+      <section class="stage" data-stage="preflight">
+        <div class="layout">
+          <div>
+            <div class="panel">
+              <h3>5. Controle avant ecriture</h3>
+              <p>L'assistant verifie le matching, les oublis et les onglets qui seront crees ou remplaces. Rien n'est encore ecrit dans le classeur.</p>
+              <div class="actions">
+                <button class="quiet" id="refreshPreflightBtn">Relancer le controle</button>
+                <div class="inline-row">
+                  <span class="loader" data-loader="preflight"><span class="spinner"></span>Controle...</span>
+                  <button class="primary" id="goCommitBtn" disabled>Continuer vers l'ecriture</button>
+                </div>
+              </div>
+            </div>
+
+            <div class="panel">
+              <h3>Verdict</h3>
+              <div id="preflightVerdict" class="result">Controle non lance.</div>
+            </div>
+
+            <div class="panel">
+              <h3>Matching</h3>
+              <div id="matchingReport" class="result">Aucun rapport.</div>
+            </div>
+
+            <div class="panel">
+              <h3>Apercu des scores</h3>
+              <div id="scorePreview" class="result">Aucun apercu.</div>
+            </div>
+          </div>
+
+          <aside>
+            <details open>
+              <summary>Comment lire le preflight</summary>
+              <div class="help-body">
+                <ul>
+                  <li>Erreur : il faut corriger avant d'ecrire.</li>
+                  <li>Avertissement : l'import peut continuer, mais tu sais ce qui sera incomplet.</li>
+                  <li>Matching : pourcentage de lignes importees rattachees aux eleves de la liste.</li>
+                  <li>Couverture : nombre de lignes importees par rapport a toute la cohorte.</li>
+                </ul>
+              </div>
+            </details>
+            <details open>
+              <summary>Plan d'ecriture</summary>
+              <div class="help-body" id="writePlan">Aucun plan disponible.</div>
+            </details>
+          </aside>
+        </div>
+      </section>
+
+      <section class="stage" data-stage="commit">
+        <div class="layout">
+          <div>
+            <div class="panel">
+              <h3>6. Ecriture dans le classeur</h3>
+              <p>Cette etape cree ou remplace les onglets sources par classe, puis lance les traitements existants : listes, ID, consolidation.</p>
+              <div class="actions">
+                <button class="quiet" id="backToPreflightBtn">Retour au controle</button>
+                <div class="inline-row">
+                  <span class="loader" data-loader="commit"><span class="spinner"></span>Ecriture...</span>
+                  <button class="primary" id="commitBtn">Ecrire dans le classeur</button>
+                </div>
+              </div>
+            </div>
+
+            <div class="panel">
+              <h3>Rapport final</h3>
+              <div id="commitResult" class="result">En attente de validation.</div>
+            </div>
+          </div>
+
+          <aside>
+            <details open>
+              <summary>Ce qui va se passer</summary>
+              <div class="help-body">
+                <ul>
+                  <li>Les onglets existants concernes sont copies en backup.</li>
+                  <li>Les onglets de classes sont crees ou remplaces.</li>
+                  <li>Les scores COM, TRA, PART, ABS sont calcules depuis les donnees importees.</li>
+                  <li>La consolidation est relancee.</li>
+                </ul>
+              </div>
+            </details>
+            <details>
+              <summary>Apres l'import</summary>
+              <div class="help-body">
+                <p>Retourne dans SCORE CONSOLE pour controler les onglets sources, puis poursuis le workflow habituel.</p>
+              </div>
+            </details>
+          </aside>
+        </div>
+      </section>
+
+      <div class="footer-nav">
+        <button id="prevBtn">Etape precedente</button>
+        <div class="muted" id="footerHint">Commence par la liste eleves.</div>
+        <button id="nextBtn">Etape suivante</button>
+      </div>
+    </main>
+  </div>
+
+  <script>
+    var STEPS = [
+      {
+        id: 'students',
+        title: 'Liste eleves',
+        intro: 'Colle ou importe la liste eleves Pronote. Cette etape cree la base de matching pour toutes les autres donnees.',
+        sub: 'Obligatoire'
+      },
+      {
+        id: 'notes',
+        title: 'Notes',
+        intro: 'Ajoute les exports CSV Pronote de notes. Le format recommande est un CSV par classe.',
+        sub: 'CSV par classe'
+      },
+      {
+        id: 'absences',
+        title: 'Absences',
+        intro: 'Ajoute les absences si tu les as. Elles alimentent le score ABS.',
+        sub: 'Optionnel mais utile'
+      },
+      {
+        id: 'behavior',
+        title: 'Vie scolaire',
+        intro: 'Ajoute observations, punitions et incidents si disponibles. Elles alimentent le score COM.',
+        sub: 'Optionnel mais utile'
+      },
+      {
+        id: 'preflight',
+        title: 'Controle avant ecriture',
+        intro: 'Verifie les anomalies et le plan d ecriture avant toute modification du classeur.',
+        sub: 'Preflight'
+      },
+      {
+        id: 'commit',
+        title: 'Ecriture',
+        intro: 'Valide l import final dans le classeur Google Sheets.',
+        sub: 'Action finale'
+      }
+    ];
+
+    var state = {
+      eleves: null,
+      notes: [],
+      absences: null,
+      observations: null,
+      punitions: null,
+      incidents: null
+    };
+
+    var skips = {
+      notes: false,
+      absences: false,
+      behavior: false
+    };
+
+    var done = {
+      students: false,
+      notes: false,
+      absences: false,
+      behavior: false,
+      preflight: false,
+      commit: false
+    };
+
+    var currentStep = 0;
+    var lastPreflight = null;
+
+    function $(id) {
+      return document.getElementById(id);
+    }
+
+    function escapeHtml(value) {
+      return String(value === null || value === undefined ? '' : value)
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#039;');
+    }
+
+    function plural(n, single, multi) {
+      return n + ' ' + (n > 1 ? multi : single);
+    }
+
+    function setLoader(name, on) {
+      var el = document.querySelector('[data-loader="' + name + '"]');
+      if (el) el.classList.toggle('on', !!on);
+    }
+
+    function serverRun(name) {
+      var args = Array.prototype.slice.call(arguments, 1);
+      return new Promise(function(resolve, reject) {
+        if (!window.google || !google.script || !google.script.run) {
+          reject(new Error('google.script.run indisponible. Ouvre ce fichier depuis Google Sheets.'));
+          return;
+        }
+
+        var runner = google.script.run
+          .withSuccessHandler(resolve)
+          .withFailureHandler(function(err) {
+            reject(new Error(err && err.message ? err.message : String(err)));
+          });
+
+        runner[name].apply(runner, args);
+      });
+    }
+
+    function countDelimiterOutsideQuotes(line, delimiter) {
+      var count = 0;
+      var quote = false;
+      for (var i = 0; i < line.length; i++) {
+        var ch = line.charAt(i);
+        if (ch === '"') {
+          if (quote && line.charAt(i + 1) === '"') i++;
+          else quote = !quote;
+        } else if (!quote && ch === delimiter) {
+          count++;
+        }
+      }
+      return count;
+    }
+
+    function detectDelimiter(lines) {
+      var candidates = ['\t', ';', ','];
+      var best = '\t';
+      var bestScore = -1;
+      var sample = lines.slice(0, 20).filter(function(line) { return line.trim(); });
+
+      candidates.forEach(function(delimiter) {
+        var counts = sample.map(function(line) { return countDelimiterOutsideQuotes(line, delimiter); });
+        var nonZero = counts.filter(function(n) { return n > 0; });
+        if (nonZero.length === 0) return;
+        var total = nonZero.reduce(function(sum, n) { return sum + n; }, 0);
+        var min = Math.min.apply(null, nonZero);
+        var max = Math.max.apply(null, nonZero);
+        var consistency = max === 0 ? 0 : min / max;
+        var score = total + consistency * 10 + (delimiter === '\t' ? 4 : 0) + (delimiter === ';' ? 2 : 0);
+        if (score > bestScore) {
+          best = delimiter;
+          bestScore = score;
+        }
+      });
+
+      return best;
+    }
+
+    function parseLine(line, delimiter) {
+      var out = [];
+      var cur = '';
+      var quote = false;
+
+      for (var i = 0; i < line.length; i++) {
+        var ch = line.charAt(i);
+        if (ch === '"') {
+          if (quote && line.charAt(i + 1) === '"') {
+            cur += '"';
+            i++;
+          } else {
+            quote = !quote;
+          }
+        } else if (!quote && ch === delimiter) {
+          out.push(cur.trim());
+          cur = '';
+        } else {
+          cur += ch;
+        }
+      }
+
+      out.push(cur.trim());
+      return out;
+    }
+
+    function parseTable(text) {
+      var normalized = String(text || '').replace(/\r\n/g, '\n').replace(/\r/g, '\n');
+      var lines = normalized.split('\n').filter(function(line) { return line.trim() !== ''; });
+      if (lines.length === 0) return [];
+      var delimiter = detectDelimiter(lines);
+      return lines.map(function(line) { return parseLine(line, delimiter); });
+    }
+
+    function renderStepNav() {
+      var html = STEPS.map(function(step, index) {
+        var classes = ['step-nav'];
+        if (index === currentStep) classes.push('active');
+        if (done[step.id]) classes.push('done');
+        var badge = done[step.id] ? 'OK' : '';
+        return '<button class="' + classes.join(' ') + '" data-step="' + index + '">' +
+          '<span class="step-index">' + (index + 1) + '</span>' +
+          '<span><span class="step-title">' + escapeHtml(step.title) + '</span>' +
+          '<span class="step-sub">' + escapeHtml(step.sub) + '</span></span>' +
+          '<span class="badge">' + badge + '</span>' +
+          '</button>';
+      }).join('');
+
+      $('stepNav').innerHTML = html;
+      Array.prototype.forEach.call(document.querySelectorAll('[data-step]'), function(btn) {
+        btn.addEventListener('click', function() {
+          goToStep(Number(btn.getAttribute('data-step')));
+        });
+      });
+    }
+
+    function goToStep(index) {
+      currentStep = Math.max(0, Math.min(STEPS.length - 1, index));
+      var step = STEPS[currentStep];
+
+      Array.prototype.forEach.call(document.querySelectorAll('.stage'), function(el) {
+        el.classList.toggle('active', el.getAttribute('data-stage') === step.id);
+      });
+
+      $('stageTitle').textContent = step.title;
+      $('stageIntro').textContent = step.intro;
+      $('globalStatus').textContent = 'Etape ' + (currentStep + 1) + ' / ' + STEPS.length;
+      $('prevBtn').disabled = currentStep === 0;
+      $('nextBtn').disabled = currentStep === STEPS.length - 1;
+      $('footerHint').textContent = footerMessage(step.id);
+      renderStepNav();
+
+      if (step.id === 'preflight') {
+        runPreflight();
+      }
+    }
+
+    function footerMessage(stepId) {
+      if (stepId === 'students') return 'Commence par la liste eleves.';
+      if (stepId === 'notes') return 'Tu peux ajouter plusieurs tableaux de notes.';
+      if (stepId === 'absences') return 'Les absences peuvent etre ignorees si tu ne les as pas.';
+      if (stepId === 'behavior') return 'Les trois blocs vie scolaire sont independants.';
+      if (stepId === 'preflight') return 'Aucune ecriture avant validation finale.';
+      return 'Derniere etape : ecriture dans le classeur.';
+    }
+
+    function setResult(id, kind, html) {
+      var el = $(id);
+      el.className = 'result' + (kind ? ' ' + kind : '');
+      el.innerHTML = html;
+    }
+
+    function classesChips(classes) {
+      if (!classes) return '';
+      return Object.keys(classes).sort().map(function(name) {
+        return '<span class="chip green">' + escapeHtml(name) + ' : ' + classes[name] + '</span>';
+      }).join('');
+    }
+
+    async function analyzeStudents() {
+      var rows = parseTable($('studentsInput').value);
+      if (rows.length < 2) {
+        setResult('studentsResult', 'error', 'Colle au moins une ligne d en-tete et une ligne eleve.');
+        return;
+      }
+
+      setLoader('students', true);
+      try {
+        var res = await serverRun('ia_parseStudents', rows);
+        if (!res || !res.success) {
+          setResult('studentsResult', 'error', escapeHtml((res && res.error) || 'Analyse impossible.'));
+          done.students = false;
+          return;
+        }
+
+        state.eleves = res;
+        done.students = true;
+        var diagnostics = res.diagnostics || {};
+        var classes = diagnostics.classes || {};
+        var duplicates = diagnostics.duplicates || [];
+        var duplicateCount = duplicates.length;
+        var html = '<div class="metric-grid">' +
+          metric(res.count || 0, 'eleves') +
+          metric(Object.keys(classes).length, 'classes detectees') +
+          metric(diagnostics.missingSexe || 0, 'sexe manquant') +
+          metric(duplicateCount, 'doublons NOM/PRENOM') +
+          '</div>' +
+          '<div class="chips">' + classesChips(classes) + '</div>';
+        if (duplicateCount > 0) {
+          html += '<div class="issue warning"><strong>' + duplicateCount + ' doublon(s) NOM/PRENOM</strong>';
+          html += 'La compilation sera bloquee tant qu ils ne sont pas leves. ';
+          html += 'Si ce sont des homonymes (eleves differents), differencie-les dans la liste source (ex : ajoute une initiale au prenom). ';
+          html += 'Si c est un eleve duplique par erreur, supprime la ligne dans Pronote puis recolle.';
+          html += '<table style="width:100%; margin-top:10px; border-collapse:collapse; font-size:13px;">';
+          html += '<thead><tr style="text-align:left; border-bottom:1px solid #334155;">' +
+            '<th style="padding:6px 8px;">Eleve</th>' +
+            '<th style="padding:6px 8px;">Occurrences</th>' +
+            '<th style="padding:6px 8px;">Classe(s)</th>' +
+            '<th style="padding:6px 8px;">Lignes</th></tr></thead><tbody>';
+          duplicates.slice(0, 30).forEach(function(d) {
+            var classesTxt = (d.classes && d.classes.length) ? d.classes.join(', ') : '-';
+            var rowsTxt = (d.rows && d.rows.length) ? d.rows.join(', ') : '-';
+            var hint = (d.classes && d.classes.length > 1) ? ' (classes differentes - probablement homonymes)' : '';
+            html += '<tr style="border-bottom:1px solid #1e293b;">' +
+              '<td style="padding:6px 8px;"><strong>' + escapeHtml(d.nom + ' ' + d.prenom) + '</strong>' + escapeHtml(hint) + '</td>' +
+              '<td style="padding:6px 8px;">' + d.count + '</td>' +
+              '<td style="padding:6px 8px;">' + escapeHtml(classesTxt) + '</td>' +
+              '<td style="padding:6px 8px;">' + escapeHtml(rowsTxt) + '</td></tr>';
+          });
+          html += '</tbody></table>';
+          if (duplicates.length > 30) {
+            html += '<div class="muted" style="margin-top:6px;">' + (duplicates.length - 30) + ' autre(s) doublon(s) non affiche(s).</div>';
+          }
+          html += '</div>';
+        }
+        setResult('studentsResult', duplicateCount > 0 ? 'warn' : 'ok', html);
+        renderStepNav();
+      } catch (err) {
+        setResult('studentsResult', 'error', escapeHtml(err.message));
+      } finally {
+        setLoader('students', false);
+      }
+    }
+
+    async function addNotes() {
+      var rows = parseTable($('notesInput').value);
+      if (rows.length < 2) {
+        setResult('notesResult', 'error', 'Colle au moins une ligne d en-tete et une ligne eleve.');
+        return;
+      }
+
+      setLoader('notes', true);
+      try {
+        await parseAndStoreNotesRows(rows, 'collage');
+        $('notesInput').value = '';
+        renderNotesResult();
+        renderStepNav();
+      } catch (err) {
+        setResult('notesResult', 'error', escapeHtml(err.message));
+      } finally {
+        setLoader('notes', false);
+      }
+    }
+
+    async function parseAndStoreNotesRows(rows, sourceName) {
+      if (!rows || rows.length < 2) {
+        throw new Error('Fichier notes vide ou incomplet.');
+      }
+
+      var res = await serverRun('ia_parseNotes', rows);
+      if (!res || !res.success) {
+        throw new Error((res && res.error) || 'Analyse impossible.');
+      }
+
+      res.sourceName = sourceName || '';
+      state.notes.push(res);
+      skips.notes = false;
+      done.notes = true;
+      return res;
+    }
+
+    async function addNotesFiles(fileList) {
+      var files = Array.prototype.slice.call(fileList || []).filter(function(file) {
+        return file && /\.(csv|tsv|txt)$/i.test(file.name || '');
+      });
+
+      if (files.length === 0) {
+        setResult('notesResult', 'error', 'Selectionne un ou plusieurs exports CSV Pronote.');
+        return;
+      }
+
+      setLoader('notes', true);
+      setResult('notesResult', '', 'Analyse de ' + plural(files.length, 'fichier notes', 'fichiers notes') + '...');
+
+      var failures = [];
+      try {
+        for (var i = 0; i < files.length; i++) {
+          try {
+            var text = await readFileAsText(files[i]);
+            var rows = parseTable(text);
+            await parseAndStoreNotesRows(rows, files[i].name);
+          } catch (err) {
+            failures.push({
+              name: files[i].name || ('fichier ' + (i + 1)),
+              message: err.message
+            });
+          }
+        }
+
+        var warningHtml = '';
+        if (failures.length > 0) {
+          warningHtml = '<div class="issue warning"><strong>Fichiers non ajoutes</strong>' +
+            failures.map(function(f) {
+              return '<div>' + escapeHtml(f.name) + ' : ' + escapeHtml(f.message) + '</div>';
+            }).join('') +
+            '</div>';
+        }
+
+        renderNotesResult(warningHtml);
+        renderStepNav();
+      } finally {
+        setLoader('notes', false);
+      }
+    }
+
+    function renderNotesResult(extraHtml) {
+      if (skips.notes) {
+        setResult('notesResult', 'warn', 'Notes volontairement ignorees. TRA et PART seront incomplets.');
+        return;
+      }
+      if (state.notes.length === 0) {
+        if (extraHtml) {
+          setResult('notesResult', 'warn', 'Aucun tableau ajoute.' + extraHtml);
+          return;
+        }
+        setResult('notesResult', '', 'Aucun tableau ajoute.');
+        return;
+      }
+      var html = '<div class="metric-grid">' +
+        metric(state.notes.length, 'tableaux') +
+        metric(state.notes.reduce(function(sum, n) { return sum + (n.count || 0); }, 0), 'lignes notes') +
+        metric(uniqueSubjects().length, 'matieres detectees') +
+        metric(uniqueOrals().length, 'oraux detectes') +
+        '</div><div class="chips">';
+
+      state.notes.forEach(function(n, index) {
+        var label = n.classe || n.sourceName || ('Tableau ' + (index + 1));
+        html += '<span class="chip green">' + escapeHtml(label) + ' : ' + (n.count || 0) + '</span>';
+      });
+      html += '</div>';
+
+      var multiClassWarnings = notesMultiClassWarnings();
+      if (multiClassWarnings.length > 0) {
+        html += '<div class="issue warning"><strong>CSV notes multi-classes detecte</strong>' +
+          multiClassWarnings.map(function(w) { return '<div>' + escapeHtml(w) + '</div>'; }).join('') +
+          '<div>Pour eviter les doublons, prefere un export CSV Pronote par classe.</div></div>';
+      }
+
+      var duplicates = duplicateNotesClasses();
+      if (duplicates.length > 0) {
+        html += '<div class="issue warning"><strong>Classe importee plusieurs fois</strong>' +
+          escapeHtml(duplicates.join(', ')) +
+          '<div>Retire le dernier tableau si tu as ajoute deux fois le meme export.</div></div>';
+      }
+
+      if (extraHtml) html += extraHtml;
+
+      html += '<div class="actions"><span class="muted">Tu peux ajouter un autre CSV Pronote ou continuer.</span><button class="danger" id="removeLastNotesBtn">Retirer le dernier tableau</button></div>';
+      setResult('notesResult', (extraHtml || multiClassWarnings.length || duplicates.length) ? 'warn' : 'ok', html);
+      var btn = $('removeLastNotesBtn');
+      if (btn) {
+        btn.addEventListener('click', function() {
+          state.notes.pop();
+          done.notes = state.notes.length > 0 || skips.notes;
+          renderNotesResult();
+          renderStepNav();
+        });
+      }
+    }
+
+    function noteClassCounts(noteResult) {
+      var counts = {};
+      (noteResult.notes || []).forEach(function(note) {
+        var classe = note.classe || '';
+        if (!classe) return;
+        counts[classe] = (counts[classe] || 0) + 1;
+      });
+      return counts;
+    }
+
+    function notesMultiClassWarnings() {
+      var warnings = [];
+      state.notes.forEach(function(noteResult, index) {
+        var counts = noteClassCounts(noteResult);
+        var classes = Object.keys(counts);
+        if (classes.length > 1) {
+          warnings.push((noteResult.sourceName || noteResult.classe || ('Tableau ' + (index + 1))) + ' contient ' + classes.length + ' classes : ' + classes.join(', '));
+        }
+      });
+      return warnings;
+    }
+
+    function duplicateNotesClasses() {
+      var counts = {};
+      state.notes.forEach(function(noteResult) {
+        var classes = Object.keys(noteClassCounts(noteResult));
+        if (classes.length === 1) {
+          counts[classes[0]] = (counts[classes[0]] || 0) + 1;
+        }
+      });
+
+      return Object.keys(counts).filter(function(classe) {
+        return counts[classe] > 1;
+      });
+    }
+
+    function uniqueSubjects() {
+      var bag = {};
+      state.notes.forEach(function(n) {
+        (n.headersDetected || []).forEach(function(label) {
+          bag[label.split('(')[0]] = true;
+        });
+      });
+      return Object.keys(bag);
+    }
+
+    function uniqueOrals() {
+      var bag = {};
+      state.notes.forEach(function(n) {
+        (n.oralDetected || []).forEach(function(label) { bag[label] = true; });
+      });
+      return Object.keys(bag);
+    }
+
+    async function analyzeAbsences() {
+      var rows = parseTable($('absencesInput').value);
+      if (rows.length < 2) {
+        setResult('absencesResult', 'error', 'Colle au moins une ligne d en-tete et une ligne eleve.');
+        return;
+      }
+
+      setLoader('absences', true);
+      try {
+        var res = await serverRun('ia_parseAbsences', rows);
+        if (!res || !res.success) {
+          setResult('absencesResult', 'error', escapeHtml((res && res.error) || 'Analyse impossible.'));
+          return;
+        }
+
+        state.absences = res;
+        skips.absences = false;
+        done.absences = true;
+        setResult('absencesResult', 'ok', '<div class="metric-grid">' +
+          metric(res.count || 0, 'eleves absences') +
+          metric(res.format || '-', 'format') +
+          '</div>');
+        renderStepNav();
+      } catch (err) {
+        setResult('absencesResult', 'error', escapeHtml(err.message));
+      } finally {
+        setLoader('absences', false);
+      }
+    }
+
+    async function analyzeBehavior() {
+      var payload = {
+        observationsRows: parseTable($('observationsInput').value),
+        punitionsRows: parseTable($('punitionsInput').value),
+        incidentsRows: parseTable($('incidentsInput').value)
+      };
+
+      if (payload.observationsRows.length < 2 && payload.punitionsRows.length < 2 && payload.incidentsRows.length < 2) {
+        setResult('behaviorResult', 'error', 'Colle au moins un tableau de vie scolaire, ou clique sur "Je n ai pas ces donnees".');
+        return;
+      }
+
+      setLoader('behavior', true);
+      try {
+        var res = await serverRun('ia_parseBehavior', payload);
+        if (!res || !res.success) {
+          var errors = res && res.errors ? res.errors.join('<br>') : ((res && res.error) || 'Analyse impossible.');
+          setResult('behaviorResult', 'error', errors);
+          return;
+        }
+
+        state.observations = res.observations;
+        state.punitions = res.punitions;
+        state.incidents = res.incidents;
+        skips.behavior = false;
+        done.behavior = true;
+        setResult('behaviorResult', 'ok', '<div class="metric-grid">' +
+          metric(res.observations ? res.observations.count || 0 : 0, 'observations') +
+          metric(res.punitions ? res.punitions.count || 0 : 0, 'punitions') +
+          metric(res.incidents ? res.incidents.count || 0 : 0, 'incidents') +
+          metric(res.count || 0, 'total lignes') +
+          '</div>');
+        renderStepNav();
+      } catch (err) {
+        setResult('behaviorResult', 'error', escapeHtml(err.message));
+      } finally {
+        setLoader('behavior', false);
+      }
+    }
+
+    async function runPreflight() {
+      if (!state.eleves) {
+        setResult('preflightVerdict', 'error', 'La liste eleves est obligatoire avant le controle.');
+        $('goCommitBtn').disabled = true;
+        return;
+      }
+
+      setLoader('preflight', true);
+      $('goCommitBtn').disabled = true;
+      try {
+        var res = await serverRun('ia_buildImportPreflight', { state: state, skips: skips });
+        lastPreflight = res;
+        renderPreflight(res);
+      } catch (err) {
+        setResult('preflightVerdict', 'error', escapeHtml(err.message));
+      } finally {
+        setLoader('preflight', false);
+      }
+    }
+
+    function renderPreflight(res) {
+      if (!res || !res.success) {
+        setResult('preflightVerdict', 'error', escapeHtml((res && res.error) || 'Controle impossible.'));
+        return;
+      }
+
+      done.preflight = !!res.ok;
+      $('goCommitBtn').disabled = !res.ok;
+      renderStepNav();
+
+      var errors = (res.issues || []).filter(function(i) { return i.severity === 'error'; });
+      var warnings = (res.issues || []).filter(function(i) { return i.severity === 'warning'; });
+      var summary = res.summary || {};
+      var classes = Array.isArray(summary.classes) ? summary.classes : [];
+
+      var html = '<div class="metric-grid">' +
+        metric(summary.students || 0, 'eleves') +
+        metric(classes.length, 'classes') +
+        metric(errors.length, 'erreurs') +
+        metric(warnings.length, 'alertes') +
+        '</div>';
+
+      if (res.issues && res.issues.length) {
+        html += res.issues.map(renderIssue).join('');
+      } else {
+        html += '<div class="issue info"><strong>Aucun blocage detecte</strong>Tu peux passer a l ecriture.</div>';
+      }
+      setResult('preflightVerdict', errors.length ? 'error' : (warnings.length ? 'warn' : 'ok'), html);
+      renderMatching(res.matching || {}, summary.students || 0);
+      renderScorePreview(res.scorePreview || {});
+      renderWritePlan(res.writePlan || {});
+    }
+
+    function renderIssue(issue) {
+      return '<div class="issue ' + escapeHtml(issue.severity || 'info') + '">' +
+        '<strong>' + escapeHtml(issue.code || 'INFO') + '</strong>' +
+        escapeHtml(issue.message || '') +
+        renderIssueDetails(issue.details || {}) +
+        '</div>';
+    }
+
+    function renderIssueDetails(details) {
+      if (!details.unmatched || !details.unmatched.length) return '';
+      return '<div class="chips">' + details.unmatched.slice(0, 12).map(function(name) {
+        return '<span class="chip red">' + escapeHtml(name) + '</span>';
+      }).join('') + '</div>';
+    }
+
+    function renderMatching(matching, studentCount) {
+      var keys = ['notes', 'absences', 'observations', 'punitions', 'incidents'];
+      var html = keys.map(function(key) {
+        var r = matching[key] || {};
+        var rate = r.rate === null || r.rate === undefined ? 0 : r.rate;
+        var label = key.charAt(0).toUpperCase() + key.slice(1);
+        var coverage = studentCount > 0 && r.total > 0
+          ? ' | couverture cohorte : ' + Math.round((r.matched || 0) / studentCount * 1000) / 10 + '%'
+          : '';
+        return '<div class="match-row">' +
+          '<strong>' + escapeHtml(label) + '</strong>' +
+          '<div><div class="bar"><span style="width:' + Math.max(0, Math.min(100, rate)) + '%"></span></div>' +
+          '<div class="muted">' + (r.matched || 0) + ' / ' + (r.total || 0) + ' lignes importees rattachees' + coverage + '</div></div>' +
+          '<span class="badge">' + (r.rate === null || r.rate === undefined ? '-' : rate + '%') + '</span>' +
+          '</div>';
+      }).join('');
+
+      setResult('matchingReport', '', html);
+    }
+
+    function renderScorePreview(preview) {
+      var distributions = preview.distributions || {};
+      var missing = preview.missing || {};
+      var html = '<div class="score-grid">' + ['COM', 'TRA', 'PART', 'ABS'].map(function(crit) {
+        return '<div class="score-card"><h4>' + crit + '</h4>' +
+          renderDistribution(distributions[crit] || {}) +
+          '<div class="muted">' + (missing[crit] || 0) + ' sans score</div></div>';
+      }).join('') + '</div>';
+      setResult('scorePreview', '', html);
+    }
+
+    function renderDistribution(dist) {
+      var max = Math.max(1, dist['1'] || 0, dist['2'] || 0, dist['3'] || 0, dist['4'] || 0);
+      return ['1', '2', '3', '4'].map(function(score) {
+        var value = dist[score] || 0;
+        return '<div class="dist"><strong>' + score + '</strong><div class="bar"><span style="width:' + ((value / max) * 100) + '%"></span></div><span>' + value + '</span></div>';
+      }).join('');
+    }
+
+    function renderWritePlan(plan) {
+      var classes = plan.classes || [];
+      if (!classes.length) {
+        $('writePlan').innerHTML = 'Aucun onglet classe detecte.';
+        return;
+      }
+
+      var html = '<p>' + plural(plan.willCreate || 0, 'onglet cree', 'onglets crees') + ', ' +
+        plural(plan.willReplace || 0, 'onglet remplace', 'onglets remplaces') + '.</p><div class="chips">';
+      html += classes.map(function(c) {
+        return '<span class="chip ' + (c.action === 'replace' ? 'amber' : 'green') + '">' +
+          escapeHtml(c.name) + ' : ' + c.students + ' eleves, ' + (c.action === 'replace' ? 'remplace' : 'cree') +
+          '</span>';
+      }).join('');
+      html += '</div>';
+      $('writePlan').innerHTML = html;
+    }
+
+    async function commitImport() {
+      if (!lastPreflight || !lastPreflight.ok) {
+        setResult('commitResult', 'error', 'Le controle preflight doit etre valide avant ecriture.');
+        return;
+      }
+
+      setLoader('commit', true);
+      $('commitBtn').disabled = true;
+      try {
+        var res = await serverRun('ia_commitImport', { state: state, skips: skips });
+        if (!res || !res.success) {
+          setResult('commitResult', 'error', escapeHtml((res && res.error) || 'Ecriture impossible.'));
+          return;
+        }
+
+        done.commit = true;
+        var summary = res.summary || {};
+        var backups = res.backup && res.backup.copied ? res.backup.copied : [];
+        var html = '<div class="metric-grid">' +
+          metric(summary.totalStudents || 0, 'eleves ecrits') +
+          metric(summary.classesProcessed || 0, 'classes') +
+          metric(summary.sheetsCreated || 0, 'onglets crees') +
+          metric(summary.sheetsUpdated || 0, 'onglets remplaces') +
+          '</div>' +
+          '<div class="issue info"><strong>Consolidation</strong>' + escapeHtml(summary.consolidation || 'Non disponible') + '</div>';
+
+        if (backups.length) {
+          html += '<h4>Backups crees</h4><div class="chips">' + backups.map(function(b) {
+            return '<span class="chip amber">' + escapeHtml(b.source || '') + ' -> ' + escapeHtml(b.backup || b.error || '') + '</span>';
+          }).join('') + '</div>';
+        }
+
+        if (res.dissoSuggestions && res.dissoSuggestions.length) {
+          html += '<div class="issue warning"><strong>Suggestions DISSO</strong>' + res.dissoSuggestions.length + ' groupe(s) a verifier dans SCORE CONSOLE.</div>';
+        }
+
+        setResult('commitResult', 'ok', html);
+        renderStepNav();
+      } catch (err) {
+        setResult('commitResult', 'error', escapeHtml(err.message));
+      } finally {
+        setLoader('commit', false);
+        $('commitBtn').disabled = false;
+      }
+    }
+
+    function metric(value, label) {
+      return '<div class="metric"><div class="value">' + escapeHtml(value) + '</div><div class="label">' + escapeHtml(label) + '</div></div>';
+    }
+
+    function markSkipped(kind) {
+      if (kind === 'notes') {
+        skips.notes = true;
+        state.notes = [];
+        done.notes = true;
+        renderNotesResult();
+      }
+
+      if (kind === 'absences') {
+        skips.absences = true;
+        state.absences = null;
+        done.absences = true;
+        setResult('absencesResult', 'warn', 'Absences ignorees. Le score ABS sera calcule comme vide/absences nulles selon le moteur actuel.');
+      }
+
+      if (kind === 'behavior') {
+        skips.behavior = true;
+        state.observations = null;
+        state.punitions = null;
+        state.incidents = null;
+        done.behavior = true;
+        setResult('behaviorResult', 'warn', 'Vie scolaire ignoree. Le score COM sera incomplet.');
+      }
+
+      renderStepNav();
+    }
+
+    function readFileToTarget(file, targetId) {
+      if (!file || !$(targetId)) return;
+
+      readFileAsText(file).then(function(text) {
+        $(targetId).value = text || '';
+      }).catch(function(err) {
+        $(targetId).value = '';
+        alert('Lecture du fichier impossible : ' + err.message);
+      });
+    }
+
+    function readFileAsText(file) {
+      return new Promise(function(resolve, reject) {
+        var reader = new FileReader();
+        reader.onload = function(evt) {
+          resolve(evt.target.result || '');
+        };
+        reader.onerror = function() {
+          reject(new Error('lecture impossible'));
+        };
+        reader.readAsText(file);
+      });
+    }
+
+    function attachDropZone(row) {
+      var input = row.querySelector('input[type="file"][data-file-target]');
+      if (!input) return;
+
+      var target = input.getAttribute('data-file-target');
+      row.classList.add('drop-ready');
+
+      ['dragenter', 'dragover'].forEach(function(eventName) {
+        row.addEventListener(eventName, function(evt) {
+          evt.preventDefault();
+          evt.stopPropagation();
+          row.classList.add('drag-over');
+        });
+      });
+
+      ['dragleave', 'dragend'].forEach(function(eventName) {
+        row.addEventListener(eventName, function(evt) {
+          evt.preventDefault();
+          evt.stopPropagation();
+          row.classList.remove('drag-over');
+        });
+      });
+
+      row.addEventListener('drop', function(evt) {
+        evt.preventDefault();
+        evt.stopPropagation();
+        row.classList.remove('drag-over');
+
+        var files = evt.dataTransfer && evt.dataTransfer.files;
+        if (target === 'notesInput') {
+          addNotesFiles(files);
+          return;
+        }
+
+        var file = files && files[0];
+        readFileToTarget(file, target);
+      });
+    }
+
+    function attachEvents() {
+      $('analyzeStudentsBtn').addEventListener('click', analyzeStudents);
+      $('addNotesBtn').addEventListener('click', addNotes);
+      $('analyzeAbsencesBtn').addEventListener('click', analyzeAbsences);
+      $('analyzeBehaviorBtn').addEventListener('click', analyzeBehavior);
+      $('refreshPreflightBtn').addEventListener('click', runPreflight);
+      $('goCommitBtn').addEventListener('click', function() { goToStep(5); });
+      $('backToPreflightBtn').addEventListener('click', function() { goToStep(4); });
+      $('commitBtn').addEventListener('click', commitImport);
+
+      $('skipNotesBtn').addEventListener('click', function() { markSkipped('notes'); });
+      $('skipAbsencesBtn').addEventListener('click', function() { markSkipped('absences'); });
+      $('skipBehaviorBtn').addEventListener('click', function() { markSkipped('behavior'); });
+
+      $('prevBtn').addEventListener('click', function() { goToStep(currentStep - 1); });
+      $('nextBtn').addEventListener('click', function() { goToStep(currentStep + 1); });
+
+      $('clearBehaviorBtn').addEventListener('click', function() {
+        $('observationsInput').value = '';
+        $('punitionsInput').value = '';
+        $('incidentsInput').value = '';
+      });
+
+      Array.prototype.forEach.call(document.querySelectorAll('[data-clear]'), function(btn) {
+        btn.addEventListener('click', function() {
+          var target = btn.getAttribute('data-clear');
+          if ($(target)) $(target).value = '';
+        });
+      });
+
+      Array.prototype.forEach.call(document.querySelectorAll('input[type="file"][data-file-target]'), function(input) {
+        input.addEventListener('change', function() {
+          var target = input.getAttribute('data-file-target');
+          if (target === 'notesInput') {
+            addNotesFiles(input.files);
+            input.value = '';
+            return;
+          }
+
+          var file = input.files && input.files[0];
+          readFileToTarget(file, target);
+        });
+      });
+
+      Array.prototype.forEach.call(document.querySelectorAll('.file-row'), attachDropZone);
+    }
+
+    async function loadLockStatus() {
+      try {
+        var res = await serverRun('ia_getImportLockStatus');
+        if (res && res.locked) {
+          var classes = (res.classes || []).map(function(c) { return c.name + ' (' + c.count + ')'; }).join(', ');
+          $('lockBanner').style.display = 'block';
+          $('lockBanner').innerHTML = '<strong>Import deja present.</strong><br>Une nouvelle ecriture remplacera les onglets concernes apres creation de backups. ' + escapeHtml(classes);
+        }
+      } catch (err) {
+        $('lockBanner').style.display = 'block';
+        $('lockBanner').textContent = 'Statut import indisponible : ' + err.message;
+      }
+    }
+
+    attachEvents();
+    renderStepNav();
+    goToStep(0);
+    loadLockStatus();
+  </script>
+</body>
+</html>

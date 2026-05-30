@@ -1,0 +1,12 @@
+# Dependencies and local tooling
+node_modules/
+npm-debug.log*
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Local scratch folders
+_github_check_score_pilotage_classes/
+VERSION_CODEX_OPTIMISEE/
+_github_fix_gs/
