@@ -30,7 +30,7 @@ push_one() {
   fi
 
   echo "→ Deploiement niveau $niveau (scriptId=$script_id)"
-  printf '{\n  "scriptId": "%s",\n  "rootDir": "src"\n}\n' "$script_id" > .clasp.json
+  printf '{\n  "scriptId": "%s",\n  "rootDir": "."\n}\n' "$script_id" > .clasp.json
   npx clasp push --force
   echo "✓ $niveau pousse"
 }

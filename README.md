@@ -63,48 +63,63 @@ Le même code se comporte différemment selon ce sélecteur, verrouillé après 
 
 ## Organisation du dépôt
 
+> **Layout plat (racine)** pour l'import via l'extension *Google Apps Script GitHub
+> Assistant* : Apps Script ne gère pas les sous-dossiers, donc tous les fichiers
+> déployables sont à la racine. L'ancien code `score-pilotage-classes` n'est plus
+> dans l'arbre — il reste consultable dans l'historique git (commits antérieurs à
+> la refondation, avant `7a29a6d`).
+
 ```
-src/                  ← SOURCE DE VÉRITÉ. Seul dossier poussé par clasp. Code propre 1-5.
-  appsscript.json     ← manifeste Apps Script
-  Score.gs            ← échelle 1-5 UNIQUE : mapping A-E↔5-1, libellés, composite, helpers
-  Config.gs           ← _CONFIG (get/set) + getNiveau() unifié (format "6e")
-  ScoreSeuils.gs      ← seuils valeur→score 1-5 (mode Pronote-moyennes, optionnel)
-  Matieres.gs         ← coefficients matières par niveau (table UNIQUE)
-  ImportEDT.gs        ← parser EDT UNIQUE : CSV quote-aware, double en-tête, 3 états,
+appsscript.json       ← manifeste Apps Script
+Score.gs              ← échelle 1-5 UNIQUE : mapping A-E↔5-1, libellés, composite, helpers
+Config.gs             ← _CONFIG (get/set) + getNiveau() unifié (format "6e")
+ScoreSeuils.gs        ← seuils valeur→score 1-5 (mode Pronote-moyennes, optionnel)
+Matieres.gs           ← coefficients matières par niveau (table UNIQUE)
+ImportEDT.gs          ← parser EDT UNIQUE : CSV quote-aware, double en-tête, 3 états,
                         filtrage niveau, options (O)/(F)/(X), MEF spéciaux, preflight, dry-run
-  Repartition.gs      ← moteur de répartition UNIQUE : équilibrage (effectif/parité/niveau)
+Repartition.gs        ← moteur de répartition UNIQUE : équilibrage (effectif/parité/niveau)
                         + moves + swaps, contraintes VERROU/ASSO/DISSO, rapport de conflits
-  Admin.gs            ← mot de passe admin robuste (sel+SHA-256, jamais admin123/1234)
-  EcritureClasses.gs  ← écriture répartition → onglets de classes + BILAN
-  Code.gs             ← points d'entrée (menu, web app doGet, API serveur) — couche fine
-  Interface.html      ← UI UNIQUE : badge niveau permanent, import dry-run, répartition
+Admin.gs              ← mot de passe admin robuste (sel+SHA-256, jamais admin123/1234)
+EcritureClasses.gs    ← écriture répartition → onglets de classes + BILAN
+Code.gs               ← points d'entrée (menu, web app doGet, API serveur) — couche fine
+Interface.html        ← UI UNIQUE : badge niveau permanent, import dry-run, répartition
 tests/                ← non déployé. run_tests*.js (Node) + Tests_Score.gs (éditeur GAS)
                         fixtures/*.local.csv (gitignoré, RGPD)
-legacy/               ← ancien code score-pilotage-classes. RÉFÉRENCE LECTURE SEULE.
-                        Jamais déployé. On y relit les briques à réécrire propre, on n'y touche pas.
-scripts/deploy.sh     ← déploiement multi-tenant (1 commande → 1 ou 4 instances)
+scripts/deploy.sh     ← déploiement clasp multi-tenant (alternative à l'Assistant)
 deployments.json      ← table des 4 cibles (scriptId + spreadsheetId par niveau)
 .clasp.json.template  ← gabarit clasp (le .clasp.json réel est généré par deploy.sh, non commité)
 ```
 
-### Ce qu'on RÉCUPÈRE de `legacy/` (à réécrire propre, pas copier tel quel)
+### Déployer via le GitHub Assistant (méthode recommandée)
 
-| Brique | Source legacy | Pourquoi |
+Dans l'éditeur Apps Script d'un Google Sheet, avec l'extension *Google Apps Script
+GitHub Assistant* :
+
+1. `Repository` : `FredtoAlpha/EDT-PRONOTE`
+2. `Branch` : la branche de déploiement (ex. `claude/eloquent-feynman-UjRx8`)
+3. Cliquer la flèche `↓` (pull). **Ne pas** cliquer `↑` (push) lors d'un import.
+
+Les `.gs`/`.html`/`appsscript.json` de la racine arrivent dans le projet. Ensuite :
+définir le niveau (`menu EDT-PRONOTE → Définir le niveau`) puis ouvrir la console.
+
+### Ce qu'on a RÉCUPÉRÉ du legacy (réécrit propre, pas copié)
+
+| Brique | Source legacy (historique git) | Réécrit dans |
 |---|---|---|
-| `parseOptions_` | `Backend_ImportDB.gs` | Parsing options Pronote fonctionnel |
-| Coefficients matières par niveau | `Scoring_Matieres.gs` (`MATIERES_PAR_NIVEAU`) | Bien structuré |
-| `detectNiveauAuto()` | `Scoring_Matieres.gs` | Détection niveau robuste |
-| Détection homonymes + preflight | `ImportAssistant_Server.gs` | Bonne UX de contrôle avant écriture |
-| Contraintes DISSO/ASSO + moteur de swaps | `Orchestration_V14I.gs`, `App.Core.gs` | Cœur algo, le plus de valeur |
-| Seuils centralisés | `Scoring_Config.gs` (`SCORING_DEFAULTS`) | Un seul endroit pour les seuils |
+| `parseOptions_` | `Backend_ImportDB.gs` | `ImportEDT.gs` (+ statuts (O)/(F)/(X)) |
+| Coefficients matières (`MATIERES_PAR_NIVEAU`) | `Scoring_Matieres.gs` | `Matieres.gs` |
+| `detectNiveauAuto()` / `lireNiveauDepuisConfig()` | doublons legacy | `Config.gs` → `getNiveau()` unique |
+| Homonymes + preflight | `ImportAssistant_Server.gs` | `ImportEDT.gs` |
+| DISSO/ASSO + swaps | `Orchestration_V14I.gs`, `App.Core.gs` | `Repartition.gs` |
+| Seuils centralisés (`SCORING_DEFAULTS`) | `Scoring_Config.gs` | `ScoreSeuils.gs` |
 
-### Ce qu'on COUPE net (ne jamais reporter dans `src/`)
+### Ce qu'on a COUPÉ net (jamais reporté)
 
 - Tout `LEGACY_*` (Pipeline, Mobility_Calculator, Logging…)
 - La 2e table de coefficients dupliquée (`ia_calcScoreTRAPreview_`)
-- Les 3 UI d'import concurrentes → **une seule**
+- Les 3 UI d'import concurrentes → **une seule** (`Interface.html`)
 - Le calcul de scores depuis moyennes brutes en mode EDT (on a déjà A-E)
-- Le double pipeline NAUTILUS + LEGACY → **un seul moteur**
+- Le double pipeline NAUTILUS + LEGACY → **un seul moteur** (`Repartition.gs`)
 - Le doublon `lireNiveauDepuisConfig()` (`"6°"`) vs `detectNiveauAuto()` (`"6e"`) → **une fonction, format `"6e"`**
 
 ---

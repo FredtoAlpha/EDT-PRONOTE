@@ -5,8 +5,8 @@
 'use strict';
 const fs = require('fs');
 const path = require('path');
-const R = require(path.join(__dirname, '..', 'src', 'Repartition.gs'));
-const Import = require(path.join(__dirname, '..', 'src', 'ImportEDT.gs'));
+const R = require(path.join(__dirname, '..', 'Repartition.gs'));
+const Import = require(path.join(__dirname, '..', 'ImportEDT.gs'));
 
 let pass = 0, fail = 0;
 function ok(c, m) { if (c) pass++; else { fail++; console.error('  ✗ ' + m); } }

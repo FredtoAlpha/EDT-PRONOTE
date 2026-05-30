@@ -4,7 +4,7 @@
  */
 'use strict';
 const path = require('path');
-const A = require(path.join(__dirname, '..', 'src', 'Admin.gs'));
+const A = require(path.join(__dirname, '..', 'Admin.gs'));
 
 let pass = 0, fail = 0;
 function ok(c, m) { if (c) pass++; else { fail++; console.error('  ✗ ' + m); } }

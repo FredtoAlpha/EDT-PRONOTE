@@ -1,4 +1,7 @@
-# clasp ne pousse que le contenu de src/ (rootDir). On ignore explicitement tout le reste
-# pour qu'aucun fichier legacy / doc / script ne soit jamais deploye dans Apps Script.
+# clasp pousse depuis la racine (rootDir "."). On ignore tout, puis on autorise
+# uniquement les fichiers deployables de la racine : aucun test/doc/script/config
+# n'est envoye dans Apps Script.
 **/**
-!src/**
+!appsscript.json
+!*.gs
+!*.html

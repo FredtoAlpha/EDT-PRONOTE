@@ -1,5 +1,5 @@
 {
   "_comment": "Template clasp. Le fichier .clasp.json reel est genere par scripts/deploy.sh a partir de deployments.json pour le niveau cible, et n'est PAS commite (voir .gitignore). Ne jamais commiter de scriptId ici.",
   "scriptId": "REMPLIR_PAR_DEPLOY_SH",
-  "rootDir": "src"
+  "rootDir": "."
 }

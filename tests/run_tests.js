@@ -10,7 +10,7 @@
  */
 'use strict';
 const path = require('path');
-const SRC = path.join(__dirname, '..', 'src');
+const SRC = path.join(__dirname, '..');
 
 const Score = require(path.join(SRC, 'Score.gs'));
 const Config = require(path.join(SRC, 'Config.gs'));
