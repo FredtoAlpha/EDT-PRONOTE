@@ -1,0 +1,4 @@
+# clasp ne pousse que le contenu de src/ (rootDir). On ignore explicitement tout le reste
+# pour qu'aucun fichier legacy / doc / script ne soit jamais deploye dans Apps Script.
+**/**
+!src/**

@@ -1,0 +1,30 @@
+{
+  "_comment": "Cibles de deploiement multi-tenant. UN code source (src/), QUATRE Google Sheets / projets Apps Script. Renseigner chaque scriptId reel puis deployer via npm run push:<niveau> (voir scripts/deploy.sh).",
+  "rootDir": "src",
+  "deployments": [
+    {
+      "niveau": "6e",
+      "label": "EDT-PRONOTE 6e",
+      "scriptId": "REMPLIR_SCRIPT_ID_6E",
+      "spreadsheetId": "REMPLIR_SPREADSHEET_ID_6E"
+    },
+    {
+      "niveau": "5e",
+      "label": "EDT-PRONOTE 5e",
+      "scriptId": "REMPLIR_SCRIPT_ID_5E",
+      "spreadsheetId": "REMPLIR_SPREADSHEET_ID_5E"
+    },
+    {
+      "niveau": "4e",
+      "label": "EDT-PRONOTE 4e",
+      "scriptId": "REMPLIR_SCRIPT_ID_4E",
+      "spreadsheetId": "REMPLIR_SPREADSHEET_ID_4E"
+    },
+    {
+      "niveau": "3e",
+      "label": "EDT-PRONOTE 3e",
+      "scriptId": "REMPLIR_SCRIPT_ID_3E",
+      "spreadsheetId": "REMPLIR_SPREADSHEET_ID_3E"
+    }
+  ]
+}
