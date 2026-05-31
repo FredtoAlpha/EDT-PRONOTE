@@ -105,8 +105,10 @@ function initialiserSysteme(niveau, nbSources, nbDest, lv2Options, optOptions, d
     // Début du spinner
     afficherSpinner(0);
     
-    // Préparation: Nettoyer les anciens onglets 
-    supprimerAnciensOngletsNonSysteme();
+    // Préparation: Nettoyer les anciens onglets.
+    // On préserve les onglets sources DÉJÀ REMPLIS pour ne pas détruire un import
+    // réalisé avant l'initialisation (ordre Import -> Config désormais possible).
+    supprimerAnciensOngletsNonSysteme(true);
     afficherSpinner(1);
 
     // 1. Créer/Réinitialiser _CONFIG avec les nouvelles données
@@ -200,18 +202,31 @@ function initialiserSysteme(niveau, nbSources, nbDest, lv2Options, optOptions, d
  * Supprime tous les onglets sauf ceux définis comme système/accueil.
  * À utiliser avec prudence lors d'une réinitialisation complète.
  */
-function supprimerAnciensOngletsNonSysteme() {
+function supprimerAnciensOngletsNonSysteme(preserverSourcesRemplies) {
     const ss = SpreadsheetApp.getActiveSpreadsheet();
     const allSheets = ss.getSheets();
     // Liste des onglets à ne PAS supprimer
     const ongletsAPreserver = ["ACCUEIL", ...Object.values(CONFIG.SHEETS)];
 
+    // Motif d'un onglet source/classe : "4°1", "5°99", etc.
+    const motifSource = /.+°\d+$/;
+
     Logger.log("Nettoyage des anciens onglets non-système...");
     let deletedCount = 0;
+    let preservedData = [];
     // Itérer en sens inverse pour éviter les problèmes d'index lors de la suppression
     for (let i = allSheets.length - 1; i >= 0; i--) {
         const sheet = allSheets[i];
         const sheetName = sheet.getName();
+
+        // Protection des onglets sources DÉJÀ REMPLIS (import effectué avant l'init) :
+        // on ne détruit jamais des données élèves sans le vouloir.
+        if (preserverSourcesRemplies && motifSource.test(sheetName) && sheet.getLastRow() > 1) {
+            preservedData.push(sheetName);
+            Logger.log(` - Conservation onglet source rempli: ${sheetName} (${sheet.getLastRow() - 1} lignes)`);
+            continue;
+        }
+
         // S'il reste plus d'une feuille ET que la feuille n'est pas dans la liste à préserver
         if (ss.getNumSheets() > 1 && !ongletsAPreserver.includes(sheetName)) {
             Logger.log(` - Suppression onglet: ${sheetName}`);
@@ -228,7 +243,9 @@ function supprimerAnciensOngletsNonSysteme() {
         }
     }
     if (deletedCount > 0) SpreadsheetApp.flush();
-    Logger.log(`Nettoyage terminé. ${deletedCount} onglets supprimés.`);
+    Logger.log(`Nettoyage terminé. ${deletedCount} onglets supprimés.` +
+        (preservedData.length ? ` ${preservedData.length} onglet(s) source(s) préservé(s): ${preservedData.join(', ')}` : ''));
+    return { deleted: deletedCount, preservedSources: preservedData };
 }
 
 /**
@@ -635,18 +652,24 @@ function creerOngletsSourcesVides(niveau, nbClasses) {
   for (let i = 1; i <= nbClasses; i++) {
     const nomOnglet = `${prefixeSource}${i}`;
     let sheet = ss.getSheetByName(nomOnglet);
+    // Si un onglet source porte déjà des données (import fait avant l'init),
+    // on NE le recrée PAS vide : on préserve les élèves importés.
+    if (sheet && sheet.getLastRow() > 1) {
+      Logger.log(` - Onglet source ${nomOnglet} déjà rempli : conservé tel quel.`);
+      continue;
+    }
     if (sheet) ss.deleteSheet(sheet);
     sheet = ss.insertSheet(nomOnglet);
-    
+
     // Limiter nombre de lignes et colonnes
     ajusterTailleOnglet(sheet, initialRows, maxNeededCol);
-    
+
     // Formatage en-tête et données
     formaterOnglet(sheet, entete, initialRows, columnWidths, "#d9ead3");
-    
+
     // Formule NOM_PRENOM améliorée avec SIERREUR
     ajouterFormules(sheet, initialRows);
-    
+
     // Préremplir SOURCE
     if (sourceColIndex > 0) {
       sheet.getRange(2, sourceColIndex, initialRows - 1, 1).setValue(nomOnglet);

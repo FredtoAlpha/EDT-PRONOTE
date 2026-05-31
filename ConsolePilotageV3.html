@@ -981,6 +981,10 @@
                     <div class="si-text">Définissez les classes cibles et leurs capacités. Le total des places doit couvrir <strong>tous</strong> les élèves, entrants compris. Ajustez le nombre de classes si l'effectif l'exige, puis validez.</div>
                 </div>
             </div>
+            <div class="card" id="struct-reco-card" style="display:none; margin-bottom:20px; border-left:4px solid var(--primary);">
+                <h2 style="margin-bottom:12px;"><i class="fas fa-lightbulb" style="color:#f59e0b;"></i> Recommandation</h2>
+                <div id="struct-reco-body" style="font-size:14px; color:#cbd5e1; line-height:1.6;"></div>
+            </div>
             <div class="card">
                 <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 10px;">
                     <h2>Définition des Classes Cibles</h2>
@@ -1706,6 +1710,47 @@
 
             // 3. Rendu Panneau Droite
             renderRightPanel(totals, cachedStats);
+
+            // 4. Recommandation de dimensionnement (effectif réel, entrants inclus)
+            renderStructureReco(totals);
+        }
+
+        // Affiche une recommandation : nb de classes et alerte si les places ne
+        // couvrent pas l'effectif réel (qui inclut les entrants via CONSOLIDATION).
+        function renderStructureReco(totals) {
+            const card = document.getElementById('struct-reco-card');
+            const body = document.getElementById('struct-reco-body');
+            if (!card || !body || !currentStructure) return;
+
+            const s = cachedStats || {};
+            const effectif = (s.effectifs && s.effectifs.total) ? s.effectifs.total : 0;
+            if (!effectif) { card.style.display = 'none'; return; }
+
+            const nbClasses = currentStructure.classes.length;
+            const capacite = totals.capacity;
+            // Capacité moyenne par classe basée sur la structure actuelle (défaut 28)
+            const capMoy = nbClasses > 0 ? Math.round(capacite / nbClasses) : 28;
+            const cible = capMoy > 0 ? capMoy : 28;
+            const nbRecommande = Math.max(1, Math.ceil(effectif / cible));
+
+            let msg = `<strong>${effectif}</strong> élèves à répartir (entrants inclus). `;
+            msg += `Structure actuelle : <strong>${nbClasses}</strong> classe(s) pour <strong>${capacite}</strong> places.`;
+
+            let alert = '';
+            if (capacite < effectif) {
+                alert = `<div style="margin-top:10px;color:#ef4444;font-weight:700;">`
+                    + `<i class="fas fa-triangle-exclamation"></i> Places insuffisantes : il manque ${effectif - capacite} place(s). `
+                    + `Il faudrait environ <strong>${nbRecommande}</strong> classes de ${cible}.</div>`;
+            } else if (capacite > effectif + nbClasses * 2) {
+                alert = `<div style="margin-top:10px;color:#f59e0b;font-weight:700;">`
+                    + `<i class="fas fa-circle-info"></i> Surcapacité de ${capacite - effectif} places. `
+                    + `${nbRecommande} classes de ${cible} suffiraient.</div>`;
+            } else {
+                alert = `<div style="margin-top:10px;color:#22c55e;font-weight:700;">`
+                    + `<i class="fas fa-circle-check"></i> Capacité cohérente avec l'effectif.</div>`;
+            }
+            body.innerHTML = msg + alert;
+            card.style.display = 'block';
         }
 
         function renderRightPanel(totals, stats) {
