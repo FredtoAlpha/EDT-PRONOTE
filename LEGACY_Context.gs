@@ -72,44 +72,45 @@ function makeCtxFromSourceSheets_LEGACY() {
     logLine('INFO', '  • ' + src + ' → ' + sourceToDestMapping[src]);
   }
 
-  // ========== ÉTAPE 3 : GÉNÉRER NOMS ONGLETS TEST ==========
-  // Utiliser le mapping si disponible, sinon fallback intelligent
-  const testSheets = sourceSheets.map(function(name) {
-    // Si le mapping existe pour cette source, utiliser la destination mappée
-    if (sourceToDestMapping[name]) {
-      return sourceToDestMapping[name] + 'TEST';
-    }
-
-    // Sinon, fallback sur l'ancien comportement
-    // Extraire le niveau (6°, 5°, etc.)
-    const matchNiveau = name.match(/([3-6]°\d+)/);
-    if (matchNiveau) {
-      return matchNiveau[1] + 'TEST';
-    }
-
-    // Si c'est ECOLE, on génère 6°X TEST
-    const matchEcole = name.match(/ECOLE(\d+)/);
-    if (matchEcole) {
-      return '6°' + matchEcole[1] + 'TEST';
-    }
-
-    // Fallback final
-    return name + 'TEST';
-  });
-
-  logLine('INFO', '📋 Onglets TEST à créer : ' + testSheets.join(', '));
-
-  // ========== ÉTAPE 4 : GÉNÉRER NIVEAUX DESTINATION ==========
-  // Niveaux de destination (sans suffixe TEST)
-  const niveauxDest = sourceSheets.map(function(name) {
-    return sourceToDestMapping[name] || name;
-  });
-
-  logLine('INFO', '📋 Niveaux de destination : ' + niveauxDest.join(', '));
-
-  // ========== ÉTAPE 5 : LIRE CONFIGURATION DEPUIS _STRUCTURE ==========
-  // Lire les quotas par classe depuis _STRUCTURE
+  // ========== ÉTAPE 3 : LIRE CONFIGURATION DEPUIS _STRUCTURE ==========
+  // ⚠️ Lue AVANT la dérivation des destinations : quotas et effectifs cibles
+  //    définissent les VRAIES classes de destination (lignes TEST / CLASSE_DEST).
   const quotas = readQuotasFromUI_LEGACY();
+  const targets = readTargetsFromUI_LEGACY();
+
+  // ========== ÉTAPE 4 : DÉRIVER LES DESTINATIONS RÉELLES ==========
+  // ✅ CORRECTIF (modèle « pool → classes cibles ») :
+  //    Les destinations proviennent des classes cibles DÉFINIES dans _STRUCTURE
+  //    (les clés de `targets`, c.-à-d. les lignes TEST / colonne CLASSE_DEST),
+  //    et NON d'une destination dérivée par onglet source.
+  //
+  //    Ancien comportement : 1 destination par source → les sources non mappées
+  //    (ex. 4°6, ou les entrants 4°99) généraient des onglets TEST « fantômes »
+  //    (4°6TEST, 4°99TEST), vides et pollueurs. Or ces élèves doivent seulement
+  //    alimenter le pool CONSOLIDATION, qui est ensuite réparti par les phases
+  //    dans les vraies classes cibles.
+  let niveauxDest = Object.keys(targets).filter(function(c) { return c; });
+
+  if (niveauxDest.length === 0) {
+    // Fallback : aucune classe cible lisible dans _STRUCTURE → ancien
+    // comportement (une destination par source via mapping, sinon le nom source).
+    logLine('WARN', '⚠️ Aucune classe cible lue dans _STRUCTURE — fallback dérivation par source');
+    niveauxDest = sourceSheets.map(function(name) {
+      if (sourceToDestMapping[name]) return sourceToDestMapping[name];
+      const matchNiveau = name.match(/([3-6]°\d+)/);
+      if (matchNiveau) return matchNiveau[1];
+      const matchEcole = name.match(/ECOLE(\d+)/);
+      if (matchEcole) return '6°' + matchEcole[1];
+      return name;
+    });
+    // Dédupliquer en conservant l'ordre
+    niveauxDest = niveauxDest.filter(function(v, i, a) { return a.indexOf(v) === i; });
+  }
+
+  const testSheets = niveauxDest.map(function(d) { return d + 'TEST'; });
+
+  logLine('INFO', '📋 Classes cibles (destinations) : ' + niveauxDest.join(', '));
+  logLine('INFO', '📋 Onglets TEST à créer : ' + testSheets.join(', '));
 
   logLine('INFO', '📊 Quotas lus :');
   for (const classe in quotas) {
@@ -119,14 +120,12 @@ function makeCtxFromSourceSheets_LEGACY() {
     }
   }
 
-  // Lire les cibles d'effectifs par classe
-  const targets = readTargetsFromUI_LEGACY();
-
   logLine('INFO', '🎯 Effectifs cibles :');
   for (const classe in targets) {
     logLine('INFO', '  • ' + classe + ' : ' + targets[classe] + ' élèves');
   }
 
+  // ========== ÉTAPE 5 : PARAMÈTRES D'OPTIMISATION ==========
   // Lire la tolérance de parité
   const tolParite = readParityToleranceFromUI_LEGACY() || 2;
 
