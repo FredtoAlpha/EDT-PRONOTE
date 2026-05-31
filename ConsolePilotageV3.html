@@ -470,15 +470,6 @@
                     <div class="cc-arrow"><i class="fas fa-chevron-right"></i></div>
                 </div>
 
-                <div class="choice-card" style="--accent:#10b981;" onclick="chooseFlow('base')">
-                    <div class="cc-ico"><i class="fas fa-database"></i></div>
-                    <div>
-                        <div class="cc-title">IMPORT PRONOTE — BASE ACTUELLE</div>
-                        <div class="cc-sub">Assistant guidé en 6 étapes : élèves, notes, absences, comportement, contrôle, écriture.</div>
-                    </div>
-                    <div class="cc-arrow"><i class="fas fa-chevron-right"></i></div>
-                </div>
-
                 <div class="choice-card" style="--accent:#6366f1;" onclick="chooseFlow('init')">
                     <div class="cc-ico"><i class="fas fa-cogs"></i></div>
                     <div>
@@ -600,25 +591,11 @@
                 </div>
             </div>
 
-            <!-- Lancement de l'Assistant -->
-            <div class="card" style="margin-bottom:20px; border:2px solid var(--success);">
-                <h2 style="color:var(--success);"><i class="fas fa-magic"></i> Assistant Import Pronote</h2>
-                <p style="color:#cbd5e1; line-height:1.6; margin:10px 0 15px;">
-                    L'Assistant guide en 6 etapes : liste eleves, notes, absences, comportement,
-                    controle prealable, puis ecriture dans le classeur. Detection des separateurs,
-                    des homonymes et des donnees manquantes avant toute modification.
-                </p>
-                <button onclick="openImportAssistant()" id="btn-open-assistant" class="btn btn-primary" style="width:100%;">
-                    <div class="spinner"></div>
-                    <span><i class="fas fa-rocket"></i> OUVRIR L'ASSISTANT IMPORT</span>
-                </button>
-            </div>
-
             <!-- Purger un import existant -->
             <div id="import-purge-section" class="card" style="display:none; border:2px solid #ef4444;">
                 <h2 style="color:#ef4444;"><i class="fas fa-exclamation-triangle"></i> Purger l'import existant</h2>
                 <div style="font-size:13px; color:#94a3b8; margin:10px 0 15px;">
-                    Supprime tous les onglets classes et vide CONSOLIDATION. Vous devrez relancer l'Assistant depuis le debut.
+                    Supprime tous les onglets classes et vide CONSOLIDATION. Vous devrez relancer l'import EDT depuis le debut.
                 </div>
                 <button onclick="confirmPurgeImport()" id="btn-purge-import" class="btn" style="background:linear-gradient(135deg, #ef4444 0%, #b91c1c 100%); width:100%;">
                     <div class="spinner"></div>
@@ -1271,8 +1248,6 @@
                     card.style.boxShadow = '0 0 0 3px #f59e0b';
                     setTimeout(function () { card.style.boxShadow = 'none'; }, 1600);
                 }
-            } else if (flow === 'base') {
-                if (typeof openImportAssistant === 'function') openImportAssistant();
             }
         }
 
@@ -1348,7 +1323,7 @@
                 } else {
                     if (statusEl) statusEl.innerHTML =
                         '<i class="fas fa-circle-info" style="color:var(--primary);"></i> ' +
-                        'Aucun import enregistre. Lancez l\'Assistant pour commencer.';
+                        'Aucun import enregistre. Importe ton fichier EDT ci-dessus pour commencer.';
                     if (purgeEl) purgeEl.style.display = 'none';
                     if (btnEl) {
                         var span2 = btnEl.querySelector('span');
