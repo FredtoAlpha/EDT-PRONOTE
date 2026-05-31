@@ -962,6 +962,11 @@
                     </button>
                 </div>
 
+                <div id="stats-empty-notice" style="display:none; padding:18px 20px; border-radius:10px; background:#1e293b; border-left:4px solid var(--warning); color:#fde68a; font-weight:600; line-height:1.5;">
+                    <i class="fas fa-info-circle"></i> Aucun élève importé pour l'instant. Importez d'abord vos fichiers EDT à l'étape 2, puis revenez ici.
+                    <div style="margin-top:12px;"><button onclick="goTo('import')" class="btn btn-secondary" style="width:auto; padding:8px 16px;"><i class="fas fa-file-import"></i> Aller à l'import</button></div>
+                </div>
+
                 <div id="stats-container" style="display: grid; grid-template-columns: 1fr 1fr; gap: 20px;">
                     <div class="card" style="background: #0f172a; padding: 25px;">
                         <h3 style="color: var(--primary); font-size: 16px; font-weight: 700; margin-bottom: 12px;">📌 EFFECTIFS</h3>
@@ -1018,7 +1023,12 @@
                     </div>
                 </div>
 
-                <div style="margin: 20px 0; border: 1px solid #334155; border-radius: 8px;">
+                <div id="struct-empty-notice" style="display:none; margin-top:18px; padding:18px 20px; border-radius:10px; background:#1e293b; border-left:4px solid var(--warning); color:#fde68a; font-weight:600; line-height:1.5;">
+                    <i class="fas fa-info-circle"></i> Aucun élève importé : impossible de dimensionner la structure. Importez d'abord vos fichiers EDT à l'étape 2.
+                    <div style="margin-top:12px;"><button onclick="goTo('import')" class="btn btn-secondary" style="width:auto; padding:8px 16px;"><i class="fas fa-file-import"></i> Aller à l'import</button></div>
+                </div>
+
+                <div id="struct-table-wrap" style="margin: 20px 0; border: 1px solid #334155; border-radius: 8px;">
                     <table class="editor-table" id="struct-table">
                         <thead id="struct-header"></thead>
                         <tbody id="struct-body"><tr><td style="padding:30px">Chargement...</td></tr></tbody>
@@ -1271,6 +1281,14 @@
         const STEP_ORDER = [1, 'import', 3, 4, 'scoring', 5, 6];
 
         function goTo(n) {
+            // Garde d'ordre centralisé : toute étape au-delà de la Configuration (1)
+            // exige un système configuré. Couvre tous les points d'entrée (nav sidebar,
+            // boutons, appels programmatiques), pas seulement la carte d'accueil.
+            if (n !== 1 && !systemConfigured) {
+                showToast('Configurez et initialisez le système avant de continuer.', 'info');
+                n = 1;
+            }
+
             document.querySelectorAll('.phase').forEach(p => {
                 p.classList.remove('active');
                 p.style.display = 'none';
@@ -1622,7 +1640,15 @@
                 if (!stats.success) return; 
                 
                 cachedStats = stats; // Mise à jour du cache pour l'onglet Structure
-                
+
+                // Aucun élève importé : message explicite plutôt que des zéros muets.
+                const statsEmpty = !stats.effectifs || !stats.effectifs.total;
+                const statsNotice = document.getElementById('stats-empty-notice');
+                const statsContainer = document.getElementById('stats-container');
+                if (statsNotice) statsNotice.style.display = statsEmpty ? 'block' : 'none';
+                if (statsContainer) statsContainer.style.display = statsEmpty ? 'none' : 'grid';
+                if (statsEmpty) return;
+
                 if(document.getElementById('stats-effectifs')) document.getElementById('stats-effectifs').innerHTML = stats.effectifs.total;
                 if(document.getElementById('metric-eleves')) document.getElementById('metric-eleves').innerHTML = stats.effectifs.total;
                 if(document.getElementById('stats-parite')) document.getElementById('stats-parite').innerHTML = `F: ${stats.parite.F} | M: ${stats.parite.M}`;
@@ -1655,12 +1681,22 @@
                 if (!data.success) return showModal(data.error, 'error');
                 
                 currentStructure = data;
-                
+
                 // Important : si les stats viennent avec la structure, on met à jour le cache
                 if (data.stats && data.stats.global) {
                     cachedStats = data.stats;
                 }
-                
+
+                // Aucun élève importé : on ne peut pas dimensionner la structure.
+                const effTotal =
+                    (data.stats && data.stats.effectifs && data.stats.effectifs.total) ||
+                    (cachedStats && cachedStats.effectifs && cachedStats.effectifs.total) || 0;
+                const structNotice = document.getElementById('struct-empty-notice');
+                const structWrap = document.getElementById('struct-table-wrap');
+                if (structNotice) structNotice.style.display = effTotal ? 'none' : 'block';
+                if (structWrap) structWrap.style.display = effTotal ? 'block' : 'none';
+                if (!effTotal) return;
+
                 renderStructureTable(data);
                 triggerGlobalUpdate(); // Lancement immédiat du calcul
             }, err => showModal(err.message, 'error'));
@@ -1801,6 +1837,15 @@
 
             let msg = `<strong>${effectif}</strong> élèves à répartir (entrants inclus). `;
             msg += `Structure actuelle : <strong>${nbClasses}</strong> classe(s) pour <strong>${capacite}</strong> places.`;
+
+            // Signaler les élèves sans LV2 (ni ESP ni ITA ni autre) : ils ne sont
+            // couverts par aucun quota de langue, à placer en conséquence.
+            const sansLV2 = (s.sansLV2 != null) ? s.sansLV2 : 0;
+            if (sansLV2 > 0) {
+                msg += `<div style="margin-top:8px;color:#f59e0b;font-weight:700;">`
+                    + `<i class="fas fa-language"></i> ${sansLV2} élève(s) sans LV2 renseignée `
+                    + `(non couverts par un quota de langue).</div>`;
+            }
 
             let alert = '';
             if (capacite < effectif) {

@@ -447,6 +447,14 @@ function consoliderDonnees() {
     }
   }
 
+  // Coloriage des lignes par LV2/OPT (même palette que les onglets FIN) pour
+  // une lecture rapide. Priorité à l'option, puis à la LV2.
+  try {
+    colorierConsolidationParLV2OPT_(consolidationSheet, headers, toutesLesDonnees.length);
+  } catch (e) {
+    Logger.log("⚠️ Coloriage CONSOLIDATION ignoré: " + e.message);
+  }
+
   // Mettre en forme pour faciliter la lecture
   consolidationSheet.setFrozenRows(1);
 
@@ -462,4 +470,43 @@ function consoliderDonnees() {
   const message = `✅ Consolidation terminée : ${toutesLesDonnees.length} élèves consolidés depuis ${sourceSheets.length} sources`;
   Logger.log(`\n🎉 ${message}`);
   return message;
+}
+
+/**
+ * Applique un fond de couleur par LV2/OPT aux lignes de CONSOLIDATION.
+ * Même palette que formatFinSheet_V3 (onglets FIN), pour cohérence visuelle.
+ * @param {Sheet} sheet       L'onglet CONSOLIDATION (déjà rempli et trié).
+ * @param {string[]} headers  En-têtes normalisés (UPPERCASE) de CONSOLIDATION.
+ * @param {number} nbLignes   Nombre de lignes de données (hors en-tête).
+ */
+function colorierConsolidationParLV2OPT_(sheet, headers, nbLignes) {
+  if (!sheet || !nbLignes || nbLignes < 1) return;
+
+  const lv2Colors = {
+    'ESP': '#FFB347', 'ITA': '#d5f5e3', 'ALL': '#FFED4E', 'PT': '#32CD32', 'OR': '#FFD700'
+  };
+  const optColors = {
+    'CHAV': '#8B4789', 'LATIN': '#e8f8f5', 'CHINOIS': '#C41E3A', 'GREC': '#f6ca9d'
+  };
+
+  const lv2Idx = headers.indexOf('LV2');
+  const optIdx = headers.indexOf('OPT');
+  if (lv2Idx === -1 && optIdx === -1) return; // rien à colorier
+
+  const nbCols = headers.length;
+  // Lire les valeurs (post-tri) pour décider la couleur de chaque ligne
+  const data = sheet.getRange(2, 1, nbLignes, nbCols).getValues();
+  const blanc = '#ffffff';
+  const backgrounds = data.map(row => {
+    const lv2 = lv2Idx !== -1 ? String(row[lv2Idx] || '').trim().toUpperCase() : '';
+    const opt = optIdx !== -1 ? String(row[optIdx] || '').trim().toUpperCase() : '';
+    let bg = blanc;
+    if (opt && optColors[opt]) bg = optColors[opt];          // priorité 1 : option
+    else if (lv2 && lv2Colors[lv2]) bg = lv2Colors[lv2];     // priorité 2 : LV2
+    const ligne = new Array(nbCols);
+    for (let c = 0; c < nbCols; c++) ligne[c] = bg;
+    return ligne;
+  });
+
+  sheet.getRange(2, 1, nbLignes, nbCols).setBackgrounds(backgrounds);
 }

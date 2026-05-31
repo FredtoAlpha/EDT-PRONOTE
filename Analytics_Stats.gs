@@ -64,6 +64,7 @@ function getConsolidationStats() {
       effectifs: calculerEffectifs(rows),
       parite: calculerParite(rows, idx.SEXE),
       lv2: calculerLV2(rows, idx.LV2, idx.OPT),
+      sansLV2: calculerSansLV2(rows, idx.LV2),
       options: calculerOptions(rows, idx.OPT, idx.LV2),
       combos: calculerCombos(rows, idx.LV2, idx.OPT),
       global: calculerComptagesGlobaux(rows, idx.LV2, idx.OPT), // NOUVEAU : Comptage global unifié
@@ -133,6 +134,20 @@ function calculerLV2(rows, lv2Idx, optIdx) {
   });
 
   return lv2Counts;
+}
+
+/**
+ * Compte les élèves SANS LV2 renseignée (champ vide).
+ * Sert à signaler dans l'éditeur de structure les élèves qu'aucune LV2 ne couvre.
+ */
+function calculerSansLV2(rows, lv2Idx) {
+  if (lv2Idx === -1) return 0;
+  let n = 0;
+  rows.forEach(row => {
+    const lv2 = String(row[lv2Idx] || '').trim();
+    if (!lv2) n++;
+  });
+  return n;
 }
 
 /**

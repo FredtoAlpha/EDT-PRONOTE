@@ -498,16 +498,29 @@ function v3_getStructureDataForEditor() {
     const optRaw = (config.OPTIONS && config.OPTIONS[niveauKey]) || []; // Array déjà parsé
 
     // 1. Récupérer les options actives (déjà des arrays)
-    const lv2List = Array.isArray(lv2Raw) ? lv2Raw : [];
+    let lv2List = Array.isArray(lv2Raw) ? lv2Raw : [];
     // FILTRE ANTI-DUPLICATION : On retire des Options tout ce qui est déjà en LV2
     const optListRaw = Array.isArray(optRaw) ? optRaw : [];
-    const optList = optListRaw.filter(opt => !lv2List.includes(opt));
+    let optList = optListRaw.filter(opt => !lv2List.includes(opt));
 
     // 2. Récupérer les stats pour pré-remplir les quotas (info uniquement)
     const stats = getConsolidationStats();
     const lv2Stats = stats.success ? stats.lv2 : {};
     const optStats = stats.success ? stats.options : {};
     const comboStats = stats.success ? stats.combos : {};
+    const globalStats = stats.success && stats.global ? stats.global : {};
+    const sansLV2 = stats.success ? (stats.sansLV2 || 0) : 0;
+
+    // FILTRE PAR DEMANDE RÉELLE : on n'affiche que les LV2/options réellement
+    // présentes dans les données importées (>0 élève). Cela retire le bruit :
+    // une LV2 sans élève (ex. ALL si aucun allemand) ou la LV1 (ex. ANG) qui
+    // n'apparaît jamais en LV2 disparaissent automatiquement des colonnes.
+    // Si aucune stat (import pas encore fait), on conserve la liste configurée.
+    if (stats.success && Object.keys(globalStats).length) {
+      const aDeLaDemande = (k) => (globalStats[String(k).toUpperCase()] || 0) > 0;
+      lv2List = lv2List.filter(aDeLaDemande);
+      optList = optList.filter(aDeLaDemande);
+    }
 
     // 3. Tenter de lire la structure existante dans _STRUCTURE
     const structureSheet = ss.getSheetByName('_STRUCTURE');
@@ -587,7 +600,9 @@ function v3_getStructureDataForEditor() {
         effectifs: stats.effectifs || { total: 0 },
         lv2: lv2Stats,
         options: optStats,
-        combos: comboStats
+        combos: comboStats,
+        global: globalStats,
+        sansLV2: sansLV2
       }
     };
 
