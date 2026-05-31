@@ -1838,6 +1838,15 @@
             let msg = `<strong>${effectif}</strong> élèves à répartir (entrants inclus). `;
             msg += `Structure actuelle : <strong>${nbClasses}</strong> classe(s) pour <strong>${capacite}</strong> places.`;
 
+            // Signaler les élèves sans LV2 (ni ESP ni ITA ni autre) : ils ne sont
+            // couverts par aucun quota de langue, à placer en conséquence.
+            const sansLV2 = (s.sansLV2 != null) ? s.sansLV2 : 0;
+            if (sansLV2 > 0) {
+                msg += `<div style="margin-top:8px;color:#f59e0b;font-weight:700;">`
+                    + `<i class="fas fa-language"></i> ${sansLV2} élève(s) sans LV2 renseignée `
+                    + `(non couverts par un quota de langue).</div>`;
+            }
+
             let alert = '';
             if (capacite < effectif) {
                 alert = `<div style="margin-top:10px;color:#ef4444;font-weight:700;">`
