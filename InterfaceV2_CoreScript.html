@@ -1067,7 +1067,7 @@
           scoreConfig.forEach(({ key, label, colorClass }) => {
             const value = eleve.scores[key] || 0;
             if (value > 0) {
-              const rWidth = (value / 4) * 100;
+              const rWidth = (value / 5) * 100;
               // On colore en rouge si la perf est critique (1) sauf pour les absences où c'est l'inverse dans certaines logiques, mais gardons simple:
               const finalColor = (value === 1) ? 'bg-red-500' : colorClass;
 
@@ -1079,7 +1079,7 @@
                   <div class="h-full rounded-full ${finalColor}" style="width: ${rWidth}%"></div>
                 </div>
               `;
-              row.title = `${label}: ${value}/4`;
+              row.title = `${label}: ${value}/5`;
               scoresContainer.appendChild(row);
             }
           });
@@ -1099,7 +1099,7 @@
               const pill = document.createElement('div');
               pill.className = `score-pill score-${value}`;
               pill.textContent = letter; // Afficher la LETTRE (C, T, P, A)
-              pill.title = `${label}: ${value}/4`;
+              pill.title = `${label}: ${value}/5`;
               scoresContainer.appendChild(pill);
             }
           });

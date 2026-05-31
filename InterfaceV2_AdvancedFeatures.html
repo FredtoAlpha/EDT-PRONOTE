@@ -413,9 +413,9 @@
       scoreMap.forEach(({ key, label, letter }) => {
         if (scores[key] !== undefined && scores[key] !== '' && scores[key] > 0) {
           const score = scores[key];
-          // Utiliser les classes score-pill existantes pour avoir 4 couleurs distinctes :
-          // score-1 = ROUGE, score-2 = JAUNE, score-3 = VERT CLAIR, score-4 = VERT FONCÉ
-          badges.push(`<div class="score-pill score-${score}" title="${label}: ${score}/4">${letter}</div>`);
+          // Classes score-pill (echelle 1-5) :
+          // 1 ROUGE, 2 ORANGE, 3 JAUNE, 4 VERT CLAIR, 5 VERT FONCÉ
+          badges.push(`<div class="score-pill score-${score}" title="${label}: ${score}/5">${letter}</div>`);
         }
       });
 
