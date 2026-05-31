@@ -1893,12 +1893,12 @@
           column.querySelector('.count-m').textContent = counts.M;
 
           const scoreCats = ['C', 'T', 'P', 'A'];
-          const counters = { C: [0, 0, 0, 0], T: [0, 0, 0, 0], P: [0, 0, 0, 0], A: [0, 0, 0, 0] };
+          const counters = { C: [0, 0, 0, 0, 0], T: [0, 0, 0, 0, 0], P: [0, 0, 0, 0, 0], A: [0, 0, 0, 0, 0] };
 
           eleves.forEach(e => {
             scoreCats.forEach(cat => {
               const v = +e.scores?.[cat] || 0;
-              if (v >= 1 && v <= 4) counters[cat][v - 1]++;
+              if (v >= 1 && v <= 5) counters[cat][v - 1]++;
             });
           });
 
@@ -4405,7 +4405,7 @@
               x: { ticks: { font: { size: 10 } } },
               y: {
                 beginAtZero: true,
-                max: 4,
+                max: 5,
                 ticks: { font: { size: 10 } }
               }
             },
