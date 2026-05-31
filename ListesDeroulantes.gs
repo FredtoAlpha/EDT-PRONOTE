@@ -199,7 +199,7 @@ function ajouterListesDeroulantes() {
                    .build() : null;
   
   const ruleCRIT = SpreadsheetApp.newDataValidation()
-    .requireValueInList(['', '1', '2', '3', '4'], true)
+    .requireValueInList(['', '1', '2', '3', '4', '5'], true)
     .setAllowInvalid(false)
     .build();
   
@@ -311,9 +311,10 @@ function ajouterListesDeroulantes() {
           range.setDataValidation(ruleCRIT);
           const critColors = [
             {v:'1', bg:'#e74c3c', fc:'#ffffff'},
-            {v:'2', bg:'#f9e79f', fc:'#000000'},
-            {v:'3', bg:'#d5f5e3', fc:'#000000'},
-            {v:'4', bg:'#1e8449', fc:'#ffffff'}
+            {v:'2', bg:'#f5b041', fc:'#000000'},
+            {v:'3', bg:'#f9e79f', fc:'#000000'},
+            {v:'4', bg:'#82e0aa', fc:'#000000'},
+            {v:'5', bg:'#1e8449', fc:'#ffffff'}
           ];
           critColors.forEach(c => {
             cfrules.push(

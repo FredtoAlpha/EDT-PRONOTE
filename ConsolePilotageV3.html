@@ -304,6 +304,25 @@
         .modal-btn-primary { background: var(--primary); color: white; }
         .modal-btn-secondary { background: #334155; color: white; }
         @keyframes modalSlideIn { from { transform: scale(0.8); opacity: 0; } to { transform: scale(1); opacity: 1; } }
+        /* ===== Panneau de choix d'accueil (3 propositions de travail) ===== */
+        .choice-grid { display: grid; grid-template-columns: 1fr; gap: 14px; margin: 8px 0 4px; }
+        .choice-card {
+            display: flex; align-items: center; gap: 16px; text-align: left;
+            padding: 18px 20px; border-radius: 14px; cursor: pointer;
+            background: #0f172a; border: 1px solid #334155;
+            border-left: 5px solid var(--accent, var(--primary));
+            transition: transform .15s, box-shadow .15s, border-color .15s;
+        }
+        .choice-card:hover { transform: translateY(-2px); box-shadow: 0 10px 28px rgba(0,0,0,.45); border-color: var(--accent, var(--primary)); }
+        .choice-card .cc-ico {
+            flex: 0 0 50px; height: 50px; border-radius: 12px; display: flex;
+            align-items: center; justify-content: center; font-size: 22px; color: #fff;
+            background: var(--accent, var(--primary));
+        }
+        .choice-card .cc-title { font-size: 16px; font-weight: 800; color: #fff; letter-spacing: .3px; }
+        .choice-card .cc-sub { font-size: 12.5px; color: #94a3b8; margin-top: 3px; line-height: 1.45; }
+        .choice-card .cc-arrow { margin-left: auto; color: #475569; font-size: 18px; }
+        .choice-card:hover .cc-arrow { color: var(--accent, var(--primary)); }
 
         /* TRACE DETAIL PANEL */
         .trace-overlay {
@@ -436,19 +455,46 @@
     </div>
 
     <div id="welcome-overlay" class="welcome-overlay">
-        <div class="modal" onclick="event.stopPropagation()">
-            <div class="modal-icon info"><i class="fas fa-hand-sparkles"></i></div>
-            <h2 class="modal-title">Bienvenue dans la Console Admin</h2>
-            <p class="modal-message">Choisissez comment démarrer : reprendre une session existante ou repartir de zéro.</p>
-            <div class="modal-buttons" style="gap: 10px;">
-                <button id="btn-new-config" class="modal-btn modal-btn-secondary" onclick="handleNewConfiguration()">
-                    <i class="fas fa-plus-circle"></i> NOUVELLE CONFIGURATION
-                </button>
+        <div class="modal" onclick="event.stopPropagation()" style="max-width:620px;">
+            <div class="modal-icon info"><i class="fas fa-rocket"></i></div>
+            <h2 class="modal-title">Console Admin — Que veux-tu faire ?</h2>
+            <p class="modal-message" style="margin-bottom:22px;">Choisis ton point de départ. Chaque option lance le bon outil.</p>
+
+            <div class="choice-grid">
+                <div class="choice-card" style="--accent:#f59e0b;" onclick="chooseFlow('edt')">
+                    <div class="cc-ico"><i class="fas fa-calendar-alt"></i></div>
+                    <div>
+                        <div class="cc-title">IMPORT PRONOTE — CLASSES PRÉVISIONNELLES</div>
+                        <div class="cc-sub">Fichier EDT du futur niveau (MEF prévisionnel). Glisser-déposer, filtrage du niveau, écriture des onglets sources.</div>
+                    </div>
+                    <div class="cc-arrow"><i class="fas fa-chevron-right"></i></div>
+                </div>
+
+                <div class="choice-card" style="--accent:#10b981;" onclick="chooseFlow('base')">
+                    <div class="cc-ico"><i class="fas fa-database"></i></div>
+                    <div>
+                        <div class="cc-title">IMPORT PRONOTE — BASE ACTUELLE</div>
+                        <div class="cc-sub">Assistant guidé en 6 étapes : élèves, notes, absences, comportement, contrôle, écriture.</div>
+                    </div>
+                    <div class="cc-arrow"><i class="fas fa-chevron-right"></i></div>
+                </div>
+
+                <div class="choice-card" style="--accent:#6366f1;" onclick="chooseFlow('init')">
+                    <div class="cc-ico"><i class="fas fa-cogs"></i></div>
+                    <div>
+                        <div class="cc-title">CONFIGURATION &amp; INITIALISATION</div>
+                        <div class="cc-sub">Définir niveau, LV2, options, nombre de classes, et générer la structure des onglets.</div>
+                    </div>
+                    <div class="cc-arrow"><i class="fas fa-chevron-right"></i></div>
+                </div>
+            </div>
+
+            <div class="modal-buttons" style="gap:10px; margin-top:18px;">
                 <button id="btn-resume-session" class="modal-btn modal-btn-primary" onclick="handleResumeSession()" style="display:none;">
                     <i class="fas fa-history"></i> REPRENDRE LA SESSION
                 </button>
             </div>
-            <div id="welcome-status" style="text-align:center;color:#94a3b8;margin-top:10px;font-size:13px;"></div>
+            <div id="welcome-status" style="text-align:center;color:#94a3b8;margin-top:14px;font-size:13px;"></div>
         </div>
     </div>
 
@@ -532,8 +578,8 @@
             <h1>IMPORT EDT / PRONOTE</h1>
 
             <!-- Import direct du fichier EDT/PRONOTE (integre, pas de modale) -->
-            <div class="card" style="margin-bottom:20px; border:2px solid var(--primary);">
-                <h2 style="color:var(--primary);"><i class="fas fa-file-import"></i> Importer le fichier EDT/PRONOTE</h2>
+            <div id="edt-import-card" class="card" style="margin-bottom:20px; border:2px solid #f59e0b;">
+                <h2 style="color:#f59e0b;"><i class="fas fa-calendar-alt"></i> Import PRONOTE — Classes prévisionnelles</h2>
                 <p style="color:#cbd5e1; margin:8px 0 12px;">Glisse ton fichier (ou colle son contenu). Séparateur détecté automatiquement (virgule / point-virgule / tabulation). Seuls les élèves du niveau actif sont conservés ; A→5, B→4, C→3, D→2, E→1.</p>
                 <div id="edt-drop" style="border:2px dashed #475569; border-radius:10px; padding:18px; text-align:center; color:#94a3b8; cursor:pointer;">📄 Glisser-déposer le fichier ici (ou cliquer)
                     <input type="file" id="edt-file" accept=".csv,.txt" style="display:none">
@@ -1210,6 +1256,24 @@
             await callSessionEndpoint(sessionRoutes.reset);
             toggleWelcomeModal(false);
             goTo(1);
+        }
+
+        // Aiguillage depuis le panneau d'accueil (3 propositions de travail)
+        function chooseFlow(flow) {
+            if (flow === 'init') { handleNewConfiguration(); return; }
+            toggleWelcomeModal(false);
+            goTo('import');
+            if (flow === 'edt') {
+                var card = document.getElementById('edt-import-card');
+                if (card) {
+                    card.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                    card.style.transition = 'box-shadow .3s';
+                    card.style.boxShadow = '0 0 0 3px #f59e0b';
+                    setTimeout(function () { card.style.boxShadow = 'none'; }, 1600);
+                }
+            } else if (flow === 'base') {
+                if (typeof openImportAssistant === 'function') openImportAssistant();
+            }
         }
 
         function loadConfigIntoForm(cfg) {
