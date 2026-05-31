@@ -788,11 +788,30 @@ function v3_getSessionStatus() {
     return {
       success: true,
       hasBackup: hasBackup,
+      configured: v3_isSystemConfigured_(),
       progress: progress.success ? progress : null
     };
   } catch (e) {
     Logger.log(`Erreur v3_getSessionStatus: ${e.message}`);
-    return { success: false, hasBackup: false, error: e.message };
+    return { success: false, hasBackup: false, configured: false, error: e.message };
+  }
+}
+
+/**
+ * Le systeme est-il configure/initialise ? (niveau defini dans _CONFIG ET
+ * onglet _STRUCTURE present). Sert a empecher un import avant la configuration.
+ * @returns {boolean}
+ */
+function v3_isSystemConfigured_() {
+  try {
+    const ss = SpreadsheetApp.getActiveSpreadsheet();
+    const config = getConfig();
+    const niveau = config && config.NIVEAU ? String(config.NIVEAU).trim() : '';
+    const hasStructure = !!ss.getSheetByName((CONFIG && CONFIG.SHEETS && CONFIG.SHEETS.STRUCTURE) || '_STRUCTURE');
+    return niveau !== '' && hasStructure;
+  } catch (e) {
+    Logger.log('v3_isSystemConfigured_ erreur: ' + e.message);
+    return false;
   }
 }
 

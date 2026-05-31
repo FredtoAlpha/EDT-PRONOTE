@@ -126,17 +126,27 @@ function edtNormClasseFallback_(c) {
 /**
  * COEUR PUR de l'import EDT.
  * @param {string} text       contenu du fichier EDT/PRONOTE
- * @param {string} niveauActif "3e", "3°", "3EME"...
- * @returns {{eleves:Array, parClasse:Object, stats:Object, warnings:string[], sep:string, cols:Object}}
+ * @param {string} niveauActif "3e", "3°", "3EME"... (niveau attendu, filtrage)
+ * @param {string} [typeImport] 'prev' (classes previsionnelles) ou 'base'
+ *                 (base actuelle). Defaut: 'prev'. Determine la colonne de
+ *                 classe et de niveau utilisees, donc le niveau des onglets.
+ * @returns {{eleves:Array, parClasse:Object, stats:Object, warnings:string[], sep:string, cols:Object, typeImport:string}}
  */
-function edtImportCore_(text, niveauActif) {
+function edtImportCore_(text, niveauActif, typeImport) {
+  typeImport = (typeImport === 'base') ? 'base' : 'prev';
+  // Selon le type : quelle colonne porte la classe et le niveau (MEF).
+  var colClasse = (typeImport === 'base') ? 'ANCIENNE_CLASSE' : 'CLASSE_PREV';
+  var colClasseReplis = (typeImport === 'base') ? 'CLASSE_PREV' : 'ANCIENNE_CLASSE';
+  var colMef = (typeImport === 'base') ? 'ANCIEN_MEF' : 'MEF_PREV';
+  var colMefReplis = (typeImport === 'base') ? 'MEF_PREV' : 'ANCIEN_MEF';
+
   var lignes = String(text).replace(/^﻿/, '').split(/\r?\n/);
   var premiere = '';
   for (var i = 0; i < lignes.length; i++) { if (lignes[i].trim() !== '') { premiere = lignes[i]; break; } }
   var sep = edtDetectSep_(premiere);
   var rows = edtParseCsv_(text, sep);
   var warnings = [];
-  if (rows.length < 3) return { eleves: [], parClasse: {}, stats: { lu: 0 }, warnings: ['Fichier trop court.'], sep: sep, cols: {} };
+  if (rows.length < 3) return { eleves: [], parClasse: {}, stats: { lu: 0 }, warnings: ['Fichier trop court.'], sep: sep, cols: {}, typeImport: typeImport };
 
   // Double en-tete : fusion (ligne 2 prioritaire pour les sous-colonnes Criteres)
   var h1 = rows[0], h2 = rows[1];
@@ -146,29 +156,30 @@ function edtImportCore_(text, niveauActif) {
     var key = edtClassifyHeader_(label);
     if (key && !(key in cols)) cols[key] = c;
   }
-  var manquantes = ['NOM', 'PRENOM', 'MEF_PREV'].filter(function (k) { return !(k in cols); });
+  var colClasseEffective = (colClasse in cols) ? colClasse : ((colClasseReplis in cols) ? colClasseReplis : colClasse);
+  var manquantes = ['NOM', 'PRENOM'].filter(function (k) { return !(k in cols); });
+  if (!(colClasse in cols) && !(colClasseReplis in cols)) manquantes.push(colClasse);
   if (manquantes.length) warnings.push('Colonnes essentielles absentes: ' + manquantes.join(', ') + ' (separateur detecte: "' + (sep === '\t' ? 'TAB' : sep) + '").');
 
   var nivDigit = edtNiveauDigit_(niveauActif);
-  // Pool des entrants (autre etab. / classe d'origine non standard) : on lui donne
-  // un nom reconnu par TOUTE la structure (chiffre du niveau + numero hors plage,
-  // ex. "4°99"). Ainsi ces eleves entrent dans la consolidation, les stats et le
-  // sac de billes de la distribution, au lieu d'etre ignores (onglet "ENTRANTS").
-  var entrantsSheetName = nivDigit ? (nivDigit + '°99') : 'ENTRANTS';
+  // Le niveau des entrants est deduit des classes du MEME import (coherence) :
+  // priorite au niveau configure, repli sur le niveau lu dans la 1ere classe valide.
+  var nivEntrants = nivDigit;
   function cell(row, key) { return (key in cols && row[cols[key]] != null) ? String(row[cols[key]]).trim() : ''; }
 
   var parseOpt = (typeof parseOptions_ === 'function') ? parseOptions_ : edtParseOptionsFallback_;
   var normClasse = (typeof normaliserClasse_ === 'function') ? normaliserClasse_ : edtNormClasseFallback_;
 
   var eleves = [], parClasse = {}, lu = 0, gardes = 0, filtres = 0;
+  var entrantsRaw = [];
   for (var r = 2; r < rows.length; r++) {
     var row = rows[r];
     var nom = cell(row, 'NOM'), prenom = cell(row, 'PRENOM');
     if (nom === '' && prenom === '') continue; // ligne vide
     lu++;
 
-    // Filtrage par niveau (MEF previsionnel ; repli sur ancien MEF)
-    var mefDigit = edtNiveauDigit_(cell(row, 'MEF_PREV')) || edtNiveauDigit_(cell(row, 'ANCIEN_MEF'));
+    // Filtrage par niveau (colonne MEF du type choisi ; repli sur l'autre)
+    var mefDigit = edtNiveauDigit_(cell(row, colMef)) || edtNiveauDigit_(cell(row, colMefReplis));
     if (nivDigit && mefDigit && mefDigit !== nivDigit) { filtres++; continue; }
 
     var optStr = cell(row, 'OPT_PREV') || cell(row, 'OPT_PREC');
@@ -176,10 +187,16 @@ function edtImportCore_(text, niveauActif) {
     var sexe = cell(row, 'SEXE').toUpperCase();
     if (sexe === 'G' || sexe === 'H') sexe = 'M'; // Pronote F/G -> etablissement F/M
     var verrou = cell(row, 'VERROU');
-    // Classe d'origine. Les entrants (autre etablissement, classe vide ou non
-    // standard type "403"/"4C") sont regroupes dans un onglet dedie "ENTRANTS".
-    var clNorm = normClasse(cell(row, 'ANCIENNE_CLASSE'));
-    var classe = /^\d\s*°\s*\d+$/.test(clNorm) ? clNorm.replace(/\s/g, '') : entrantsSheetName;
+    // Classe (du type d'import choisi). Les entrants (autre etablissement, classe
+    // vide ou non standard type "403"/"4C") sont regroupes dans un onglet dedie.
+    var clNorm = normClasse(cell(row, colClasseEffective));
+    var classeStd = /^\d\s*°\s*\d+$/.test(clNorm);
+    var classe = classeStd ? clNorm.replace(/\s/g, '') : null; // null = entrant (resolu apres)
+    // Memoriser le niveau reel vu dans les classes standard (pour les entrants)
+    if (classeStd && !nivEntrants) {
+      var dm = clNorm.match(/(\d)\s*°/);
+      if (dm) nivEntrants = dm[1];
+    }
 
     var el = {
       nom: nom, prenom: prenom, sexe: sexe,
@@ -194,18 +211,22 @@ function edtImportCore_(text, niveauActif) {
       classe: classe
     };
     eleves.push(el);
-    (parClasse[classe] = parClasse[classe] || []).push(el);
+    if (classe) { (parClasse[classe] = parClasse[classe] || []).push(el); }
+    else { entrantsRaw.push(el); }
     gardes++;
   }
 
-  // Pool des entrants = eleves sans classe d'origine exploitable (autre etab.)
-  if (parClasse[entrantsSheetName]) {
-    warnings.push(parClasse[entrantsSheetName].length + ' eleve(s) sans classe d origine standard regroupes dans l onglet "' +
+  // Affecter les entrants a un onglet au MEME niveau que les classes (ex. 3°99).
+  var entrantsSheetName = (nivEntrants ? (nivEntrants + '°99') : 'ENTRANTS');
+  if (entrantsRaw.length) {
+    entrantsRaw.forEach(function (el) { el.classe = entrantsSheetName; });
+    parClasse[entrantsSheetName] = (parClasse[entrantsSheetName] || []).concat(entrantsRaw);
+    warnings.push(entrantsRaw.length + ' eleve(s) sans classe d origine standard regroupes dans l onglet "' +
       entrantsSheetName + '" (reconnu par la structure ; a repartir).');
   }
 
   return {
-    eleves: eleves, parClasse: parClasse, sep: sep, cols: cols, warnings: warnings,
+    eleves: eleves, parClasse: parClasse, sep: sep, cols: cols, warnings: warnings, typeImport: typeImport,
     stats: { lu: lu, gardes: gardes, filtres: filtres, nbClasses: Object.keys(parClasse).length }
   };
 }
@@ -224,12 +245,12 @@ var EDT_SOURCE_HEADERS = ['ID_ELEVE', 'NOM', 'PRENOM', 'NOM_PRENOM', 'SEXE', 'LV
  * @param {string} [niveauActif] defaut = niveau lu dans _CONFIG
  * @returns {{ok:boolean, resume:string, stats:Object, warnings:string[], onglets:string[], message?:string}}
  */
-function importerEDT_(csvText, niveauActif) {
+function importerEDT_(csvText, niveauActif, typeImport) {
   try {
     if (!niveauActif) {
       niveauActif = (typeof lireNiveauDepuisConfig === 'function') ? lireNiveauDepuisConfig() : '';
     }
-    var res = edtImportCore_(csvText, niveauActif);
+    var res = edtImportCore_(csvText, niveauActif, typeImport);
     if (res.stats.gardes === 0) {
       return { ok: false, message: 'Aucun eleve retenu pour le niveau ' + niveauActif +
         '. ' + (res.warnings.join(' ') || ''), stats: res.stats, warnings: res.warnings, onglets: [] };
@@ -287,12 +308,13 @@ function importerEDT_(csvText, niveauActif) {
   }
 }
 
-/** Apercu (dry-run) sans ecrire : pour le bouton "Analyser". */
-function apiApercuEDT(csvText, niveauActif) {
+/** Apercu (dry-run) sans ecrire : pour le bouton "Analyser".
+ * @param {string} typeImport 'prev' (previsionnel) ou 'base' (base actuelle). */
+function apiApercuEDT(csvText, niveauActif, typeImport) {
   if (!niveauActif) niveauActif = (typeof lireNiveauDepuisConfig === 'function') ? lireNiveauDepuisConfig() : '';
-  var res = edtImportCore_(csvText, niveauActif);
+  var res = edtImportCore_(csvText, niveauActif, typeImport);
   return {
-    ok: true, niveau: niveauActif, stats: res.stats, warnings: res.warnings,
+    ok: true, niveau: niveauActif, typeImport: res.typeImport, stats: res.stats, warnings: res.warnings,
     sep: res.sep === '\t' ? 'TAB' : res.sep,
     apercu: res.eleves.slice(0, 8).map(function (e) {
       return e.nom + ' ' + e.prenom + ' (' + e.sexe + ') ' + e.classe +
@@ -301,10 +323,11 @@ function apiApercuEDT(csvText, niveauActif) {
   };
 }
 
-/** Appelee par l'UI : lit le niveau de _CONFIG et importe. */
-function apiImporterEDT(csvText) {
+/** Appelee par l'UI : lit le niveau de _CONFIG et importe.
+ * @param {string} typeImport 'prev' (previsionnel) ou 'base' (base actuelle). */
+function apiImporterEDT(csvText, typeImport) {
   var niv = (typeof lireNiveauDepuisConfig === 'function') ? lireNiveauDepuisConfig() : '';
-  return importerEDT_(csvText, niv);
+  return importerEDT_(csvText, niv, typeImport);
 }
 
 /** Ouvre la boite d'import EDT (glisser-deposer + collage). */

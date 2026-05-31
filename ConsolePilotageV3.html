@@ -507,20 +507,21 @@
             <p class="modal-message" style="margin-bottom:22px;">Choisis ton point de départ. Chaque option lance le bon outil.</p>
 
             <div class="choice-grid">
-                <div class="choice-card" style="--accent:#f59e0b;" onclick="chooseFlow('edt')">
-                    <div class="cc-ico"><i class="fas fa-calendar-alt"></i></div>
+                <div class="choice-card" style="--accent:#6366f1;" onclick="chooseFlow('init')">
+                    <div class="cc-ico"><i class="fas fa-cogs"></i></div>
                     <div>
-                        <div class="cc-title">IMPORT PRONOTE — CLASSES PRÉVISIONNELLES</div>
-                        <div class="cc-sub">Fichier EDT du futur niveau (MEF prévisionnel). Glisser-déposer, filtrage du niveau, écriture des onglets sources.</div>
+                        <div class="cc-title">1. CONFIGURATION &amp; INITIALISATION</div>
+                        <div class="cc-sub">À faire en premier. Définir niveau, LV2, options, nombre de classes, et générer la structure des onglets.</div>
                     </div>
                     <div class="cc-arrow"><i class="fas fa-chevron-right"></i></div>
                 </div>
 
-                <div class="choice-card" style="--accent:#6366f1;" onclick="chooseFlow('init')">
-                    <div class="cc-ico"><i class="fas fa-cogs"></i></div>
+                <div class="choice-card" id="welcome-edt-card" style="--accent:#f59e0b;" onclick="chooseFlow('edt')">
+                    <div class="cc-ico"><i class="fas fa-calendar-alt"></i></div>
                     <div>
-                        <div class="cc-title">CONFIGURATION &amp; INITIALISATION</div>
-                        <div class="cc-sub">Définir niveau, LV2, options, nombre de classes, et générer la structure des onglets.</div>
+                        <div class="cc-title">2. IMPORT PRONOTE</div>
+                        <div class="cc-sub">Charger le fichier EDT (base actuelle ou classes prévisionnelles). A→E deviennent des scores 5→1.</div>
+                        <div id="welcome-edt-lock" style="display:none; font-size:12px; color:#f59e0b; font-weight:700; margin-top:6px;"><i class="fas fa-lock"></i> Configurez le système d'abord</div>
                     </div>
                     <div class="cc-arrow"><i class="fas fa-chevron-right"></i></div>
                 </div>
@@ -625,13 +626,35 @@
                 <i class="fas fa-file-import si-ico"></i>
                 <div>
                     <div class="si-step">Étape 2 · Import</div>
-                    <div class="si-text">Chargez le fichier EDT prévisionnel. Les appréciations A→E deviennent des scores 5→1, et les élèves sont rangés dans leurs classes d'origine. Les nouveaux arrivants vont dans l'onglet <strong>« entrants »</strong> (nommé automatiquement, ex. 4°99) pour être répartis ensuite.</div>
+                    <div class="si-text">Choisissez le <strong>type de fichier</strong> (base actuelle ou classes prévisionnelles), puis chargez-le. Les appréciations A→E deviennent des scores 5→1. Les élèves sont rangés dans leurs classes ; les nouveaux arrivants vont dans un onglet <strong>« entrants »</strong> au même niveau que les classes (ex. 3°99 en prévisionnel, 4°99 en base actuelle), pour être répartis ensuite.</div>
                 </div>
             </div>
 
             <!-- Import direct du fichier EDT/PRONOTE (integre, pas de modale) -->
             <div id="edt-import-card" class="card" style="margin-bottom:20px; border:2px solid #f59e0b;">
-                <h2 style="color:#f59e0b;"><i class="fas fa-calendar-alt"></i> Import PRONOTE — Classes prévisionnelles</h2>
+                <h2 style="color:#f59e0b;"><i class="fas fa-calendar-alt"></i> Import PRONOTE</h2>
+
+                <!-- Type d'import : determine la colonne de classe et le niveau des onglets -->
+                <div style="margin:8px 0 14px;">
+                    <label style="display:block; margin-bottom:8px;">Type de fichier importé</label>
+                    <div style="display:flex; gap:12px; flex-wrap:wrap;">
+                        <label class="edt-type-opt" style="flex:1; min-width:240px; display:flex; gap:10px; align-items:flex-start; padding:12px 14px; border:2px solid var(--primary); border-radius:10px; cursor:pointer; background:#0f172a;">
+                            <input type="radio" name="edt-type" value="prev" checked onchange="edtTypeChange()" style="margin-top:3px;">
+                            <span>
+                                <span style="font-weight:800; color:#e2e8f0;">Classes prévisionnelles</span><br>
+                                <span style="font-size:12px; color:#94a3b8;">Futures classes déjà créées par Pronote (ex. des 3°). Utilise la « classe prévisionnelle ».</span>
+                            </span>
+                        </label>
+                        <label class="edt-type-opt" style="flex:1; min-width:240px; display:flex; gap:10px; align-items:flex-start; padding:12px 14px; border:2px solid #334155; border-radius:10px; cursor:pointer; background:#0f172a;">
+                            <input type="radio" name="edt-type" value="base" onchange="edtTypeChange()" style="margin-top:3px;">
+                            <span>
+                                <span style="font-weight:800; color:#e2e8f0;">Base actuelle</span><br>
+                                <span style="font-size:12px; color:#94a3b8;">Classes réelles d'aujourd'hui évaluées (ex. des 4°). Utilise l'« ancienne classe ».</span>
+                            </span>
+                        </label>
+                    </div>
+                </div>
+
                 <p style="color:#cbd5e1; margin:8px 0 12px;">Glisse ton fichier (ou colle son contenu). Séparateur détecté automatiquement (virgule / point-virgule / tabulation). Seuls les élèves du niveau actif sont conservés ; A→5, B→4, C→3, D→2, E→1.</p>
                 <div id="edt-drop" style="border:2px dashed #475569; border-radius:10px; padding:18px; text-align:center; color:#94a3b8; cursor:pointer;">📄 Glisser-déposer le fichier ici (ou cliquer)
                     <input type="file" id="edt-file" accept=".csv,.txt" style="display:none">
@@ -1201,7 +1224,9 @@
 
             try {
                 const status = await getSessionStatus();
+                systemConfigured = status.configured;
                 if (btnResume) btnResume.style.display = status.hasBackup ? 'flex' : 'none';
+                applyConfiguredStateToWelcome(status.configured);
                 if (statusEl) statusEl.innerHTML = status.hasBackup
                     ? '<i class="fas fa-check-circle"></i> Session précédente détectée.'
                     : '<i class="fas fa-info-circle"></i> Aucune session précédente trouvée. Démarrez une nouvelle configuration.';
@@ -1212,12 +1237,32 @@
             }
         }
 
+        // Reflète l'état "configuré" sur la carte Import du panneau d'accueil :
+        // tant que le système n'est pas configuré, l'import est verrouillé.
+        function applyConfiguredStateToWelcome(configured) {
+            const card = document.getElementById('welcome-edt-card');
+            if (!card) return;
+            const lock = document.getElementById('welcome-edt-lock');
+            if (configured) {
+                card.style.opacity = '1';
+                card.style.cursor = 'pointer';
+                if (lock) lock.style.display = 'none';
+            } else {
+                card.style.opacity = '0.55';
+                card.style.cursor = 'not-allowed';
+                if (lock) lock.style.display = 'block';
+            }
+        }
+
         async function getSessionStatus() {
             try {
                 const data = await callSessionEndpoint(sessionRoutes.status);
-                return { hasBackup: data && data.hasBackup === true };
-            } catch (e) { return { hasBackup: false }; }
+                return { hasBackup: data && data.hasBackup === true, configured: data && data.configured === true };
+            } catch (e) { return { hasBackup: false, configured: false }; }
         }
+
+        // Etat : le systeme est-il configure (niveau + structure) ?
+        let systemConfigured = false;
 
         // ===================================================================
         // 4. NAVIGATION
@@ -1342,9 +1387,16 @@
         // Aiguillage depuis le panneau d'accueil (3 propositions de travail)
         function chooseFlow(flow) {
             if (flow === 'init') { handleNewConfiguration(); return; }
-            toggleWelcomeModal(false);
-            goTo('import');
             if (flow === 'edt') {
+                // L'import exige une configuration prealable (niveau + structure).
+                if (!systemConfigured) {
+                    showToast('Configurez et initialisez le système avant d\'importer.', 'info');
+                    toggleWelcomeModal(false);
+                    goTo(1);
+                    return;
+                }
+                toggleWelcomeModal(false);
+                goTo('import');
                 var card = document.getElementById('edt-import-card');
                 if (card) {
                     card.scrollIntoView({ behavior: 'smooth', block: 'center' });
@@ -1382,6 +1434,8 @@
             runServerCall('v3_runInitializationWithForm', [f], res => {
                 setLoading('btn-init', false);
                 if (res.success) {
+                    systemConfigured = true; // débloque l'import
+                    applyConfiguredStateToWelcome(true);
                     showToast('Initialisé !', 'success');
                     saveProgress('import');
                     setTimeout(() => goTo('import'), 1000);
@@ -1484,13 +1538,25 @@
             if (ta) ta.addEventListener('input', function () { edtContenu = ta.value; });
         }
         window.addEventListener('load', edtSetup);
+        // Type d'import sélectionné (prev = previsionnel, base = base actuelle)
+        function edtTypeSelected() {
+            var el = document.querySelector('input[name="edt-type"]:checked');
+            return el ? el.value : 'prev';
+        }
+        function edtTypeChange() {
+            document.querySelectorAll('.edt-type-opt').forEach(function (lab) {
+                var r = lab.querySelector('input[name="edt-type"]');
+                lab.style.borderColor = (r && r.checked) ? 'var(--primary)' : '#334155';
+            });
+        }
         function edtAnalyser() {
             if (!edtContenu.trim()) { edtOut('Charge ou colle d\'abord un fichier.'); return; }
             edtOut('Analyse…');
             google.script.run.withSuccessHandler(function (r) {
-                edtOut('Séparateur : ' + r.sep + '\nNiveau ' + r.niveau + ' : ' + r.stats.lu + ' lus, ' + r.stats.gardes + ' gardés, ' + r.stats.filtres + ' filtrés.' +
+                var typeLbl = (r.typeImport === 'base') ? 'Base actuelle' : 'Classes prévisionnelles';
+                edtOut('Type : ' + typeLbl + '\nSéparateur : ' + r.sep + '\nNiveau ' + r.niveau + ' : ' + r.stats.lu + ' lus, ' + r.stats.gardes + ' gardés, ' + r.stats.filtres + ' filtrés.' +
                     (r.warnings.length ? ('\n⚠ ' + r.warnings.join('\n⚠ ')) : '') + '\n\nAperçu :\n - ' + (r.apercu.join('\n - ') || '(aucun)'));
-            }).withFailureHandler(function (e) { edtOut('Erreur : ' + e.message); }).apiApercuEDT(edtContenu, null);
+            }).withFailureHandler(function (e) { edtOut('Erreur : ' + e.message); }).apiApercuEDT(edtContenu, null, edtTypeSelected());
         }
         function edtImporter() {
             if (!edtContenu.trim()) { edtOut('Charge ou colle d\'abord un fichier.'); return; }
@@ -1499,7 +1565,7 @@
             google.script.run.withSuccessHandler(function (r) {
                 edtOut(r.ok ? ('✅ ' + r.resume) : ('❌ ' + r.message));
                 if (r.ok && typeof loadImportStatus === 'function') { try { loadImportStatus(); } catch (e) { } }
-            }).withFailureHandler(function (e) { edtOut('Erreur : ' + e.message); }).apiImporterEDT(edtContenu);
+            }).withFailureHandler(function (e) { edtOut('Erreur : ' + e.message); }).apiImporterEDT(edtContenu, edtTypeSelected());
         }
 
         function openImportAssistant() {
