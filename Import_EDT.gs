@@ -169,12 +169,16 @@ function edtImportCore_(text, niveauActif) {
     var optStr = cell(row, 'OPT_PREV') || cell(row, 'OPT_PREC');
     var lo = parseOpt(optStr) || { lv2: '', opt: '' };
     var sexe = cell(row, 'SEXE').toUpperCase();
-    if (sexe === 'M' || sexe === 'H') sexe = 'G';
+    if (sexe === 'G' || sexe === 'H') sexe = 'M'; // Pronote F/G -> etablissement F/M
     var verrou = cell(row, 'VERROU');
-    var classe = normClasse(cell(row, 'ANCIENNE_CLASSE')) || cell(row, 'ANCIENNE_CLASSE') || 'SANS_CLASSE';
+    // Classe d'origine. Les entrants (autre etablissement, classe vide ou non
+    // standard type "403"/"4C") sont regroupes dans un onglet dedie "ENTRANTS".
+    var clNorm = normClasse(cell(row, 'ANCIENNE_CLASSE'));
+    var classe = /^\d\s*°\s*\d+$/.test(clNorm) ? clNorm.replace(/\s/g, '') : 'ENTRANTS';
 
     var el = {
       nom: nom, prenom: prenom, sexe: sexe,
+      lv1: 'ANGLAIS', // LV1 = ANGLAIS par defaut (etablissement)
       lv2: lo.lv2 || '', opt: lo.opt || '',
       com: edtLetterToScore_(cell(row, 'COM')),
       tra: edtLetterToScore_(cell(row, 'TRA')),
@@ -189,9 +193,10 @@ function edtImportCore_(text, niveauActif) {
     gardes++;
   }
 
-  // Avertir si des onglets sources ne suivront pas le motif X°Y attendu par le moteur
-  var nonStd = Object.keys(parClasse).filter(function (k) { return !/°\d+$/.test(k) && k !== 'SANS_CLASSE'; });
-  if (nonStd.length) warnings.push('Classes au nom non standard (le moteur attend "X°Y") : ' + nonStd.join(', ') + '.');
+  // Onglet "ENTRANTS" = eleves sans classe d'origine exploitable (autre etab.)
+  if (parClasse['ENTRANTS']) {
+    warnings.push(parClasse['ENTRANTS'].length + ' eleve(s) sans classe d origine standard regroupes dans l onglet "ENTRANTS" (a affecter manuellement).');
+  }
 
   return {
     eleves: eleves, parClasse: parClasse, sep: sep, cols: cols, warnings: warnings,
@@ -243,9 +248,20 @@ function importerEDT_(csvText, niveauActif) {
       });
       if (rows.length) {
         sheet.getRange(2, 1, rows.length, EDT_SOURCE_HEADERS.length).setValues(rows);
+        // Couleurs des scores 1-5 : 1 rouge, 2 orange, 3 jaune, 4 vert clair, 5 vert fonce
+        var scoreBg = { '1': '#FF0000', '2': '#F6B26B', '3': '#FFD966', '4': '#93C47D', '5': '#38761D' };
+        var scoreFg = { '1': '#FFFFFF', '2': '#000000', '3': '#000000', '4': '#000000', '5': '#FFFFFF' };
+        var cfRules = sheet.getConditionalFormatRules();
         [8, 9, 10, 11].forEach(function (col) {
-          sheet.getRange(2, col, rows.length, 1).setDataValidation(ruleCRIT);
+          var rng = sheet.getRange(2, col, rows.length, 1);
+          rng.setDataValidation(ruleCRIT);
+          ['1', '2', '3', '4', '5'].forEach(function (s) {
+            cfRules.push(SpreadsheetApp.newConditionalFormatRule()
+              .whenTextEqualTo(s).setBackground(scoreBg[s]).setFontColor(scoreFg[s]).setBold(true)
+              .setRanges([rng]).build());
+          });
         });
+        sheet.setConditionalFormatRules(cfRules);
       }
       onglets.push(classe);
     }

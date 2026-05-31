@@ -1,10 +1,10 @@
 /**
  * ===================================================================
- * 🔌 Console de Pilotage V3 - Backend Adapters
+ * 🔌 Console Admin - Backend Adapters
  * ===================================================================
  *
  * Ce fichier contient les wrappers et adaptateurs pour connecter
- * la Console de Pilotage V3 (frontend) avec les fonctions backend
+ * la Console Admin (frontend) avec les fonctions backend
  * existantes. Il assure que toutes les fonctions retournent des
  * objets de succès/erreur cohérents.
  *
@@ -335,16 +335,16 @@ function v3_runOptimization() {
  */
 
 /**
- * Fonction pour ouvrir la Console de Pilotage V3
+ * Fonction pour ouvrir la Console Admin
  * À ajouter au menu Google Sheets
  */
 function ouvrirConsolePilotageV3() {
   const html = HtmlService.createHtmlOutputFromFile('ConsolePilotageV3')
     .setWidth(1600)
     .setHeight(900)
-    .setTitle('Console de Pilotage V3 - Expert Edition');
+    .setTitle('Console Admin');
 
-  SpreadsheetApp.getUi().showModelessDialog(html, 'Console de Pilotage V3');
+  SpreadsheetApp.getUi().showModelessDialog(html, 'Console Admin');
 }
 
 /**

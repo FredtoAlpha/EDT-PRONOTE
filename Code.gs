@@ -168,10 +168,8 @@ function safeSetUserProperty(key, value) {
  */
 function onOpen() {
   SpreadsheetApp.getUi()
-    .createMenu('🚀 PILOTAGE CLASSE')
-    .addItem('📊 Ouvrir SCORE CONSOLE', 'ouvrirConsolePilotageV3')
-    .addItem('Assistant Import Pronote', 'ouvrirImportAssistant')
-    .addItem('📥 Importer fichier EDT/PRONOTE', 'ouvrirImportEDT')
+    .createMenu('🚀 Console Admin')
+    .addItem('📊 Ouvrir la Console Admin', 'ouvrirConsolePilotageV3')
     .addSeparator()
     .addSubMenu(SpreadsheetApp.getUi().createMenu('🛠️ Outils Spécifiques')
         .addItem('➕ Intégrer un Nouvel Élève', 'ouvrirModuleNouvelEleve')
@@ -254,7 +252,7 @@ function ouvrirScoresEleves() {
   var html = HtmlService.createHtmlOutputFromFile('ConsolePilotageV3')
     .setWidth(1600)
     .setHeight(900)
-    .setTitle('Scores Élèves - SCORE CONSOLE');
+    .setTitle('Scores Élèves - Console Admin');
   SpreadsheetApp.getUi().showModelessDialog(html, 'Scores Élèves');
   // Note : la console s'ouvre sur phase 1 par défaut.
   // L'utilisateur navigue vers SCORES via la sidebar.

@@ -139,17 +139,19 @@ const CONFIG = {
       { text:"UPE2A", bgColor:"#D5D8DC", fgColor:"#000000" }, // Noir sur gris
       { text:"LLCA",  bgColor:"#F4B084", fgColor:"#000000" }  // Exemple si LLCA existe
     ],
-    SCORE_COLORS: { // Couleurs de fond pour les scores 1-4
+    SCORE_COLORS: { // Couleurs de fond pour les scores 1-5
         S1: "#FF0000", // Rouge
-        S2: "#FFD966", // Jaune
-        S3: "#3CB371", // Vert moyen
-        S4: "#006400"  // Vert foncé
+        S2: "#F6B26B", // 2 Orange
+        S3: "#FFD966", // 3 Jaune
+        S4: "#93C47D", // 4 Vert clair
+        S5: "#38761D"  // 5 Vert fonce
     },
     SCORE_FONT_COLORS: { // Couleurs de police pour les scores (pour contraste)
         S1: "#FFFFFF",
         S2: "#000000",
-        S3: "#FFFFFF", // #000000 si #3CB371 est trop clair
-        S4: "#FFFFFF"
+        S3: "#000000",
+        S4: "#000000",
+        S5: "#FFFFFF"
     },
 
     // Style pour les stats écrites SOUS la feuille (inspiré de calculerStatistiquesTEST et writeSheetStats Maquette)
@@ -165,9 +167,10 @@ const CONFIG = {
     STATS_OPTIONS_TOTAL_CELL:{ align: 'center', bold: true },                               // Options total
     // Pour les scores, utiliser les SCORE_COLORS et SCORE_FONT_COLORS définis plus haut
     // Exemple pour S4 (le reste sera dérivé dans la fonction d'écriture)
-    SCORE_CELL_S4:          { align: 'center', bg: '#006400', fg: '#FFFFFF', bold: true },
-    SCORE_CELL_S3:          { align: 'center', bg: '#3CB371', fg: '#FFFFFF', bold: true },
-    SCORE_CELL_S2:          { align: 'center', bg: '#FFD966', fg: '#000000', bold: true },
+    SCORE_CELL_S5:          { align: 'center', bg: '#38761D', fg: '#FFFFFF', bold: true },
+    SCORE_CELL_S4:          { align: 'center', bg: '#93C47D', fg: '#000000', bold: true },
+    SCORE_CELL_S3:          { align: 'center', bg: '#FFD966', fg: '#000000', bold: true },
+    SCORE_CELL_S2:          { align: 'center', bg: '#F6B26B', fg: '#000000', bold: true },
     SCORE_CELL_S1:          { align: 'center', bg: '#FF0000', fg: '#FFFFFF', bold: true },
     STATS_AVERAGE_CELL:     { align: 'center', bold: true, fmt: '0.00', bg: '#34495e', fg: '#ffffff'}, // Style V7 pour moyenne
 

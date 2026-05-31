@@ -406,7 +406,7 @@
 <body>
 
     <div class="minimize-bar">
-        <div class="bar-title"><i class="fas fa-rocket"></i> PILOTE V3</div>
+        <div class="bar-title"><i class="fas fa-rocket"></i> Console Admin</div>
         <div class="bar-actions">
             <button class="bar-btn minimize" id="btn-minimize" onclick="toggleMinimize()" title="Réduire / Agrandir">&#x2796;</button>
             <button class="bar-btn close" onclick="google.script.host.close()" title="Fermer">&#x2716;</button>
@@ -529,7 +529,22 @@
 
         <!-- =============== PHASE IMPORT — Lien vers l'Assistant Import =============== -->
         <div id="phase-import" class="phase">
-            <h1>IMPORT PRONOTE</h1>
+            <h1>IMPORT EDT / PRONOTE</h1>
+
+            <!-- Import direct du fichier EDT/PRONOTE (integre, pas de modale) -->
+            <div class="card" style="margin-bottom:20px; border:2px solid var(--primary);">
+                <h2 style="color:var(--primary);"><i class="fas fa-file-import"></i> Importer le fichier EDT/PRONOTE</h2>
+                <p style="color:#cbd5e1; margin:8px 0 12px;">Glisse ton fichier (ou colle son contenu). Séparateur détecté automatiquement (virgule / point-virgule / tabulation). Seuls les élèves du niveau actif sont conservés ; A→5, B→4, C→3, D→2, E→1.</p>
+                <div id="edt-drop" style="border:2px dashed #475569; border-radius:10px; padding:18px; text-align:center; color:#94a3b8; cursor:pointer;">📄 Glisser-déposer le fichier ici (ou cliquer)
+                    <input type="file" id="edt-file" accept=".csv,.txt" style="display:none">
+                </div>
+                <textarea id="edt-csv" placeholder="…ou coller ici le contenu (avec les 2 lignes d'en-tête)" style="width:100%; height:70px; margin-top:8px; background:#0f172a; color:#e2e8f0; border:1px solid #334155; border-radius:6px; padding:6px; font-family:monospace; font-size:11px;"></textarea>
+                <div style="display:flex; gap:10px; margin-top:10px;">
+                    <button onclick="edtAnalyser()" class="btn" style="background:#334155;"><span><i class="fas fa-search"></i> Analyser (sans écrire)</span></button>
+                    <button onclick="edtImporter()" class="btn btn-primary"><span><i class="fas fa-download"></i> Importer dans les onglets sources</span></button>
+                </div>
+                <pre id="edt-out" style="display:none; background:#0f172a; color:#e2e8f0; padding:10px; border-radius:6px; margin-top:10px; white-space:pre-wrap; font-size:12px; max-height:200px; overflow:auto;"></pre>
+            </div>
 
             <!-- Statut import courant -->
             <div class="card" id="import-status-card" style="margin-bottom:20px;">
@@ -1309,6 +1324,39 @@
                 '  </div>' +
                 '</div>' +
                 '<div style="display:flex; flex-wrap:wrap; gap:4px;">' + classesList + '</div>';
+        }
+
+        // ===== Import EDT/PRONOTE integre dans la console =====
+        var edtContenu = '';
+        function edtOut(t) { var o = document.getElementById('edt-out'); if (o) { o.style.display = 'block'; o.textContent = t; } }
+        function edtSetup() {
+            var f = document.getElementById('edt-file'), z = document.getElementById('edt-drop'), ta = document.getElementById('edt-csv');
+            if (!z || z._wired) return; z._wired = true;
+            function lire(file) { var r = new FileReader(); r.onload = function (e) { edtContenu = e.target.result; if (ta) ta.value = edtContenu.slice(0, 3000); edtOut('Fichier chargé : ' + file.name + ' (' + edtContenu.length + ' caractères). Clique sur Analyser.'); }; r.readAsText(file, 'UTF-8'); }
+            z.onclick = function () { f.click(); };
+            f.onchange = function () { if (f.files[0]) lire(f.files[0]); };
+            ['dragover', 'dragenter'].forEach(function (ev) { z.addEventListener(ev, function (e) { e.preventDefault(); z.style.borderColor = '#6366f1'; }); });
+            ['dragleave', 'drop'].forEach(function (ev) { z.addEventListener(ev, function (e) { e.preventDefault(); z.style.borderColor = '#475569'; }); });
+            z.addEventListener('drop', function (e) { if (e.dataTransfer.files[0]) lire(e.dataTransfer.files[0]); });
+            if (ta) ta.addEventListener('input', function () { edtContenu = ta.value; });
+        }
+        window.addEventListener('load', edtSetup);
+        function edtAnalyser() {
+            if (!edtContenu.trim()) { edtOut('Charge ou colle d\'abord un fichier.'); return; }
+            edtOut('Analyse…');
+            google.script.run.withSuccessHandler(function (r) {
+                edtOut('Séparateur : ' + r.sep + '\nNiveau ' + r.niveau + ' : ' + r.stats.lu + ' lus, ' + r.stats.gardes + ' gardés, ' + r.stats.filtres + ' filtrés.' +
+                    (r.warnings.length ? ('\n⚠ ' + r.warnings.join('\n⚠ ')) : '') + '\n\nAperçu :\n - ' + (r.apercu.join('\n - ') || '(aucun)'));
+            }).withFailureHandler(function (e) { edtOut('Erreur : ' + e.message); }).apiApercuEDT(edtContenu, null);
+        }
+        function edtImporter() {
+            if (!edtContenu.trim()) { edtOut('Charge ou colle d\'abord un fichier.'); return; }
+            if (!confirm('Importer dans les onglets sources ? Les onglets de classes correspondants seront (ré)écrits.')) return;
+            edtOut('Import en cours…');
+            google.script.run.withSuccessHandler(function (r) {
+                edtOut(r.ok ? ('✅ ' + r.resume) : ('❌ ' + r.message));
+                if (r.ok && typeof loadImportStatus === 'function') { try { loadImportStatus(); } catch (e) { } }
+            }).withFailureHandler(function (e) { edtOut('Erreur : ' + e.message); }).apiImporterEDT(edtContenu);
         }
 
         function openImportAssistant() {
