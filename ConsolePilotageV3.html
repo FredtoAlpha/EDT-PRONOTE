@@ -1271,6 +1271,14 @@
         const STEP_ORDER = [1, 'import', 3, 4, 'scoring', 5, 6];
 
         function goTo(n) {
+            // Garde d'ordre centralisé : toute étape au-delà de la Configuration (1)
+            // exige un système configuré. Couvre tous les points d'entrée (nav sidebar,
+            // boutons, appels programmatiques), pas seulement la carte d'accueil.
+            if (n !== 1 && !systemConfigured) {
+                showToast('Configurez et initialisez le système avant de continuer.', 'info');
+                n = 1;
+            }
+
             document.querySelectorAll('.phase').forEach(p => {
                 p.classList.remove('active');
                 p.style.display = 'none';
