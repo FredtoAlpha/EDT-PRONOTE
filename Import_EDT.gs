@@ -150,6 +150,11 @@ function edtImportCore_(text, niveauActif) {
   if (manquantes.length) warnings.push('Colonnes essentielles absentes: ' + manquantes.join(', ') + ' (separateur detecte: "' + (sep === '\t' ? 'TAB' : sep) + '").');
 
   var nivDigit = edtNiveauDigit_(niveauActif);
+  // Pool des entrants (autre etab. / classe d'origine non standard) : on lui donne
+  // un nom reconnu par TOUTE la structure (chiffre du niveau + numero hors plage,
+  // ex. "4°99"). Ainsi ces eleves entrent dans la consolidation, les stats et le
+  // sac de billes de la distribution, au lieu d'etre ignores (onglet "ENTRANTS").
+  var entrantsSheetName = nivDigit ? (nivDigit + '°99') : 'ENTRANTS';
   function cell(row, key) { return (key in cols && row[cols[key]] != null) ? String(row[cols[key]]).trim() : ''; }
 
   var parseOpt = (typeof parseOptions_ === 'function') ? parseOptions_ : edtParseOptionsFallback_;
@@ -174,7 +179,7 @@ function edtImportCore_(text, niveauActif) {
     // Classe d'origine. Les entrants (autre etablissement, classe vide ou non
     // standard type "403"/"4C") sont regroupes dans un onglet dedie "ENTRANTS".
     var clNorm = normClasse(cell(row, 'ANCIENNE_CLASSE'));
-    var classe = /^\d\s*°\s*\d+$/.test(clNorm) ? clNorm.replace(/\s/g, '') : 'ENTRANTS';
+    var classe = /^\d\s*°\s*\d+$/.test(clNorm) ? clNorm.replace(/\s/g, '') : entrantsSheetName;
 
     var el = {
       nom: nom, prenom: prenom, sexe: sexe,
@@ -193,9 +198,10 @@ function edtImportCore_(text, niveauActif) {
     gardes++;
   }
 
-  // Onglet "ENTRANTS" = eleves sans classe d'origine exploitable (autre etab.)
-  if (parClasse['ENTRANTS']) {
-    warnings.push(parClasse['ENTRANTS'].length + ' eleve(s) sans classe d origine standard regroupes dans l onglet "ENTRANTS" (a affecter manuellement).');
+  // Pool des entrants = eleves sans classe d'origine exploitable (autre etab.)
+  if (parClasse[entrantsSheetName]) {
+    warnings.push(parClasse[entrantsSheetName].length + ' eleve(s) sans classe d origine standard regroupes dans l onglet "' +
+      entrantsSheetName + '" (reconnu par la structure ; a repartir).');
   }
 
   return {
