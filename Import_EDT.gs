@@ -161,9 +161,17 @@ function edtImportCore_(text, niveauActif, typeImport) {
   if (!(colClasse in cols) && !(colClasseReplis in cols)) manquantes.push(colClasse);
   if (manquantes.length) warnings.push('Colonnes essentielles absentes: ' + manquantes.join(', ') + ' (separateur detecte: "' + (sep === '\t' ? 'TAB' : sep) + '").');
 
-  var nivDigit = edtNiveauDigit_(niveauActif);
-  // Le niveau des entrants est deduit des classes du MEME import (coherence) :
-  // priorite au niveau configure, repli sur le niveau lu dans la 1ere classe valide.
+  // Niveau cible = celui qu'on CONSTRUIT (config). Les sources different selon le type :
+  //  - previsionnel : classes deja au niveau cible (ex. on construit des 3°, le
+  //    previsionnel contient des 3°)  -> on filtre sur le niveau cible.
+  //  - base actuelle : classes du niveau juste au-dessus (on construit des 3° a
+  //    partir des 4° actuels) -> on filtre sur cible + 1.
+  var nivCible = edtNiveauDigit_(niveauActif);
+  var nivDigit = nivCible; // niveau attendu dans le fichier (pour le filtrage)
+  if (typeImport === 'base' && nivCible) {
+    nivDigit = String(parseInt(nivCible, 10) + 1); // 3 -> 4, 5 -> 6, etc.
+  }
+  // Le niveau des onglets/entrants suit le niveau REEL des classes de l'import.
   var nivEntrants = nivDigit;
   function cell(row, key) { return (key in cols && row[cols[key]] != null) ? String(row[cols[key]]).trim() : ''; }
 
