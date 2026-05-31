@@ -4635,8 +4635,9 @@
           // Mettre à jour Chart 1 (Distribution empilée)
           chartCommunication.data.labels = sortedClasses;
 
-          // Mettre à jour les datasets pour le score sélectionné
-          for (let i = 0; i < 4; i++) {
+          // Mettre à jour les datasets pour le score sélectionné (5 niveaux)
+          for (let i = 0; i < 5; i++) {
+            if (!chartCommunication.data.datasets[i]) continue;
             chartCommunication.data.datasets[i].data = sortedClasses.map(c =>
               dataByClass[c].scores[scoreType][i]
             );
