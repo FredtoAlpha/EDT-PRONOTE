@@ -23,43 +23,48 @@ var SCORING_DEFAULTS = {
   seuils: {
     ABS: {
       DJ: [
-        { score: 4, min: 0, max: 5 },
-        { score: 3, min: 6, max: 13 },
-        { score: 2, min: 14, max: 25 },
-        { score: 1, min: 26, max: 999 }
+        { score: 5, min: 0, max: 0 },
+        { score: 4, min: 1, max: 4 },
+        { score: 3, min: 5, max: 10 },
+        { score: 2, min: 11, max: 20 },
+        { score: 1, min: 21, max: 999 }
       ],
       NJ: [
-        { score: 4, min: 0, max: 0 },
-        { score: 3, min: 1, max: 2 },
-        { score: 2, min: 3, max: 5 },
+        { score: 5, min: 0, max: 0 },
+        { score: 4, min: 1, max: 1 },
+        { score: 3, min: 2, max: 3 },
+        { score: 2, min: 4, max: 5 },
         { score: 1, min: 6, max: 999 }
       ],
       poidsDJ: 0.6,
       poidsNJ: 0.4
     },
     COM: [
-      { score: 4, min: 0, max: 0 },
-      { score: 3, min: 1, max: 5 },
-      { score: 2, min: 6, max: 20 },
-      { score: 1, min: 21, max: 999 }
+      { score: 5, min: 0, max: 0 },
+      { score: 4, min: 1, max: 3 },
+      { score: 3, min: 4, max: 8 },
+      { score: 2, min: 9, max: 15 },
+      { score: 1, min: 16, max: 999 }
     ],
     TRA: [
-      { score: 4, min: 15, max: 20 },
-      { score: 3, min: 12, max: 14.999 },
-      { score: 2, min: 8, max: 11.999 },
+      { score: 5, min: 16, max: 20 },
+      { score: 4, min: 14, max: 15.999 },
+      { score: 3, min: 11, max: 13.999 },
+      { score: 2, min: 8, max: 10.999 },
       { score: 1, min: 0, max: 7.999 }
     ],
     PART: [
-      { score: 4, min: 15, max: 20 },
-      { score: 3, min: 12, max: 14.999 },
-      { score: 2, min: 8, max: 11.999 },
+      { score: 5, min: 16, max: 20 },
+      { score: 4, min: 14, max: 15.999 },
+      { score: 3, min: 11, max: 13.999 },
+      { score: 2, min: 8, max: 10.999 },
       { score: 1, min: 0, max: 7.999 }
     ]
   },
 
   // Distribution percentile (si mode='percentile')
   percentile: {
-    distribution: { 1: 0.10, 2: 0.25, 3: 0.40, 4: 0.25 }
+    distribution: { 1: 0.10, 2: 0.20, 3: 0.40, 4: 0.20, 5: 0.10 }
   },
 
   // Poids des critères pour le score composite

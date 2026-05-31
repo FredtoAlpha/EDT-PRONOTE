@@ -211,10 +211,10 @@ function ClassState(className, studentIndices, data, headerIdx, targetSize) {
   this.sumABS = 0;
 
   // Histogrammes [score 1..4] pour chaque critère
-  this.histCOM = [0, 0, 0, 0];
-  this.histTRA = [0, 0, 0, 0];
-  this.histPART = [0, 0, 0, 0];
-  this.histABS = [0, 0, 0, 0];
+  this.histCOM = [0, 0, 0, 0, 0];
+  this.histTRA = [0, 0, 0, 0, 0];
+  this.histPART = [0, 0, 0, 0, 0];
+  this.histABS = [0, 0, 0, 0, 0];
 
   // Initialiser depuis les données
   for (var i = 0; i < studentIndices.length; i++) {
@@ -238,11 +238,11 @@ ClassState.prototype._addStudent = function(idx, data, hIdx) {
   this.sumPART += part;
   this.sumABS += abs;
 
-  // Histogrammes (clamp 1-4)
-  var ci = Math.max(0, Math.min(3, Math.round(com) - 1));
-  var ti = Math.max(0, Math.min(3, Math.round(tra) - 1));
-  var pi = Math.max(0, Math.min(3, Math.round(part) - 1));
-  var ai = Math.max(0, Math.min(3, Math.round(abs) - 1));
+  // Histogrammes (clamp 1-5)
+  var ci = Math.max(0, Math.min(4, Math.round(com) - 1));
+  var ti = Math.max(0, Math.min(4, Math.round(tra) - 1));
+  var pi = Math.max(0, Math.min(4, Math.round(part) - 1));
+  var ai = Math.max(0, Math.min(4, Math.round(abs) - 1));
   this.histCOM[ci]++;
   this.histTRA[ti]++;
   this.histPART[pi]++;
@@ -268,10 +268,10 @@ ClassState.prototype._removeStudent = function(idx, data, hIdx) {
   this.sumPART -= part;
   this.sumABS -= abs;
 
-  var ci = Math.max(0, Math.min(3, Math.round(com) - 1));
-  var ti = Math.max(0, Math.min(3, Math.round(tra) - 1));
-  var pi = Math.max(0, Math.min(3, Math.round(part) - 1));
-  var ai = Math.max(0, Math.min(3, Math.round(abs) - 1));
+  var ci = Math.max(0, Math.min(4, Math.round(com) - 1));
+  var ti = Math.max(0, Math.min(4, Math.round(tra) - 1));
+  var pi = Math.max(0, Math.min(4, Math.round(part) - 1));
+  var ai = Math.max(0, Math.min(4, Math.round(abs) - 1));
   this.histCOM[ci]--;
   this.histTRA[ti]--;
   this.histPART[pi]--;
@@ -320,10 +320,10 @@ ClassState.prototype.computeError = function(globalStats, targetDistribution, we
       error += Math.abs(avg - target) * w;
     } else {
       // Distribution : comparer histogramme réel vs proportionnel
-      for (var v = 0; v < 4; v++) {
+      for (var v = 0; v < 5; v++) {
         var expected = (targetDistribution[crit] && targetDistribution[crit][v + 1] !== undefined)
           ? targetDistribution[crit][v + 1] * this.size
-          : this.size / 4;
+          : this.size / 5;
         error += Math.abs(hist[v] - expected) * w;
       }
     }

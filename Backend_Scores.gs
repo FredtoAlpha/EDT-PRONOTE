@@ -1090,13 +1090,13 @@ function injecterScoresDansOngletsSources_(ss, fusion) {
 // =============================================================================
 
 /**
- * Mappe un score 1-4 (échelle Pronote) vers 0-5 (échelle app).
- * 1 → 1, 2 → 2.5, 3 → 3.5, 4 → 5
+ * Échelle interne désormais 1-5 : le score est déjà sur la bonne échelle,
+ * la fonction est conservée en pass-through (sécurisée) pour compatibilité.
  */
-function mapScore_(score14) {
-  if (score14 === null || score14 === undefined) return 2;
-  var map = { 1: 1, 2: 2.5, 3: 3.5, 4: 5 };
-  return map[score14] !== undefined ? map[score14] : 2;
+function mapScore_(score) {
+  if (score === null || score === undefined) return 2;
+  var n = Number(score);
+  return isNaN(n) ? 2 : Math.max(1, Math.min(5, n));
 }
 
 /**
