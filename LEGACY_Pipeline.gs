@@ -46,9 +46,12 @@ const LEGACY_PIPELINE_CONFIG = {
  * 1. Détecter sources (6°1, 5°2, 4°3, etc.)
  * 2. Charger élèves avec profils (Têtes/Niv1)
  * 3. Lancer Phase 4 ULTIMATE
- * 4. Créer onglets TEST
- * 5. Créer onglets FIN (formatés)
- * 6. Afficher résumé
+ * 4. Créer + habiller les onglets TEST
+ * 5. Afficher résumé
+ *
+ * ⚠️ Le Moteur S'ARRÊTE aux onglets TEST. Les onglets FIN sont créés
+ *    APRÈS les ajustements manuels, par SCORE INTERFACE (saveElevesSnapshot)
+ *    ou par l'étape 7 « Finalisation » (v3_finalizeSheets).
  *
  * @returns {Object} Résultat du pipeline
  */
@@ -178,14 +181,21 @@ function legacy_runFullPipeline_PRIME() {
       logLine('WARN', `⚠️ Habillage TEST non appliqué: ${eFmt.message}`);
     }
 
-    // 9. CRÉER ONGLETS FIN avec contexte complet
-    logLine('INFO', '\n💾 Finalisation avec contexte...');
-    const finResult = finalizeAllSheets(ctx);
-    logLine('SUCCESS', `✅ Onglets FIN créés: ${finResult.count}`);
+    // ⛔ PAS de création d'onglets FIN ici.
+    // ✅ CORRECTIF (workflow) : le Moteur s'ARRÊTE aux onglets TEST.
+    //    Workflow attendu :
+    //      1. Moteur → onglets TEST (habillés)  ← on est ici
+    //      2. SCORE INTERFACE déployée sur les TEST
+    //      3. Ajustements manuels (déplacements autorisés)
+    //      4. Création des onglets FIN par l'interface (saveElevesSnapshot)
+    //         ou par l'étape 7 « Finalisation » (v3_finalizeSheets).
+    //    Auparavant finalizeAllSheets(ctx) était appelé ici → les onglets FIN
+    //    étaient générés AVANT toute intervention manuelle (prématurés et en
+    //    doublon avec l'interface).
 
     // 9. RÉSUMÉ
     const runtime = (new Date() - startTime) / 1000;
-    logLine('SUCCESS', `\n✅ PIPELINE LEGACY TERMINÉ (${runtime.toFixed(1)}s)`);
+    logLine('SUCCESS', `\n✅ PIPELINE LEGACY TERMINÉ — onglets TEST prêts (${runtime.toFixed(1)}s)`);
     logLine('INFO', '═'.repeat(80));
 
     /*
