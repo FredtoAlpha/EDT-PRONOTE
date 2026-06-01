@@ -1058,25 +1058,26 @@
           scoresContainer.className = 'scores-charts-container flex flex-col gap-1 mt-1 w-full px-1';
 
           const scoreConfig = [
-            { key: 'COM', label: 'Com', colorClass: 'bg-indigo-500' },
-            { key: 'TRA', label: 'Tra', colorClass: 'bg-cyan-500' },
-            { key: 'PART', label: 'Par', colorClass: 'bg-emerald-500' },
-            { key: 'ABS', label: 'Abs', colorClass: 'bg-amber-500' }
+            { key: 'COM', label: 'Com' },
+            { key: 'TRA', label: 'Tra' },
+            { key: 'PART', label: 'Par' },
+            { key: 'ABS', label: 'Abs' }
           ];
 
-          scoreConfig.forEach(({ key, label, colorClass }) => {
+          scoreConfig.forEach(({ key, label }) => {
             const value = eleve.scores[key] || 0;
             if (value > 0) {
               const rWidth = (value / 5) * 100;
-              // On colore en rouge si la perf est critique (1) sauf pour les absences où c'est l'inverse dans certaines logiques, mais gardons simple:
-              const finalColor = (value === 1) ? 'bg-red-500' : colorClass;
+              // Couleur de la jauge = couleur du NIVEAU (1→5), palette officielle
+              // partagée avec les onglets, les pastilles et le graphique empilé.
+              const finalColor = window.SCORE_LEVEL_COLORS[value] || '#94a3b8';
 
               const row = document.createElement('div');
               row.className = 'flex items-center gap-1.5 w-full text-[9px] leading-none';
               row.innerHTML = `
                 <span class="w-5 font-bold text-slate-500 dark:text-slate-400 text-right">${label}</span>
                 <div class="flex-1 h-1.5 bg-slate-200 dark:bg-slate-700 rounded-full overflow-hidden">
-                  <div class="h-full rounded-full ${finalColor}" style="width: ${rWidth}%"></div>
+                  <div class="h-full rounded-full" style="width: ${rWidth}%; background-color: ${finalColor}"></div>
                 </div>
               `;
               row.title = `${label}: ${value}/5`;
@@ -1756,6 +1757,37 @@
 
     // Alias pour compatibilité avec le code existant
     const STATE = window.STATE;
+
+    // ============================================
+    // PALETTE OFFICIELLE DES 5 NIVEAUX DE CRITÈRES (COM/TRA/PART/ABS)
+    // Source unique de vérité côté client — miroir de Config.gs SCORE_COLORS.
+    // Toute visualisation liée aux notes 1→5 doit référencer cette palette
+    // pour rester cohérente avec les onglets (TEST/FIN) et l'import.
+    //   1 = rouge · 2 = orange · 3 = jaune · 4 = vert clair · 5 = vert foncé
+    // ============================================
+    window.SCORE_LEVEL_COLORS = {
+      1: '#FF0000',
+      2: '#F6B26B',
+      3: '#FFD966',
+      4: '#93C47D',
+      5: '#38761D'
+    };
+    // Couleur de police contrastée par niveau (texte blanc sur fonds sombres)
+    window.SCORE_LEVEL_FONT = {
+      1: '#FFFFFF',
+      2: '#000000',
+      3: '#000000',
+      4: '#000000',
+      5: '#FFFFFF'
+    };
+    // Tableau ordonné 1→5 pratique pour les datasets de graphiques
+    const SCORE_LEVEL_PALETTE = [
+      window.SCORE_LEVEL_COLORS[1],
+      window.SCORE_LEVEL_COLORS[2],
+      window.SCORE_LEVEL_COLORS[3],
+      window.SCORE_LEVEL_COLORS[4],
+      window.SCORE_LEVEL_COLORS[5]
+    ];
 
     // Variables pour les graphiques (les déplacer aussi)
     window.chartCommunication = null;
@@ -4345,11 +4377,11 @@
           data: {
             labels: [],
             datasets: [
-              { label: '1', data: [], backgroundColor: '#FF0000', stack: 'Stack 0' },
-              { label: '2', data: [], backgroundColor: '#F6B26B', stack: 'Stack 0' },
-              { label: '3', data: [], backgroundColor: '#FFD966', stack: 'Stack 0' },
-              { label: '4', data: [], backgroundColor: '#93C47D', stack: 'Stack 0' },
-              { label: '5', data: [], backgroundColor: '#38761D', stack: 'Stack 0' }
+              { label: '1', data: [], backgroundColor: SCORE_LEVEL_PALETTE[0], stack: 'Stack 0' },
+              { label: '2', data: [], backgroundColor: SCORE_LEVEL_PALETTE[1], stack: 'Stack 0' },
+              { label: '3', data: [], backgroundColor: SCORE_LEVEL_PALETTE[2], stack: 'Stack 0' },
+              { label: '4', data: [], backgroundColor: SCORE_LEVEL_PALETTE[3], stack: 'Stack 0' },
+              { label: '5', data: [], backgroundColor: SCORE_LEVEL_PALETTE[4], stack: 'Stack 0' }
             ]
           },
           options: {
