@@ -168,7 +168,17 @@ function legacy_runFullPipeline_PRIME() {
       prevSwaps = p4Result.swapsApplied;
     }
 
-    // 8. CRÉER ONGLETS FIN avec contexte complet
+    // 8. HABILLAGE DES ONGLETS TEST (en-têtes figés, largeurs, couleurs LV2/OPT, gras)
+    // ✅ CORRECTIF : ce formatage existait mais n'était jamais appelé → onglets TEST nus.
+    //    Appliqué après l'optimisation, une fois les élèves écrits dans les onglets TEST.
+    logLine('INFO', '\n🎨 Habillage des onglets TEST...');
+    try {
+      formatTestSheets_LEGACY(ctx);
+    } catch (eFmt) {
+      logLine('WARN', `⚠️ Habillage TEST non appliqué: ${eFmt.message}`);
+    }
+
+    // 9. CRÉER ONGLETS FIN avec contexte complet
     logLine('INFO', '\n💾 Finalisation avec contexte...');
     const finResult = finalizeAllSheets(ctx);
     logLine('SUCCESS', `✅ Onglets FIN créés: ${finResult.count}`);
@@ -362,12 +372,19 @@ function formatFinSheet_LEGACY(sheet) {
       optCHINOIS: '#C41E3A',  // Rouge cardinal (CHINOIS)
       optGREC: '#f6ca9d',     // Orange clair (GREC)
       
-      // COM/TRA/PART/ABS (notes)
-      note4: '#38761d',       // Vert TRÈS foncé
-      note3: '#8ec875',       // Vert personnalisé
-      note2: '#f1c232',       // Jaune-orange vif
-      note1: '#cc0000',       // Rouge vif
-      noteHighText: '#ffffff' // Texte blanc pour 4 et 1
+      // COM/TRA/PART/ABS (notes) — palette 5 niveaux distincts (alignée Config.SCORE_COLORS)
+      // 1=rouge, 2=orange, 3=jaune, 4=vert clair, 5=vert foncé
+      note5: '#38761D',       // 5 → vert foncé
+      note4: '#93C47D',       // 4 → vert clair (distinct du 5 !)
+      note3: '#FFD966',       // 3 → jaune
+      note2: '#F6B26B',       // 2 → orange
+      note1: '#FF0000',       // 1 → rouge
+      // Couleur de police choisie pour le contraste sur chaque fond
+      noteText5: '#ffffff',   // texte blanc sur vert foncé
+      noteText4: '#000000',   // texte noir sur vert clair
+      noteText3: '#000000',   // texte noir sur jaune
+      noteText2: '#000000',   // texte noir sur orange
+      noteText1: '#ffffff'    // texte blanc sur rouge
     };
     
     // ========== 0. CACHER COLONNES A, B ET C ==========
@@ -484,17 +501,20 @@ function formatFinSheet_LEGACY(sheet) {
         if (idx[col] >= 0) {
           const val = Number(row[idx[col]]) || 0;
           const cell = sheet.getRange(rowNum, idx[col] + 1);
-          
-          if (val >= 4) {
-            cell.setBackground(COLORS.note4).setFontColor(COLORS.noteHighText);
+
+          // 5 niveaux distincts (4 ≠ 5) avec police contrastée
+          if (val >= 5) {
+            cell.setBackground(COLORS.note5).setFontColor(COLORS.noteText5);
+          } else if (val >= 4) {
+            cell.setBackground(COLORS.note4).setFontColor(COLORS.noteText4);
           } else if (val >= 3) {
-            cell.setBackground(COLORS.note3).setFontColor('#000000');
+            cell.setBackground(COLORS.note3).setFontColor(COLORS.noteText3);
           } else if (val >= 2) {
-            cell.setBackground(COLORS.note2).setFontColor('#000000');
+            cell.setBackground(COLORS.note2).setFontColor(COLORS.noteText2);
           } else if (val >= 1) {
-            cell.setBackground(COLORS.note1).setFontColor(COLORS.noteHighText);
+            cell.setBackground(COLORS.note1).setFontColor(COLORS.noteText1);
           }
-          
+
           cell.setHorizontalAlignment('center').setFontWeight('bold');
         }
       });
@@ -552,10 +572,12 @@ function addStatistics_LEGACY_V2(sheet, headers, rowData, idx) {
       sexeM: '#cfe2f3',
       lv2ESP: '#ffd966',
       lv2ITA: '#9fc5e8',
-      note4: '#38761d',
-      note3: '#6aa84f',
-      note2: '#f1c232',
-      note1: '#cc0000'
+      // Palette 5 niveaux distincts (alignée Config.SCORE_COLORS)
+      note5: '#38761D',  // vert foncé
+      note4: '#93C47D',  // vert clair (distinct du 5)
+      note3: '#FFD966',  // jaune
+      note2: '#F6B26B',  // orange
+      note1: '#FF0000'   // rouge
     };
     
     // ========== LIGNE 1 : COMPTAGES COLORÉS ==========
@@ -598,28 +620,33 @@ function addStatistics_LEGACY_V2(sheet, headers, rowData, idx) {
       }
     }
     
-    // COM / TRA / PART / ABS : Comptages par note (4, 3, 2, 1)
+    // COM / TRA / PART / ABS : Comptages par note (5, 4, 3, 2, 1)
     ['COM', 'TRA', 'PART', 'ABS'].forEach(col => {
       if (idx[col] >= 0) {
+        const count5 = rowData.filter(r => Number(r[idx[col]]) === 5).length;
         const count4 = rowData.filter(r => Number(r[idx[col]]) === 4).length;
         const count3 = rowData.filter(r => Number(r[idx[col]]) === 3).length;
         const count2 = rowData.filter(r => Number(r[idx[col]]) === 2).length;
         const count1 = rowData.filter(r => Number(r[idx[col]]) === 1).length;
-        
+
+        if (count5 > 0) {
+          sheet.getRange(statsRow, idx[col] + 1).setValue(count5)
+            .setBackground(COLORS.note5).setFontColor('#ffffff').setFontWeight('bold').setHorizontalAlignment('center');
+        }
         if (count4 > 0) {
-          sheet.getRange(statsRow, idx[col] + 1).setValue(count4)
-            .setBackground(COLORS.note4).setFontColor('#ffffff').setFontWeight('bold').setHorizontalAlignment('center');
+          sheet.getRange(statsRow + 1, idx[col] + 1).setValue(count4)
+            .setBackground(COLORS.note4).setFontColor('#000000').setFontWeight('bold').setHorizontalAlignment('center');
         }
         if (count3 > 0) {
-          sheet.getRange(statsRow + 1, idx[col] + 1).setValue(count3)
-            .setBackground(COLORS.note3).setFontWeight('bold').setHorizontalAlignment('center');
+          sheet.getRange(statsRow + 2, idx[col] + 1).setValue(count3)
+            .setBackground(COLORS.note3).setFontColor('#000000').setFontWeight('bold').setHorizontalAlignment('center');
         }
         if (count2 > 0) {
-          sheet.getRange(statsRow + 2, idx[col] + 1).setValue(count2)
-            .setBackground(COLORS.note2).setFontWeight('bold').setHorizontalAlignment('center');
+          sheet.getRange(statsRow + 3, idx[col] + 1).setValue(count2)
+            .setBackground(COLORS.note2).setFontColor('#000000').setFontWeight('bold').setHorizontalAlignment('center');
         }
         if (count1 > 0) {
-          sheet.getRange(statsRow + 3, idx[col] + 1).setValue(count1)
+          sheet.getRange(statsRow + 4, idx[col] + 1).setValue(count1)
             .setBackground(COLORS.note1).setFontColor('#ffffff').setFontWeight('bold').setHorizontalAlignment('center');
         }
       }
