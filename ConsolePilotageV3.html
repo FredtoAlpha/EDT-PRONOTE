@@ -1788,10 +1788,12 @@
                 const effectifTotal = (s.effectifs && s.effectifs.total) ? s.effectifs.total : 0;
                 const targets = s.global || {}; // Objectifs par matière
 
+                // Capacité totale vs effectif : déficit → rouge, juste → vert, surplus → jaune
                 let capCol = '#f8fafc';
                 if (effectifTotal > 0) {
                     if (totals.capacity === effectifTotal) capCol = '#22c55e';
-                    else if (totals.capacity > effectifTotal) capCol = '#ef4444';
+                    else if (totals.capacity < effectifTotal) capCol = '#ef4444';
+                    else capCol = '#eab308';
                 }
 
                 let html = `<td style="text-align:right;padding:10px;color:#94a3b8;font-size:12px;font-weight:bold">TOTAUX</td>`;
@@ -1800,11 +1802,13 @@
                 [...currentStructure.lv2, ...currentStructure.options].forEach(k => {
                     const offer = totals.counts[k] || 0;
                     const demand = targets[k] || 0;
-                    
+
+                    // places insuffisantes → rouge ; juste → vert ; surplus → jaune (info)
                     let col = '#f8fafc';
                     if (demand > 0) {
                         if (offer === demand) col = '#22c55e';
-                        else if (offer > demand) col = '#ef4444';
+                        else if (offer < demand) col = '#ef4444';
+                        else col = '#eab308';
                     }
                     html += `<td style="text-align:center;font-size:18px;font-weight:900;color:${col}">${offer}</td>`;
                 });
@@ -1870,9 +1874,11 @@
             const targets = s.global || {};
             const effTotal = (s.effectifs && s.effectifs.total) ? s.effectifs.total : 0;
 
-            // En-tête
+            // En-tête : OFFRE (places) vs BESOIN (élèves).
+            // Convention cohérente avec renderComboRow :
+            //   déficit de places → rouge (alerte) · égalité → vert · surplus → jaune (info)
             const diff = totals.capacity - effTotal;
-            const col = diff < 0 ? '#eab308' : (diff === 0 ? '#22c55e' : '#ef4444');
+            const col = diff === 0 ? '#22c55e' : (diff < 0 ? '#ef4444' : '#eab308');
             
             const plEl = document.getElementById('metric-places');
             if(plEl) {
@@ -1888,9 +1894,12 @@
             }
 
             const renderRow = (code, demand, offer) => {
+                // demand = élèves réels (s.global) · offer = places définies dans la structure
+                // Convention : places insuffisantes → rouge (alerte) ; juste → vert ;
+                // surplus de places → jaune (info, pas une erreur).
                 let c = '#eab308';
                 if (offer === demand) c = '#22c55e';
-                else if (offer > demand) c = '#ef4444';
+                else if (offer < demand) c = '#ef4444';
                 const w = demand > 0 ? Math.min(100, (offer / demand) * 100) : 0;
                 return `<div style="margin-bottom:5px;padding:5px;background:rgba(255,255,255,0.03);border-radius:4px">
                     <div style="display:flex;justify-content:space-between;font-size:11px;margin-bottom:2px">
