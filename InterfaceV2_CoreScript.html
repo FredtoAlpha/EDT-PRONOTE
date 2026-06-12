@@ -644,10 +644,8 @@
         window.RealTimeFeedback.updateMetrics();
       }
 
-      // Sauvegarde
-      if (STATE.currentMode === 'CACHE') {
-        setTimeout(() => saveImmediateCache(), 200);
-      }
+      // Sauvegarde de récupération (tous modes)
+      triggerSafeAutoSave(200);
 
       const eleve1 = STATE.students[id1];
       const eleve2 = STATE.students[id2];
@@ -1386,10 +1384,8 @@
       // Feedback temps réel
       if (RealTimeFeedback) RealTimeFeedback.updateMetrics();
 
-      // Sauvegarde
-      if (STATE.currentMode === 'CACHE') {
-        setTimeout(() => saveImmediateCache(), 200);
-      }
+      // Sauvegarde de récupération (tous modes)
+      triggerSafeAutoSave(200);
     };
 
     // ========== FONCTION MANQUANTE - Chargement des données selon le mode ==========
@@ -1595,6 +1591,22 @@
         delete window.scheduleAutoSave;
       }
     }
+
+    /**
+     * Filet de sécurité unifié : déclenche la sauvegarde de récupération après
+     * une action utilisateur, dans TOUS les modes (pas seulement CACHE).
+     * saveImmediateCache écrit toujours le localStorage + tente le backend et
+     * gère ses propres erreurs (badge). Sans ça, les déplacements en mode
+     * TEST/FIN (le cas après le Moteur) n'étaient jamais sauvegardés.
+     */
+    function triggerSafeAutoSave(delayMs) {
+      const fn = window.saveImmediateCache ||
+        (window.App && App.Data && App.Data.saveImmediateCache);
+      if (typeof fn === 'function') {
+        setTimeout(function () { try { fn(); } catch (e) { console.error('autosave:', e); } }, delayMs || 200);
+      }
+    }
+    window.triggerSafeAutoSave = triggerSafeAutoSave;
 
     // ========== FONCTION MANQUANTE - Vérifier le cache ==========
     async function checkCache() {
@@ -2072,10 +2084,8 @@
           // 8. Marquer comme modifié pour auto-save
           STATE.has_user_action = true;
 
-          // 9. Sauvegarde immédiate si mode CACHE
-          if (STATE.currentMode === 'CACHE' && typeof App.Data?.saveImmediateCache === 'function') {
-            setTimeout(() => App.Data.saveImmediateCache(), 200);
-          }
+          // 9. Sauvegarde de récupération (tous modes)
+          triggerSafeAutoSave(200);
 
           return true;
         }
@@ -2155,10 +2165,8 @@
           // Mise à jour intelligente des statistiques
           setTimeout(() => App.Stats.updateAdvancedStats(), 150);
 
-          // Sauvegarde après undo
-          if (STATE.currentMode === 'CACHE') {
-            App.Data.saveImmediateCache();
-          }
+          // Sauvegarde de récupération après undo (tous modes)
+          triggerSafeAutoSave(0);
         },
 
         /**
@@ -2200,10 +2208,8 @@
           // Mise à jour intelligente des statistiques
           setTimeout(() => App.Stats.updateAdvancedStats(), 150);
 
-          // Sauvegarde après redo
-          if (STATE.currentMode === 'CACHE') {
-            App.Data.saveImmediateCache();
-          }
+          // Sauvegarde de récupération après redo (tous modes)
+          triggerSafeAutoSave(0);
         }
       },
 
