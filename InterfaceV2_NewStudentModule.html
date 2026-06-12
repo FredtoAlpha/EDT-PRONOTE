@@ -607,12 +607,12 @@ const NewStudentModule = {
   // Mode debug (mettre à true pour logs verbeux)
   debug: false,
 
-  // Configuration des scores possibles
+  // Configuration des scores possibles — échelle 5 niveaux (0 = non renseigné)
   scoreRanges: {
-    COM: { min: 0, max: 4, label: 'Comportement' },
-    TRA: { min: 0, max: 4, label: 'Travail' },
-    PART: { min: 0, max: 4, label: 'Participation' },
-    ABS: { min: 0, max: 4, label: 'Absences' }
+    COM: { min: 0, max: 5, label: 'Comportement' },
+    TRA: { min: 0, max: 5, label: 'Travail' },
+    PART: { min: 0, max: 5, label: 'Participation' },
+    ABS: { min: 0, max: 5, label: 'Absences' }
   },
 
   // Poids du scoring (sur 100) - Priorités réalistes pour une école
@@ -732,20 +732,20 @@ const NewStudentModule = {
                 <h4>Indicateurs comportementaux</h4>
                 <div class="scores-grid">
                   <div class="score-input">
-                    <label for="nsCOM">COM (0-4)</label>
-                    <input type="number" id="nsCOM" min="0" max="4" value="2">
+                    <label for="nsCOM">COM (0-5)</label>
+                    <input type="number" id="nsCOM" min="0" max="5" value="3">
                   </div>
                   <div class="score-input">
-                    <label for="nsTRA">TRA (0-4)</label>
-                    <input type="number" id="nsTRA" min="0" max="4" value="2">
+                    <label for="nsTRA">TRA (0-5)</label>
+                    <input type="number" id="nsTRA" min="0" max="5" value="3">
                   </div>
                   <div class="score-input">
-                    <label for="nsPART">PART (0-4)</label>
-                    <input type="number" id="nsPART" min="0" max="4" value="2">
+                    <label for="nsPART">PART (0-5)</label>
+                    <input type="number" id="nsPART" min="0" max="5" value="3">
                   </div>
                   <div class="score-input">
-                    <label for="nsABS">ABS (0-4)</label>
-                    <input type="number" id="nsABS" min="0" max="4" value="1">
+                    <label for="nsABS">ABS (0-5)</label>
+                    <input type="number" id="nsABS" min="0" max="5" value="3">
                   </div>
                 </div>
               </div>
@@ -1301,7 +1301,9 @@ const NewStudentModule = {
 
       if (COM === 1) riskCOM += 1;        // COM=1 = gros problème discipline
       if (TRA === 1) riskTRA += 1;        // TRA=1 = travail très faible / décrocheur
-      if (ABS >= 3)  riskABS += 1;        // ABS>=3 = absentéisme lourd
+      // Convention de l'échelle (import A=5..E=1, code couleur, COMPTER) :
+      // ABS haut = très assidu. Absentéisme lourd = ABS 1-2 (0 = non renseigné).
+      if (ABS > 0 && ABS <= 2) riskABS += 1;
     });
 
     // Contribution du NOUVEL élève
@@ -1317,14 +1319,15 @@ const NewStudentModule = {
     } else if (newCOM === 3) {
       riskCOM += 0.2;
     } else {
-      // COM=4 -> pas de risque ajouté
+      // COM >= 4 (4 ou 5) -> pas de risque ajouté
     }
 
     if (newTRA === 1) {
       riskTRA += 1;
     }
 
-    if (newABS >= 3) {
+    // ABS haut = assidu ; risque seulement si ABS 1-2 (0 = non renseigné)
+    if (newABS > 0 && newABS <= 2) {
       riskABS += 1;
     }
 
@@ -1953,10 +1956,10 @@ const NewStudentModule = {
     document.getElementById('nsSexe').value = '';
     document.getElementById('nsLV2').value = '';
     document.getElementById('nsOpt').value = '';
-    document.getElementById('nsCOM').value = '2';
-    document.getElementById('nsTRA').value = '2';
-    document.getElementById('nsPART').value = '2';
-    document.getElementById('nsABS').value = '1';
+    document.getElementById('nsCOM').value = '3';
+    document.getElementById('nsTRA').value = '3';
+    document.getElementById('nsPART').value = '3';
+    document.getElementById('nsABS').value = '3';
     document.getElementById('nsForceClass').checked = false;
     document.getElementById('nsForceClassSelect').value = '';
     document.getElementById('nsForceClassGroup').style.display = 'none';
