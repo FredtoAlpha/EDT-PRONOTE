@@ -98,3 +98,46 @@ les 2 classes défense ; mobilité PERMUT entre 3°3 et 3°4.
 
 > ⚠️ Rien n'est codé tant que ce document n'est pas validé. Il fixe le format
 > AVANT le remplissage manuel du fichier, pour éviter de tout refaire.
+
+---
+
+# Dispositifs (PAP / GEVASCO / ULIS…) — marqueur unique
+
+Décision validée : **affichage + stats uniquement** (le moteur n'équilibre PAS
+sur les dispositifs). Un seul **marqueur dominant** par élève — pas de liste,
+car le compteur de stats lit la cellule en bloc (`ULIS|GEVASCO|PAP` créerait
+une fausse catégorie au lieu de compter chaque dispositif).
+
+### Colonne à ajouter dans le fichier
+- **Nom d'en-tête exact** : `Dispositif`  (reconnu par les stats existantes :
+  `DISPOSITIF / DISPO / DISPOSITIFS` → mappé sur le champ interne `DISPO`).
+- **Position** : libre (l'outil se repère sur le nom, pas la colonne). Pratique
+  après « Verrou ».
+- **Contenu** : UN seul code, le marqueur le plus haut dont relève l'élève.
+
+### Gradation (ordre de priorité décroissant)
+`ULIS > GEVASCO > PAP`
+- Élève cumulant plusieurs dispositifs → écrire le plus haut.
+  Ex. élève GEVASCO + PAP → `GEVASCO`. Élève ULIS + PPS + PAP → `ULIS`.
+- Cellule vide = aucun dispositif (pas de badge).
+
+### Effet attendu
+- Carte V2 : badge `dispo` affiché (déjà géré, `createBadge('dispo', …)`).
+- Stats : `calculerDispositifs` compte proprement par marqueur.
+- Moteur de répartition : **aucun impact** (pas d'équilibrage dispositif).
+  ⚠️ Ne pas confondre avec ULIS comme *classe imposée* : si un élève ULIS doit
+  aller dans une classe précise, c'est la colonne H (classe imposée) qui le gère,
+  pas ce marqueur (qui reste purement informatif).
+
+### Code à ajouter
+1. `Import_EDT.gs` : lire la colonne `Dispositif` du fichier et la propager dans
+   le champ `DISPO` des onglets sources (aujourd'hui `DISPO` ne reçoit que
+   'FIXE' via le verrou — il faut conserver FIXE ET ajouter le dispositif, ou
+   trancher la cohabitation des deux infos dans la même colonne).
+2. `InterfaceV2_Styles.html` : badges `.badge-ULIS`, `.badge-GEVASCO`,
+   `.badge-PAP` (couleurs à définir).
+
+> ⚠️ Point de vigilance : aujourd'hui la colonne `DISPO` sert AUSSI à porter
+> 'FIXE' (verrou). Si un élève est à la fois verrouillé ET a un dispositif, les
+> deux infos se disputent la même colonne. À arbitrer au moment du code
+> (probable : séparer mobilité/FIXE du dispositif dans deux champs distincts).
