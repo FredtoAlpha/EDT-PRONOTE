@@ -1757,6 +1757,13 @@ const NewStudentModule = {
       scores: formData.scores || {}
     };
 
+    // Classe imposée par l'admin → l'élève est VERROUILLÉ (FIXE) dans cette
+    // classe : ni le moteur ni le swap ne pourront le redéplacer ensuite.
+    // (cf. contrat « classe imposée » : une classe forcée = FIXE)
+    if (formData.forceClass && formData.forcedClassId) {
+      newStudent.mobilite = 'FIXE';
+    }
+
     console.log(`[NewStudentModule] Affectation de ${newStudent.nom} ${newStudent.prenom} dans ${targetClassId}`);
 
     // 1. Mise à jour STATE
