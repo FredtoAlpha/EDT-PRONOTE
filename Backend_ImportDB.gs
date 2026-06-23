@@ -101,7 +101,7 @@ function parseDispo_(val) {
   var s = String(val).trim().toUpperCase();
   if (!s) return '';
   // Priorite decroissante (le premier trouve gagne)
-  var priorite = ['GEVASCO', 'PPS', 'PAP', 'PPRE', 'ULIS', 'SEGPA', 'UPE2A'];
+  var priorite = ['GEVASCO', 'PPS', 'PAP', 'PAI', 'PPRE', 'ULIS', 'SEGPA', 'UPE2A'];
   for (var i = 0; i < priorite.length; i++) {
     if (s.indexOf(priorite[i]) >= 0) return priorite[i];
   }
