@@ -84,6 +84,7 @@
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
   <!-- Chart.js pour les graphiques -->
   <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-datalabels@2"></script>
   <!-- SheetJS pour export Excel -->
   <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
   <!-- jsPDF pour export PDF -->
@@ -367,7 +368,27 @@
           <div class="flex-1 h-px bg-gradient-to-r from-transparent via-gray-300 to-transparent"></div>
         </div>
 
-        <div class="grid grid-cols-2 gap-4">
+        <div class="grid grid-cols-3 gap-4">
+          <!-- Card BASE PRONOTE (point de départ depuis l'import) -->
+          <button
+            class="mode-card group relative overflow-hidden rounded-xl border-2 border-blue-300 bg-gradient-to-br from-blue-50 to-blue-100 p-6 text-left transition-all duration-300 hover:border-blue-500 hover:shadow-xl hover:-translate-y-1"
+            data-mode="SOURCES">
+            <div
+              class="absolute top-0 right-0 w-32 h-32 bg-blue-500/10 rounded-full -mr-16 -mt-16 group-hover:scale-150 transition-transform duration-500">
+            </div>
+            <div class="relative">
+              <div class="flex items-center justify-between mb-3">
+                <div
+                  class="w-12 h-12 rounded-lg bg-blue-600 flex items-center justify-center shadow-lg group-hover:scale-110 transition-transform duration-300">
+                  <i class="fas fa-database text-xl text-white"></i>
+                </div>
+                <span class="px-3 py-1 bg-blue-600 text-white text-xs font-bold rounded-full">IMPORT</span>
+              </div>
+              <h3 class="text-lg font-bold text-gray-800 mb-2">Base Pronote</h3>
+              <p class="text-sm text-gray-600 mb-3">Démarrer depuis l'import</p>
+            </div>
+          </button>
+
           <!-- Card TEST -->
           <button
             class="mode-card group relative overflow-hidden rounded-xl border-2 border-emerald-200 bg-gradient-to-br from-emerald-50 to-emerald-100 p-6 text-left transition-all duration-300 hover:border-emerald-400 hover:shadow-xl hover:-translate-y-1"
@@ -430,70 +451,7 @@
       </div>
 
 
-      <!-- Section ADMINISTRATEUR -->
-      <div>
-        <div class="flex items-center gap-2 mb-4">
-          <div class="flex-1 h-px bg-gradient-to-r from-transparent via-gray-300 to-transparent"></div>
-          <div class="flex items-center gap-2 px-4 py-2 bg-purple-50 rounded-full">
-            <i class="fas fa-user-shield text-purple-600"></i>
-            <span class="text-sm font-bold text-purple-700">ADMINISTRATEUR</span>
-          </div>
-          <div class="flex-1 h-px bg-gradient-to-r from-transparent via-gray-300 to-transparent"></div>
-        </div>
-
-        <div class="grid grid-cols-3 gap-4">
-          <!-- Card FIN -->
-          <button
-            class="mode-card group relative overflow-hidden rounded-xl border-2 border-purple-200 bg-gradient-to-br from-purple-50 to-purple-100 p-6 text-left transition-all duration-300 hover:border-purple-400 hover:shadow-xl hover:-translate-y-1"
-            data-mode="FIN">
-            <div
-              class="absolute top-0 right-0 w-32 h-32 bg-purple-500/10 rounded-full -mr-16 -mt-16 group-hover:scale-150 transition-transform duration-500">
-            </div>
-            <div class="relative">
-              <div
-                class="w-12 h-12 rounded-lg bg-purple-500 flex items-center justify-center shadow-lg mb-3 group-hover:scale-110 transition-transform duration-300">
-                <i class="fas fa-check-circle text-xl text-white"></i>
-              </div>
-              <h3 class="text-base font-bold text-gray-800 mb-2">Répartition finalisée</h3>
-              <p class="text-xs text-gray-600 mb-3">Corriger une répartition</p>
-              <span class="inline-block px-2 py-1 bg-purple-500 text-white text-xs font-bold rounded">FIN</span>
-            </div>
-          </button>
-
-          <!-- Card PREVIOUS -->
-          <button
-            class="mode-card group relative overflow-hidden rounded-xl border-2 border-gray-300 bg-gradient-to-br from-gray-50 to-gray-100 p-6 text-left transition-all duration-300 hover:border-gray-400 hover:shadow-xl hover:-translate-y-1"
-            data-mode="PREVIOUS">
-            <div
-              class="absolute top-0 right-0 w-32 h-32 bg-gray-500/10 rounded-full -mr-16 -mt-16 group-hover:scale-150 transition-transform duration-500">
-            </div>
-            <div class="relative">
-              <div
-                class="w-12 h-12 rounded-lg bg-gray-700 flex items-center justify-center shadow-lg mb-3 group-hover:scale-110 transition-transform duration-300">
-                <i class="fas fa-cog text-xl text-white"></i>
-              </div>
-              <h3 class="text-base font-bold text-gray-800 mb-2">Base admin</h3>
-              <p class="text-xs text-gray-600 mb-3">Construire une nouvelle base</p>
-              <span class="inline-block px-2 py-1 bg-gray-700 text-white text-xs font-bold rounded">CLASSES
-                SOURCES</span>
-            </div>
-          </button>
-
-          <!-- Card SOURCES (disabled) -->
-          <button
-            class="mode-card relative overflow-hidden rounded-xl border-2 border-gray-200 bg-gray-50 p-6 text-left opacity-50 cursor-not-allowed"
-            data-mode="SOURCES" disabled>
-            <div class="relative">
-              <div class="w-12 h-12 rounded-lg bg-gray-300 flex items-center justify-center shadow mb-3">
-                <i class="fas fa-database text-xl text-gray-500"></i>
-              </div>
-              <h3 class="text-base font-bold text-gray-600 mb-2">Base Pronote</h3>
-              <p class="text-xs text-gray-500 mb-3">Non implémentée</p>
-              <span class="inline-block px-2 py-1 bg-gray-300 text-gray-600 text-xs font-bold rounded">BIENTÔT</span>
-            </div>
-          </button>
-        </div>
-      </div>
+      <!-- Section ADMINISTRATEUR retirée (version simplifiée : pas de modes FIN/PREVIOUS) -->
     </div>
 
     <!-- SUPPRIMÉ : Sections Filtrer et Aide qui n'ont rien à faire dans le startupModal
@@ -622,21 +580,7 @@
           <span>Comparer</span>
         </button>
 
-        <!-- BOUTON GROUPES V4 -->
-        <button id="btnGroupesV4" class="header-btn flex items-center gap-1.5 rounded-lg
-                     bg-purple-800/90 text-white
-                     border border-purple-700/60
-                     shadow-[0_10px_20px_rgba(147,51,234,0.4)]
-                     hover:bg-purple-700/90
-                     hover:shadow-[0_12px_24px_rgba(147,51,234,0.5)]
-                     hover:border-purple-600/70
-                     transition-all duration-200 ease-out
-                     active:scale-[0.98]"
-          onclick="if(window.openModuleGroupsV4){window.openModuleGroupsV4('creator')}else{alert('Module Groupes V4 en cours de chargement...')}"
-          title="Créer des groupes (Besoins, LV2, Options)" aria-label="Ouvrir le module de création de groupes">
-          <span class="emoji opacity-80">👥</span>
-          <span>Groupes</span>
-        </button>
+        <!-- BOUTON GROUPES V4 retiré (version simplifiée : module groupes supprimé) -->
 
         <button id="btnSwapHeader" data-tour="swap-btn" class="header-btn flex items-center gap-1.5 rounded-lg
                      bg-blue-700/90 text-white
@@ -1175,7 +1119,6 @@
   <!-- 2.1 MODULES EXTRAITS DE CORESCRIPT (Final Cut) -->
   <?!= include('InterfaceV2_Metrics'); ?>
   <?!= include('InterfaceV2_PanelsUtils'); ?>
-  <?!= include('InterfaceV2_GroupsHelper'); ?>
   <?!= include('InterfaceV2_AdvancedFeatures'); ?>
 
   <!-- MODULE NOUVEL ÉLÈVE — Gestion complète de l'arrivée d'un élève -->
@@ -1186,17 +1129,11 @@
 
   <?!= include('InterfaceV2_StatsCleanupScript'); ?>
 
-  <!-- 3. CHARGER LES MODULES UI AVANCÉS (Tour guidé) -->
-  <?!= include('OnboardingTour'); ?>
-
   <!-- 3.6 CHARGER LES RACCOURCIS CLAVIER (T/V/H) -->
   <?!= include('KeyboardShortcuts'); ?>
 
   <!-- 3.7 CHARGER LES CONTRÔLES DU HEADER (Mode édition + Modale Finaliser) -->
   <?!= include('InterfaceV2_HeaderControls'); ?>
-
-  <!-- 4. CHARGER LE MODULE D'OPTIMISATION -->
-  <?!= include('OptimizationPanel'); ?>
 
   <!-- 5. MODULE UX HARMONIE - Experience enseignant en reunion -->
   <?!= include('InterfaceV2_UX_Harmonie'); ?>
@@ -1295,7 +1232,7 @@
         <label
           class="flex items-center gap-2 text-sm cursor-pointer hover:bg-slate-50 dark:hover:bg-slate-700 p-2 rounded">
           <input type="checkbox" id="showScores" class="w-4 h-4 cursor-pointer" checked>
-          <span>Scores</span>
+          <span>Afficher les scores</span>
         </label>
         <label
           class="flex items-center gap-2 text-sm cursor-pointer hover:bg-slate-50 dark:hover:bg-slate-700 p-2 rounded">
@@ -1306,7 +1243,7 @@
           class="flex items-center gap-2 text-sm cursor-pointer hover:bg-slate-50 dark:hover:bg-slate-700 p-2 rounded border-l-2 border-indigo-400 pl-3 ml-1 bg-indigo-50/50 dark:bg-indigo-900/10">
           <input type="checkbox" id="showMicroCharts"
             class="w-4 h-4 cursor-pointer text-indigo-600 focus:ring-indigo-500">
-          <span class="font-medium text-indigo-800 dark:text-indigo-300">Jauges Visuelles (Scores)</span>
+          <span class="font-medium text-indigo-800 dark:text-indigo-300">Scores en jauges</span>
         </label>
         <label
           class="flex items-center gap-2 text-sm cursor-pointer hover:bg-slate-50 dark:hover:bg-slate-700 p-2 rounded">
@@ -1622,15 +1559,7 @@
       </button>
     </div>
 
-    <!-- Tableaux de bord analytiques -->
-    <div>
-      <button id="btnAnalyticsMenu"
-        class="w-full px-4 py-3 flex items-center gap-3 hover:bg-gray-50 transition-colors text-left"
-        title="Ouvrir les tableaux de bord analytiques">
-        <i class="fas fa-chart-line text-gray-600"></i>
-        <span class="text-sm font-medium">Tableaux de bord analytiques</span>
-      </button>
-    </div>
+    <!-- Tableaux de bord analytiques retirés (version simplifiée : voir le panneau Statistiques intégré) -->
 
   </div>
   <!-- FIN Menu Comparer -->
@@ -1712,16 +1641,6 @@
         </button>
       </div>
 
-      <!-- Optimisation -->
-      <div class="border-b border-gray-100">
-        <button id="btnOptimizationAdmin"
-          class="w-full px-4 py-3 flex items-center gap-3 hover:bg-gray-50 transition-colors text-left"
-          title="Optimisation automatique">
-          <i class="fas fa-magic text-gray-600"></i>
-          <span class="text-sm font-medium">Optimisation</span>
-        </button>
-      </div>
-
       <!-- Nouvel élève / Affectation -->
       <div class="border-b border-gray-100">
         <button id="btnNewStudentAdmin"
@@ -1732,36 +1651,7 @@
         </button>
       </div>
 
-      <!-- Groupes -->
-      <div class="border-b border-gray-100">
-        <button class="w-full px-4 py-3 flex items-center justify-between hover:bg-gray-50 transition-colors"
-          onclick="toggleSection('groupesSection')">
-          <div class="flex items-center gap-3">
-            <i class="fas fa-layer-group text-gray-600"></i>
-            <span class="text-sm font-medium">Groupes</span>
-          </div>
-          <i class="fas fa-chevron-down text-gray-400 transition-transform" id="groupesSectionIcon"></i>
-        </button>
-        <div id="groupesSection" class="hidden px-4 pb-3 space-y-2">
-          <label
-            class="w-full px-3 py-2 flex items-center gap-2 hover:bg-gray-50 transition-colors rounded text-left text-sm cursor-pointer">
-            <input type="checkbox" id="adminToggleHeaderGroups" class="h-4 w-4">
-            <span>Afficher le bouton Groupes dans le header</span>
-          </label>
-          <button id="menuOpenGroupsAdmin"
-            class="w-full px-3 py-2 flex items-center gap-2 hover:bg-gray-50 transition-colors rounded text-left text-sm"
-            onclick="openGroupsInterface('creator')">
-            <i class="fas fa-plus-circle text-gray-600"></i>
-            <span>Créer des groupes</span>
-          </button>
-          <button id="menuManageGroupsAdmin"
-            class="w-full px-3 py-2 flex items-center gap-2 hover:bg-gray-50 transition-colors rounded text-left text-sm"
-            onclick="openGroupsInterface('manager')">
-            <i class="fas fa-cog text-gray-600"></i>
-            <span>Gérer les groupes</span>
-          </button>
-        </div>
-      </div>
+      <!-- Section Groupes retirée (version simplifiée) -->
 
       <!-- Paramètres (tout le contenu actuel) -->
       <div>
@@ -1825,15 +1715,7 @@
   </div>
   <!-- FIN Menu Admin -->
 
-  <!-- ========== MODULE GROUPES V4 ========== -->
-  <!-- UIComponents déjà chargé en ligne ~1169 — ne pas re-inclure -->
-
-  <!-- Styles spécifiques Groups V4 (pastilles score, lisibilité) -->
-  <?!= include('GroupsModuleV4_Styles'); ?>
-
-  <?!= include('GroupsAlgorithmV4'); ?>
-  <?!= include('GroupsInterfaceV4'); ?>
-  <?!= include('InterfaceV2_GroupsModuleV4_Script'); ?>
+  <!-- ========== MODULE GROUPES V4 retiré (version simplifiée) ========== -->
 
   <!-- ============================================================ -->
   <!-- FONCTION D'OUVERTURE DU MODULE ANALYTIQUE -->
