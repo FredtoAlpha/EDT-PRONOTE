@@ -165,7 +165,10 @@
         return;
       }
 
-      const disposition = exportDisposition();
+      // exportDisposition() est interne à l'IIFE de CoreScript : on passe par App.Data
+      const disposition = (window.App && window.App.Data && typeof window.App.Data.exportDisposition === 'function')
+        ? window.App.Data.exportDisposition()
+        : {};
       const cacheData = {
         date: new Date().toISOString(),
         disposition: disposition,

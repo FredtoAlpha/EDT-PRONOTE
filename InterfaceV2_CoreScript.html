@@ -396,7 +396,6 @@
 
       const r1 = checkTag(e.lv2, 'LV2');
       if (r1 !== true) return r1;
-      console.log(eleveId, e.opt)
       const r2 = checkTag(e.opt, 'Option');
       if (r2 !== true) return r2;
 
@@ -472,28 +471,27 @@
         }
       }
 
-      // Cas 2 : Même LV2 ET même OPT (ou pas d'OPT)
+      // 🔒 MOBILITÉS BLOQUANTES EN PREMIER : un élève FIXE/SPEC/CONDI ne bouge
+      //    JAMAIS en mode Swap — même avec un partenaire de mêmes contraintes.
+      //    (Sinon une classe imposée = FIXE serait défaite par un swap ESP↔ESP,
+      //    et l'auto-swap pourrait déplacer un élève verrouillé.) Cohérent avec
+      //    le filtre Sortable qui bloque déjà le drag d'un FIXE.
+      if (eleve1.mobilite === 'FIXE' || eleve2.mobilite === 'FIXE') {
+        return { ok: false, reason: 'FIXE ne peut pas bouger (utilisez le mode Force)' };
+      }
+      if (eleve1.mobilite === 'SPEC' || eleve2.mobilite === 'SPEC') {
+        return { ok: false, reason: 'SPEC ne peut pas bouger (utilisez le mode Force)' };
+      }
+      if (eleve1.mobilite === 'CONDI' || eleve2.mobilite === 'CONDI') {
+        return { ok: false, reason: 'CONDI ne peut pas bouger (groupe ASSO)' };
+      }
+
+      // Cas 2 : mêmes contraintes (LV2 ET OPT) → swap quota-neutre, autorisé.
       const memeLV2 = lv2_1 === lv2_2 || (lv2_1 === 'ESP' && lv2_2 === 'ESP') || (!lv2_1 && !lv2_2);
       const memeOPT = opt_1 === opt_2 || (!opt_1 && !opt_2);
 
       if (memeLV2 && memeOPT) {
         return { ok: true };
-      }
-
-      // Si pas de mêmes contraintes, vérifier les mobilités
-
-      // FIXE et SPEC : jamais déplaçables en mode Swap (seulement en mode Force)
-      if (eleve1.mobilite === 'FIXE' || eleve2.mobilite === 'FIXE') {
-        return { ok: false, reason: 'FIXE ne peut pas bouger (utilisez le mode Force)' };
-      }
-
-      if (eleve1.mobilite === 'SPEC' || eleve2.mobilite === 'SPEC') {
-        return { ok: false, reason: 'SPEC ne peut pas bouger (utilisez le mode Force)' };
-      }
-
-      // CONDI : jamais déplaçables (conditionnés par le groupe)
-      if (eleve1.mobilite === 'CONDI' || eleve2.mobilite === 'CONDI') {
-        return { ok: false, reason: 'CONDI ne peut pas bouger (groupe ASSO)' };
       }
 
       // PERMUT : vérifier compatibilité
@@ -892,10 +890,8 @@
         const simpleLine = card.querySelector('.simple-line');
         const nameEl = card.querySelector('.student-simple-name');
 
-        // Gender badge using createBadge()
-        if (document.body.classList.contains('gender-badges')) {
-          simpleLine.insertBefore(createBadge('gender', eleve.sexe), nameEl);
-        }
+        // Gender badge — toujours inséré ; l'affichage est géré par CSS (body.gender-badges)
+        simpleLine.insertBefore(createBadge('gender', eleve.sexe), nameEl);
 
         // Nom complet simplifié
         let nomComplet = simplifierNomComplet(eleve.nom, eleve.prenom);
@@ -944,10 +940,8 @@
         const nomComplet = simplifierNomComplet(eleve.nom, eleve.prenom);
         fullNameElement.textContent = nomComplet;
 
-        // Gender badge using createBadge()
-        if (document.body.classList.contains('gender-badges')) {
-          fullNameElement.parentNode.insertBefore(createBadge('gender', eleve.sexe), fullNameElement);
-        }
+        // Gender badge — toujours inséré ; affichage géré par CSS (body.gender-badges)
+        fullNameElement.parentNode.insertBefore(createBadge('gender', eleve.sexe), fullNameElement);
 
         // NOM EN ROUGE si score COM = 1
         if (eleve.scores && eleve.scores.COM && parseInt(eleve.scores.COM) === 1) {
@@ -1004,10 +998,8 @@
         const fullNameElement = card.querySelector('.student-fullname');
         const nomComplet = simplifierNomComplet(eleve.nom, eleve.prenom);
 
-        // Gender badge using createBadge()
-        if (document.body.classList.contains('gender-badges')) {
-          fullNameElement.parentNode.insertBefore(createBadge('gender', eleve.sexe), fullNameElement);
-        }
+        // Gender badge — toujours inséré ; affichage géré par CSS (body.gender-badges)
+        fullNameElement.parentNode.insertBefore(createBadge('gender', eleve.sexe), fullNameElement);
 
         fullNameElement.textContent = nomComplet;
         fullNameElement.className = 'student-fullname'; // Reset class in case it was modified
@@ -1779,8 +1771,8 @@
     // ============================================
     window.SCORE_LEVEL_COLORS = {
       1: '#FF0000',
-      2: '#F6B26B',
-      3: '#FFD966',
+      2: '#FB8C00',
+      3: '#FFD000',
       4: '#93C47D',
       5: '#38761D'
     };
@@ -2978,12 +2970,10 @@
           });
         }
 
-        // Appliquer l'affichage/masquage des scores
+        // Appliquer l'affichage/masquage des scores via une classe sur <body>
+        // (robuste : survit aux re-rendus de cartes, contrairement au style inline)
         if (prefs.showScores !== undefined) {
-          const scoresElements = document.querySelectorAll('.scores');
-          scoresElements.forEach(el => {
-            el.style.display = prefs.showScores ? '' : 'none';
-          });
+          document.body.classList.toggle('hide-scores', !prefs.showScores);
         }
       };
 
@@ -4376,6 +4366,13 @@
         </div>
       `;
 
+        // Plugin "data labels" : chiffres affichés directement sur les graphiques.
+        // Enregistré globalement mais DÉSACTIVÉ par défaut (activé par graphique).
+        try {
+          if (window.ChartDataLabels) Chart.register(window.ChartDataLabels);
+          if (Chart.defaults && Chart.defaults.set) Chart.defaults.set('plugins.datalabels', { display: false });
+        } catch (e) { console.warn('datalabels indisponible:', e); }
+
         // Chart 1 : Distribution empilée par classe
         const ctx1 = document.getElementById('chartStacked').getContext('2d');
         chartCommunication = new Chart(ctx1, {
@@ -4416,9 +4413,17 @@
               tooltip: {
                 callbacks: {
                   label: function (context) {
-                    return `Score ${ context.datasetIndex + 1 }: ${ context.parsed.y } `;
+                    return `Score ${context.datasetIndex + 1} : ${context.parsed.y} élève(s)`;
                   }
                 }
+              },
+              datalabels: {
+                display: 'auto',
+                color: '#ffffff',
+                textStrokeColor: 'rgba(0,0,0,0.6)',
+                textStrokeWidth: 3,
+                font: { weight: 'bold', size: 11 },
+                formatter: function (v) { return v > 0 ? v : ''; }
               }
             }
           }
@@ -4455,6 +4460,15 @@
                   boxWidth: 10,
                   font: { size: 10 }
                 }
+              },
+              datalabels: {
+                display: true,
+                anchor: 'end',
+                align: 'end',
+                offset: -1,
+                color: '#374151',
+                font: { weight: 'bold', size: 10 },
+                formatter: function (v) { return v ? Number(v).toFixed(1) : ''; }
               }
             }
           }
@@ -4480,6 +4494,30 @@
                 labels: {
                   boxWidth: 10,
                   font: { size: 10 }
+                }
+              },
+              tooltip: {
+                callbacks: {
+                  label: function (ctx) {
+                    var d = ctx.chart.data.datasets[0].data;
+                    var total = d.reduce(function (a, b) { return a + (Number(b) || 0); }, 0);
+                    var v = Number(ctx.parsed) || 0;
+                    var pct = total ? Math.round(v / total * 100) : 0;
+                    return ' ' + ctx.label + ' : ' + v + ' (' + pct + '%)';
+                  }
+                }
+              },
+              datalabels: {
+                display: true,
+                color: '#ffffff',
+                textStrokeColor: 'rgba(0,0,0,0.45)',
+                textStrokeWidth: 2,
+                font: { weight: 'bold', size: 12 },
+                formatter: function (v, ctx) {
+                  var d = ctx.chart.data.datasets[0].data;
+                  var total = d.reduce(function (a, b) { return a + (Number(b) || 0); }, 0);
+                  if (!total || !v) return '';
+                  return Math.round(v / total * 100) + '%';
                 }
               }
             }
@@ -4510,7 +4548,16 @@
               y: { ticks: { font: { size: 10 } } }
             },
             plugins: {
-              legend: { display: false }
+              legend: { display: false },
+              datalabels: {
+                display: true,
+                anchor: 'end',
+                align: 'right',
+                clamp: true,
+                color: '#374151',
+                font: { weight: 'bold', size: 11 },
+                formatter: function (v) { return v || ''; }
+              }
             }
           }
         });
@@ -4567,7 +4614,8 @@
 
         // Mettre à jour les boutons
         ['COM', 'TRA', 'PART', 'ABS'].forEach(t => {
-          const btn = document.getElementById(`btn${ t } `);
+          const btn = document.getElementById('btn' + t);
+          if (!btn) return;
           if (t === type) {
             btn.classList.remove('bg-gray-300');
             btn.classList.add('bg-green-500', 'text-white');
@@ -4584,7 +4632,8 @@
           'PART': 'Participation',
           'ABS': 'Absentéisme'
         };
-        document.getElementById('scoreType').textContent = titles[type];
+        const scoreTypeEl = document.getElementById('scoreType');
+        if (scoreTypeEl) scoreTypeEl.textContent = titles[type] || type;
 
         // Mettre à jour les graphiques
         updateCharts(type);
@@ -5117,12 +5166,52 @@
     if (btnSaveWIP) btnSaveWIP.addEventListener('click', async (e) => {
       e.preventDefault();
       e.stopPropagation();
-      lancerSauvegardeAvecProgression('saveCacheData', e.currentTarget, {
-        title: 'Sauvegarde Brouillon (CACHE)...',
-        successMessage: 'Brouillon sauvegardé avec succès !'
-      });
+      await sauvegardeBrouillonManuelle(e.currentTarget);
     });
   }
+
+  /**
+   * Sauvegarde manuelle du brouillon (bouton « Brouillon »).
+   * Écrit dans les onglets CACHE (durable) + localStorage (reprise rapide),
+   * avec un retour clair pour rassurer l'utilisateur.
+   */
+  async function sauvegardeBrouillonManuelle(btn) {
+    const disposition = (typeof exportDisposition === 'function') ? exportDisposition() : null;
+    if (!disposition || Object.keys(disposition).length === 0) {
+      if (typeof toast === 'function') toast('Rien à sauvegarder pour le moment.', 'warning');
+      return;
+    }
+    const labelSpan = btn ? btn.querySelector('span:last-child') : null;
+    const labelInit = labelSpan ? labelSpan.textContent : '';
+    if (btn) { btn.disabled = true; btn.style.opacity = '0.6'; }
+    if (labelSpan) labelSpan.textContent = 'Sauvegarde…';
+    try {
+      try {
+        localStorage.setItem('cache-data', JSON.stringify({
+          date: new Date().toISOString(), disposition, mode: STATE.currentMode
+        }));
+      } catch (_) {}
+      const result = await gsRun('saveDispositionToSheets', disposition);
+      if (result && result.success) {
+        STATE.has_user_action = false;
+        STATE.last_save_ts = Date.now();
+        if (typeof updateSaveBadge === 'function') updateSaveBadge(true);
+        const h = new Date().toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' });
+        if (labelSpan) { labelSpan.textContent = '✓ Enregistré'; setTimeout(() => { labelSpan.textContent = labelInit || 'Brouillon'; }, 2500); }
+        if (typeof toast === 'function')
+          toast('💾 Brouillon enregistré à ' + h + ' — vous pourrez reprendre votre travail (carte « Brouillon » au démarrage).', 'success');
+      } else {
+        if (labelSpan) labelSpan.textContent = labelInit || 'Brouillon';
+        if (typeof toast === 'function') toast('⚠️ Sauvegarde incomplète : ' + ((result && result.error) || 'réessayez.'), 'error');
+      }
+    } catch (err) {
+      if (labelSpan) labelSpan.textContent = labelInit || 'Brouillon';
+      if (typeof toast === 'function') toast('❌ Erreur de sauvegarde : ' + err.message, 'error');
+    } finally {
+      if (btn) { btn.disabled = false; btn.style.opacity = ''; }
+    }
+  }
+  window.sauvegardeBrouillonManuelle = sauvegardeBrouillonManuelle;
 
   // 3. VIEW MODE CONTROLS (view selector, gender badges, white background)
   function setupViewModeControls() {
@@ -5206,7 +5295,8 @@
 
     // Gender badges toggle
     if (showGenderBadges) {
-      const genderBadgesEnabled = localStorage.getItem('showGenderBadges') === 'true';
+      // Activé par défaut (sauf si l'utilisateur l'a explicitement désactivé)
+      const genderBadgesEnabled = localStorage.getItem('showGenderBadges') !== 'false';
       showGenderBadges.checked = genderBadgesEnabled;
       if (genderBadgesEnabled) {
         document.body.classList.add('gender-badges');
@@ -5468,7 +5558,26 @@
         const mode = e.currentTarget.dataset.mode;
 
         if (mode === 'SOURCES') {
-          alert('Base Pronote non implémentée. Cette fonctionnalité sera disponible prochainement.');
+          // 🌉 Base Pronote : prépare les onglets de travail "<classe> TEST" depuis
+          // l'import (l'import reste intact), puis charge en mode TEST.
+          modal.classList.add('hidden');
+          if (typeof showSpinner === 'function') showSpinner();
+          try {
+            const prep = await gsRun('preparerBasePronote');
+            if (!prep || !prep.success) {
+              if (typeof hideSpinner === 'function') hideSpinner();
+              alert('⚠️ ' + ((prep && prep.error) || 'Préparation impossible.'));
+              openStartupModal({ force: true });
+              return;
+            }
+            localStorage.setItem('mode-selection', 'TEST');
+            initRepartitionApp();
+          } catch (err) {
+            if (typeof hideSpinner === 'function') hideSpinner();
+            console.error('Erreur préparation Base Pronote:', err);
+            alert('Erreur lors de la préparation : ' + err.message);
+            openStartupModal({ force: true });
+          }
           return;
         }
 

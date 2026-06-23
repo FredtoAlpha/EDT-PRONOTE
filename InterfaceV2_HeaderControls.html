@@ -109,40 +109,86 @@
   }
   
   /**
-   * Exécute la finalisation réelle (à connecter avec votre fonction existante)
+   * Exécute la finalisation : écrit les onglets FIN, puis ouvre le document à imprimer.
    */
   function executeFinalizeProcess() {
-    console.log('🎯 Finalisation confirmée - Appel de la sauvegarde...');
+    const disposition = (typeof exportDisposition === 'function') ? exportDisposition()
+      : (window.App && window.App.Data ? window.App.Data.exportDisposition() : null);
 
-    // 🔍 DIAGNOSTIC : Vérifier le mode actuel
-    const currentMode = window.STATE?.currentMode || localStorage.getItem('mode-selection') || 'CACHE';
-    console.log('📊 Mode actuel détecté:', currentMode);
-    console.log('📊 STATE.currentMode:', window.STATE?.currentMode);
-    console.log('📊 localStorage mode:', localStorage.getItem('mode-selection'));
-
-    // ⚠️ IMPORTANT : Forcer le mode CACHE pour la finalisation
-    // Les onglets FIN doivent être créés depuis les données CACHE (répartition actuelle)
-    const modeToUse = 'CACHE';
-    console.log(`✅ Finalisation depuis le mode: ${modeToUse}`);
-
-    // Appeler la fonction de sauvegarde avec progression depuis CoreScript
-    if (window.lancerSauvegardeAvecProgression) {
-      window.lancerSauvegardeAvecProgression('finalizeClasses', btnFinalize, {
-        title: 'Finalisation des classes...',
-        successMessage: 'Classes finalisées avec succès !',
-        forcedMode: modeToUse  // Passer le mode forcé
-      });
-    } else if (window.finalizeClasses) {
-      // Fallback si lancerSauvegardeAvecProgression n'existe pas
-      console.log('📌 Appel direct à window.finalizeClasses');
-      window.finalizeClasses();
-    } else {
-      console.warn('⚠️ Fonctions de finalisation non trouvées');
-      if (window.showToast) {
-        window.showToast('✅ Répartition finalisée', 'success');
-      }
+    if (!disposition || Object.keys(disposition).length === 0) {
+      if (window.showToast) showToast('Aucune classe à finaliser.', 'warning');
+      return;
     }
+
+    if (window.showToast) showToast('Finalisation en cours…', 'info');
+
+    google.script.run
+      .withSuccessHandler(function (res) {
+        if (res && res.success) {
+          if (window.showToast) showToast('✅ Répartition finalisée (onglets FIN créés). Préparation du document à imprimer…', 'success');
+          if (typeof window.imprimerRepartition === 'function') {
+            setTimeout(function () { window.imprimerRepartition(); }, 500);
+          }
+        } else {
+          if (window.showToast) showToast('⚠️ Finalisation incomplète : ' + ((res && res.error) || 'réessayez.'), 'error');
+        }
+      })
+      .withFailureHandler(function (err) {
+        if (window.showToast) showToast('❌ Erreur de finalisation : ' + (err && err.message || err), 'error');
+      })
+      .finalizeClasses(disposition, 'FIN');
   }
+
+  /**
+   * Construit un document imprimable (une section par classe) et lance l'impression.
+   * L'utilisateur choisit « Enregistrer au format PDF » dans la boîte d'impression.
+   */
+  window.imprimerRepartition = function () {
+    function esc(s) {
+      return String(s == null ? '' : s).replace(/[&<>"]/g, function (c) {
+        return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c];
+      });
+    }
+
+    let printArea = document.getElementById('printArea');
+    if (!printArea) {
+      printArea = document.createElement('div');
+      printArea.id = 'printArea';
+      document.body.appendChild(printArea);
+    }
+
+    const dateStr = new Date().toLocaleDateString('fr-FR', { day: '2-digit', month: 'long', year: 'numeric' });
+    let html = '<div class="print-header"><h1>Répartition des classes</h1>'
+      + '<div class="print-date">Éditée le ' + esc(dateStr) + '</div></div>';
+
+    document.querySelectorAll('.class-column').forEach(function (col) {
+      const nameEl = col.querySelector('.classe-name');
+      const className = (nameEl ? nameEl.textContent : '').trim();
+      const cards = col.querySelectorAll('.student-card');
+      let f = 0, m = 0, rows = '';
+
+      cards.forEach(function (card, i) {
+        const id = card.dataset.id;
+        const s = (window.STATE && STATE.students && STATE.students[id]) || {};
+        const sexe = (s.sexe || '').toUpperCase();
+        if (sexe === 'F') f++; else if (sexe === 'M') m++;
+        let nom = ((s.nom || '') + ' ' + (s.prenom || '')).trim();
+        if (!nom) nom = (card.textContent || '').trim();
+        rows += '<tr><td class="num">' + (i + 1) + '</td><td>' + esc(nom) + '</td>'
+          + '<td class="ctr">' + esc(sexe) + '</td><td class="ctr">' + esc(s.lv2 || '') + '</td>'
+          + '<td class="ctr">' + esc(s.opt || '') + '</td></tr>';
+      });
+
+      html += '<div class="print-class"><h2>' + esc(className)
+        + ' <span class="print-eff">' + cards.length + ' élèves · ' + f + ' F / ' + m + ' G</span></h2>'
+        + '<table class="print-table"><thead><tr><th class="num">#</th><th>Nom Prénom</th>'
+        + '<th class="ctr">Sexe</th><th class="ctr">LV2</th><th class="ctr">Option</th></tr></thead>'
+        + '<tbody>' + rows + '</tbody></table></div>';
+    });
+
+    printArea.innerHTML = html;
+    window.print();
+  };
   
   /**
    * Fonction de finalisation par défaut (sera écrasée si vous avez votre propre implémentation)
