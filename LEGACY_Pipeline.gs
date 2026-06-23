@@ -186,12 +186,16 @@ function legacy_runFullPipeline_PRIME() {
       logLine('WARN', `⚠️ Recalcul mobilité final non appliqué: ${eMob.message}`);
     }
 
-    // 8. HABILLAGE DES ONGLETS TEST (en-têtes figés, largeurs, couleurs LV2/OPT, gras)
-    // ✅ CORRECTIF : ce formatage existait mais n'était jamais appelé → onglets TEST nus.
-    //    Appliqué après l'optimisation, une fois les élèves écrits dans les onglets TEST.
+    // 8. HABILLAGE DES ONGLETS TEST : mise en forme cellule par cellule (lignes
+    //    alternées blanc/gris, SEXE/LV2/OPT colorés, SCORES colorés 1-5) +
+    //    ligne MOYENNES, via finalizeTestSheets_ (formatFinSheet_LEGACY).
+    // ✅ CORRECTIF : on n'utilise plus formatTestSheets_LEGACY, qui INONDAIT la
+    //    ligne entière d'une seule couleur LV2/OPT → on perdait les couleurs de
+    //    scores (le 1-5 qui sert à juger l'équilibre) ET il manquait les
+    //    moyennes. finalizeTestSheets_ applique le même rendu propre que les FIN.
     logLine('INFO', '\n🎨 Habillage des onglets TEST...');
     try {
-      formatTestSheets_LEGACY(ctx);
+      finalizeTestSheets_(ctx);
     } catch (eFmt) {
       logLine('WARN', `⚠️ Habillage TEST non appliqué: ${eFmt.message}`);
     }
