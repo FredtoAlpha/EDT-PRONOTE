@@ -62,8 +62,13 @@ function calculerEtRemplirMobilite_LEGACY(ctx) {
     if (!sheet || sheet.getLastRow() <= 1) return;
     
     const data = sheet.getDataRange().getValues();
-    if (!headersRef) headersRef = data[0];
-    
+    // Référence d'en-tête : privilégier un onglet qui contient bien FIXE +
+    // MOBILITE (les onglets peuvent diverger ; ne pas se fier au 1er venu).
+    const hasMob = data[0].indexOf('FIXE') !== -1 && data[0].indexOf('MOBILITE') !== -1;
+    if (!headersRef || (hasMob && (headersRef.indexOf('FIXE') === -1 || headersRef.indexOf('MOBILITE') === -1))) {
+      headersRef = data[0];
+    }
+
     for (let i = 1; i < data.length; i++) {
       allData.push({
         sheetName: testName,
@@ -106,13 +111,14 @@ function calculerEtRemplirMobilite_LEGACY(ctx) {
     logLine('INFO', '    • ' + classe + ' : LV2={' + (lv2.join(', ') || 'aucune') + '}, OPT={' + (opt.join(', ') || 'aucune') + '}');
   }
   
-  // Calculer mobilité pour chaque élève
+  // Calculer mobilité pour chaque élève (résultat stocké sur l'item, écrit
+  // ensuite onglet par onglet selon le schéma RÉEL de chaque onglet).
   for (let i = 0; i < allData.length; i++) {
     const item = allData[i];
     const codeA = String(item.row[idxASSO] || '').trim().toUpperCase();
-    
+
     let mobilite, fixe;
-    
+
     if (codeA && groupesASSO[codeA] && groupesASSO[codeA].length > 1) {
       // Élève dans un groupe ASSO
       const result = calculerMobiliteGroupe_LEGACY(codeA, groupesASSO[codeA], allData, headersRef, ctx);
@@ -124,33 +130,51 @@ function calculerEtRemplirMobilite_LEGACY(ctx) {
       mobilite = result.mobilite;
       fixe = result.fixe;
     }
-    
-    // Enregistrer dans la structure
-    item.row[idxFIXE] = fixe;
-    item.row[idxMOBILITE] = mobilite;
-    
+
+    // Mémoriser sur l'item (pas dans item.row : la position des colonnes
+    // FIXE/MOBILITE peut différer d'un onglet à l'autre).
+    item.mobilite = mobilite;
+    item.fixe = fixe;
+
     // Stats
     if (stats[mobilite] !== undefined) {
       stats[mobilite]++;
     }
   }
-  
-  // Écrire les résultats dans les onglets TEST
+
+  // Écrire les résultats dans les onglets TEST.
+  // ⚠️ Chaque onglet a SON propre en-tête : on ne réutilise PAS headersRef
+  // (figé sur le 1er onglet) — sinon un onglet plus étroit/large fait planter
+  // setValues ("N colonnes de données ≠ M colonnes de la plage").
   (ctx.cacheSheets || []).forEach(function(testName) {
     const sheet = ss.getSheetByName(testName);
+    if (!sheet || sheet.getLastRow() <= 1) return;
     const data = sheet.getDataRange().getValues();
-    
-    // Filtrer les élèves de cet onglet
+    const sheetHeaders = data[0];
+
+    // Auto-réparation : garantir la présence de FIXE / MOBILITE sur CET onglet.
+    let sIdxFIXE = sheetHeaders.indexOf('FIXE');
+    let sIdxMOBILITE = sheetHeaders.indexOf('MOBILITE');
+    if (sIdxFIXE === -1) { sheetHeaders.push('FIXE'); sIdxFIXE = sheetHeaders.length - 1; }
+    if (sIdxMOBILITE === -1) { sheetHeaders.push('MOBILITE'); sIdxMOBILITE = sheetHeaders.length - 1; }
+    const width = sheetHeaders.length;
+
+    // Normaliser toutes les lignes à la largeur de l'onglet (évite tout
+    // tableau « en dents de scie » refusé par setValues).
+    for (let r = 0; r < data.length; r++) {
+      while (data[r].length < width) data[r].push('');
+    }
+
+    // Réinjecter mobilité/FIXE pour les élèves de cet onglet, aux index DE CET
+    // onglet.
     const sheetData = allData.filter(item => item.sheetName === testName);
-    
-    // Reconstruire la grille complète
     for (let i = 0; i < sheetData.length; i++) {
       const item = sheetData[i];
-      data[item.rowIndex] = item.row;
+      data[item.rowIndex][sIdxFIXE] = item.fixe;
+      data[item.rowIndex][sIdxMOBILITE] = item.mobilite;
     }
-    
-    // Écrire
-    sheet.getRange(1, 1, data.length, headersRef.length).setValues(data);
+
+    sheet.getRange(1, 1, data.length, width).setValues(data);
   });
   
   logLine('INFO', '✅ Mobilité calculée pour ' + allData.length + ' élèves');

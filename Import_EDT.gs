@@ -84,6 +84,7 @@ function edtClassifyHeader_(label) {
   if (h.indexOf('REGROUPE') >= 0) return 'ASSO';
   if (h.indexOf('SEPARE') >= 0) return 'DISSO';
   if (h.indexOf('VERROU') >= 0) return 'VERROU';
+  if (h.indexOf('DISPOSITIF') >= 0 || h === 'DISPO' || h.indexOf('ACCOMPAGNEMENT') >= 0) return 'DISPOSITIF';
   if (h.indexOf('OPTIONS PREVISIONN') >= 0) return 'OPT_PREV';
   if (h.indexOf('OPTIONS PRECEDENT') >= 0) return 'OPT_PREC';
   if (h.indexOf('MEF PREVISIONN') >= 0) return 'MEF_PREV';
@@ -197,7 +198,14 @@ function edtImportCore_(text, niveauActif, typeImport) {
     var lo = parseOpt(optStr) || { lv2: '', opt: '' };
     var sexe = cell(row, 'SEXE').toUpperCase();
     if (sexe === 'G' || sexe === 'H') sexe = 'M'; // Pronote F/G -> etablissement F/M
-    var verrou = cell(row, 'VERROU');
+    // Dispositif (PAP/GEVASCO/PAI/ULIS…) : information affichée en badge, sans
+    // effet moteur. Marqueur unique (priorité via parseDispo_ si plusieurs ;
+    // repli sur la valeur brute pour un code non listé). Remplace l'ancien
+    // verrou 'FIXE' (vestigial : DISPO n'était jamais relu comme lock en aval).
+    var dispoRaw = cell(row, 'DISPOSITIF');
+    var dispoVal = dispoRaw
+      ? (((typeof parseDispo_ === 'function') ? parseDispo_(dispoRaw) : '') || dispoRaw.trim())
+      : '';
     // Classe (du type d'import choisi). Les entrants (autre etablissement, classe
     // vide ou non standard type "403"/"4C") sont regroupes dans un onglet dedie.
     var clNorm = normClasse(cell(row, colClasseEffective));
@@ -217,7 +225,7 @@ function edtImportCore_(text, niveauActif, typeImport) {
       tra: edtLetterToScore_(cell(row, 'TRA')),
       part: edtLetterToScore_(cell(row, 'PART')),
       abs: edtLetterToScore_(cell(row, 'ABS')),
-      dispo: (verrou !== '' && verrou.toUpperCase() !== 'NON' && verrou !== '0') ? 'FIXE' : '',
+      dispo: dispoVal,
       asso: cell(row, 'ASSO'), disso: cell(row, 'DISSO'),
       classe: classe
     };
