@@ -29,6 +29,53 @@ totalement libre.
 - **MUSIQUE / ULIS / UPE2A** : une seule classe imposée → pré-affectés + FIXE.
 - **Élève à cheval** (ex. peut aller en 3°2 ou 3°3) : `3°2|3°3`.
 - **Élève libre** : laisser vide.
+- **DEFENSE** (cohorte sur 2 classes) : classe imposée = les 2 classes défense
+  (ex. `3°3|3°4`). Voir section dédiée ci-dessous.
+
+---
+
+# Classe DEFENSE (cohorte + badge)
+
+Nouveauté des 4e qui montent en 3e : une **classe défense**, dont les élèves
+sont **regroupés dans 2 classes** définies. Décision validée : DEFENSE est
+traitée comme une **cohorte**, PAS comme une 2e option concurrente — pour ne
+pas réécrire le système d'options (champ `OPT` unique).
+
+Un élève défense peut **cumuler** une autre option (GREC, LATIN, CHAV). Les
+deux infos voyagent sur des canaux séparés :
+
+| Information | Canal | Stockage |
+|---|---|---|
+| Placement (les 2 classes défense) | colonne H « classe imposée » | ex. `3°3\|3°4` |
+| Appartenance défense (badge carte) | drapeau `DEFENSE` | nouveau champ booléen |
+| Autre option (GREC/LATIN/CHAV) | champ `OPT` normal | inchangé |
+| LV2 (ESP/ITA) | champ `LV2` normal | inchangé |
+
+### Ce que TU écris dans le fichier pour un élève défense
+- **col G (Options précédentes)** : ajoute `, DEFENSE` à la fin.
+  Ex. `ANGLAIS LV1 (O), ESPAGNOL LV2 (O), GREC, DEFENSE`
+  (le mot DEFENSE est ajouté à la main ; Pronote ne l'exporte pas).
+- **col H (Classe prévisionnelle)** : les 2 classes défense, ex. `3°3|3°4`.
+
+### Résultat attendu après import (élève défense + grec)
+`LV2=ESP` · `OPT=GREC` · `DEFENSE=oui` · classes permises = {3°3, 3°4}
+→ carte affiche 3 badges : ESP, GREC, **DEFENSE** ; placement garanti dans
+les 2 classes défense ; mobilité PERMUT entre 3°3 et 3°4.
+
+### Code à ajouter (5 points, comme CHAV mais SANS quota d'option)
+1. `Backend_ImportDB.gs parseOptions_` : détecter le token `DEFENSE` →
+   poser `result.defense = true` (NE PAS écraser `result.opt`).
+2. `Import_EDT.gs` : propager le drapeau `DEFENSE` (nouvelle colonne source,
+   ex. `DEFENSE` ou réutiliser un champ libre) jusqu'à CONSOLIDATION.
+3. `InterfaceV2_CoreScript.html` : si `eleve.defense`, ajouter
+   `createBadge('opt', 'DEFENSE')` (ou type dédié).
+4. `InterfaceV2_Styles.html` : `.badge-DEFENSE { ... }` (couleur dédiée,
+   ex. kaki/vert militaire — à choisir).
+5. Formateurs FIN : colorer la mention DEFENSE si affichée.
+
+> ⚠️ Code interne = `DEFENSE`, **JAMAIS `DEF`** : `DEF` est déjà le suffixe
+> des onglets définitifs (`3°3DEF`) et figure dans les regex d'exclusion
+> `/TEST|CACHE|DEF|FIN/`. Réutiliser `DEF` provoquerait des collisions.
 
 ## Garde-fous (à coder côté moteur)
 1. Une classe imposée doit exister dans la structure (sinon : warning + ignore).
