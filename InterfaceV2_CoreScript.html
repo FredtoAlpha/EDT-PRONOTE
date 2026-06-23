@@ -429,6 +429,29 @@
       // Mode admin : tout est permis
       if (STATE.adminMode) return { ok: true };
 
+      // 🔒 COMPATIBILITÉ LV2/OPT AVEC LA CLASSE CIBLE — vérifiée EN PREMIER,
+      //    avant tout raccourci. Après le swap, chaque élève va dans l'AUTRE
+      //    classe : sa LV2/option doit y être proposée (présente dans les quotas
+      //    et > 0). ESP est universel. Corrige le swap absurde « ITA → classe
+      //    non-ITA » que la suggestion automatique proposait (le check existant
+      //    plus bas ratait les options ABSENTES du quota, pas seulement à 0).
+      const swapTargetOK = (eleve, targetClasse) => {
+        const quotas = (STATE.rules[targetClasse] || {}).quotas || {};
+        const tags = [String(eleve.lv2 || '').trim().toUpperCase(),
+                      String(eleve.opt || '').trim().toUpperCase()];
+        for (const tag of tags) {
+          if (!tag || tag === 'ESP') continue; // vide ou ESP (universel) → OK
+          if (!(tag in quotas) || quotas[tag] === 0) {
+            return { ok: false, reason: `${tag} non proposé dans ${targetClasse}` };
+          }
+        }
+        return { ok: true };
+      };
+      const tgt1 = swapTargetOK(eleve1, classe2);
+      if (!tgt1.ok) return tgt1;
+      const tgt2 = swapTargetOK(eleve2, classe1);
+      if (!tgt2.ok) return tgt2;
+
       // ✅ PRIORITÉ 1 : SWAP DE MÊME CONTRAINTE
       // Si les deux élèves ont les mêmes contraintes (LV2, OPT, code D), le swap est autorisé
       // Car cela ne change pas les quotas : on échange juste deux élèves identiques
@@ -591,12 +614,14 @@
       const card1 = document.querySelector(`.student-card[data-id="${id1}"]`);
       const card2 = document.querySelector(`.student-card[data-id="${id2}"]`);
 
-      if (!card1 || !card2) return;
+      // 🔎 DIAGNOSTIC : trace l'exécution réelle du swap
+      console.log('🔁 performSwap', { id1, id2, card1: !!card1, card2: !!card2 });
+      if (!card1 || !card2) { console.warn('🔁 performSwap ABORT : carte introuvable'); return; }
 
       const zone1 = card1.closest('.droppable-zone');
       const zone2 = card2.closest('.droppable-zone');
 
-      if (!zone1 || !zone2) return;
+      if (!zone1 || !zone2) { console.warn('🔁 performSwap ABORT : zone introuvable', { zone1: !!zone1, zone2: !!zone2 }); return; }
 
       // Animation de swap
       card1.style.transition = 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)';
