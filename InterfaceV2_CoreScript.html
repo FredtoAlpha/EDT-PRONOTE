@@ -1010,11 +1010,9 @@
           fullNameElement.style.fontWeight = '700';
         }
 
-        // Badge DISPO (using createBadge)
-        const dispoContainer = card.querySelector('.badge-dispo-container');
-        if (eleve.dispo && eleve.dispo.trim()) {
-          dispoContainer.appendChild(createBadge('dispo', eleve.dispo));
-        }
+        // Badge DISPO : déplacé du coin absolu (haut-droite) — où il recouvrait
+        // la fin du nom et gênait la lecture — vers la LIGNE DE BADGES ci-dessous
+        // (ajouté après LV2/OPT/DISSO/ASSO). Plus de chevauchement.
 
         // ========== LIGNE 2: TOUS LES BADGES (LV2, OPT, DISSO, ASSO) ==========
         const allBadgesContainer = card.querySelector('.all-badges');
@@ -1035,6 +1033,12 @@
 
         if (eleve.asso) {
           allBadgesContainer.appendChild(createBadge('asso', eleve.asso));
+        }
+
+        // Dispositif (PAP/ULIS/GEVASCO…) en fin de ligne de badges (lisible,
+        // sans recouvrir le nom).
+        if (eleve.dispo && eleve.dispo.trim()) {
+          allBadgesContainer.appendChild(createBadge('dispo', eleve.dispo));
         }
 
         // ========== LIGNE 3: Source + Scores ==========
