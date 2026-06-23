@@ -1414,6 +1414,9 @@
         result.data.forEach(group => {
           group.eleves.forEach(eleve => {
             STATE.students[eleve.id] = eleve;
+            // 📍 Classe de DÉPART (au chargement = sortie moteur), figée une fois :
+            //    sert de référence au bilan des déplacements (départ → arrivée).
+            if (eleve.classeInitiale === undefined) eleve.classeInitiale = group.classe;
             // Grouper les associations
             if (eleve.asso) {
               const key = `A${eleve.asso}`;
@@ -4037,6 +4040,73 @@
         toast('Export Excel généré avec succès', 'success');
         closeExportModal();
       }
+
+      // ========== EXPORT PDF — BILAN DES DÉPLACEMENTS ==========
+      // Liste UNIQUEMENT les élèves dont la classe a changé depuis la sortie
+      // moteur (classe de départ ≠ classe actuelle). Une ligne par élève :
+      // départ → arrivée + langues/options/dispositif/scores, pour que la
+      // direction repère une erreur d'un coup d'œil (ex. un latiniste déplacé
+      // dans une classe sans latin). Les élèves non déplacés n'y figurent pas.
+      window.exportDeplacementsPDF = function () {
+        if (!window.jspdf) { if (typeof toast === 'function') toast('jsPDF non chargé', 'error'); return; }
+        const { jsPDF } = window.jspdf;
+
+        // 1. Bilan net : départ ≠ arrivée
+        const lignes = [];
+        Object.keys(STATE.students || {}).forEach(id => {
+          const e = STATE.students[id];
+          if (!e || e.classeInitiale === undefined) return;
+          const card = document.querySelector(`.student-card[data-id="${id}"]`);
+          const actuelle = card?.closest('.droppable-zone')?.dataset.classe;
+          if (!actuelle || String(actuelle) === String(e.classeInitiale)) return; // pas déplacé
+          const sc = e.scores || {};
+          lignes.push({
+            nom: `${e.nom || ''} ${e.prenom || ''}`.trim(),
+            depart: String(e.classeInitiale), arrivee: String(actuelle),
+            sexe: e.sexe || '', lv2: e.lv2 || '', opt: e.opt || '', dispo: e.dispo || '',
+            com: sc.COM ?? '', tra: sc.TRA ?? '', part: sc.PART ?? '', abs: sc.ABS ?? ''
+          });
+        });
+        lignes.sort((a, b) => a.depart.localeCompare(b.depart) || a.nom.localeCompare(b.nom));
+
+        // 2. PDF paysage
+        const pdf = new jsPDF('l', 'mm', 'a4');
+        const pageW = pdf.internal.pageSize.getWidth();
+        pdf.setFontSize(18);
+        pdf.text(`Bilan des déplacements — ${STATE.niveau || ''}`, pageW / 2, 16, { align: 'center' });
+        pdf.setFontSize(10);
+        pdf.text(new Date().toLocaleString('fr-FR'), pageW / 2, 23, { align: 'center' });
+        pdf.text(`${lignes.length} élève(s) déplacé(s)`, pageW / 2, 28, { align: 'center' });
+
+        const cols = [
+          { t: 'Élève', x: 12 }, { t: 'Départ', x: 64 }, { t: '→', x: 80 }, { t: 'Arrivée', x: 86 },
+          { t: 'Sexe', x: 104 }, { t: 'LV2', x: 116 }, { t: 'Option', x: 130 }, { t: 'Dispositif', x: 150 },
+          { t: 'COM', x: 178 }, { t: 'TRA', x: 190 }, { t: 'PART', x: 202 }, { t: 'ABS', x: 214 }
+        ];
+        let y = 38;
+        const drawHeader = () => {
+          pdf.setFontSize(9); pdf.setFont(undefined, 'bold');
+          cols.forEach(c => pdf.text(c.t, c.x, y));
+          pdf.setDrawColor(180); pdf.line(12, y + 1.5, 224, y + 1.5);
+          pdf.setFont(undefined, 'normal'); y += 6;
+        };
+
+        if (lignes.length === 0) {
+          pdf.setFontSize(13);
+          pdf.text('Aucun déplacement depuis la sortie du moteur.', pageW / 2, 52, { align: 'center' });
+        } else {
+          drawHeader();
+          pdf.setFontSize(8.5);
+          lignes.forEach(l => {
+            if (y > 195) { pdf.addPage(); y = 18; drawHeader(); pdf.setFontSize(8.5); }
+            const row = [l.nom, l.depart, '→', l.arrivee, l.sexe, l.lv2, l.opt, l.dispo,
+              String(l.com), String(l.tra), String(l.part), String(l.abs)];
+            row.forEach((v, i) => pdf.text(String(v).substring(0, 30), cols[i].x, y));
+            y += 5.5;
+          });
+        }
+        pdf.save(`bilan_deplacements_${STATE.niveau || ''}_${new Date().toISOString().split('T')[0]}.pdf`);
+      };
 
       // ========== EXPORT PDF ==========
       window.exportPDF = async function () {
