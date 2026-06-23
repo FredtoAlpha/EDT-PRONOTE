@@ -276,10 +276,15 @@ function v3_parseListeEleves(rows) {
         }
       }
 
-      // Extraction DISPO avec priorite (GEVASCO > PPS > PAP > PPRE > ...)
+      // Extraction DISPO (col S Pronote -> col L des onglets classes).
+      // parseDispo_ extrait le marqueur connu (priorite GEVASCO>PPS>PAP>PAI>...).
+      // Repli sur la valeur brute si c'est un code court non liste (nouveau
+      // dispositif etablissement) : on ne perd jamais une cellule remplie.
       var dispoDirect = '';
       if (colDispo >= 0) {
-        dispoDirect = parseDispo_(row[colDispo]);
+        var rawDispo = String(row[colDispo] || '').trim();
+        dispoDirect = parseDispo_(rawDispo) ||
+          (rawDispo && rawDispo.indexOf(',') === -1 && rawDispo.length <= 12 ? rawDispo.toUpperCase() : '');
       }
 
       eleves.push({
