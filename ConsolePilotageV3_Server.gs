@@ -914,29 +914,38 @@ function v3_backupAndConvertStructure() {
       return { success: false, error: '_STRUCTURE introuvable' };
     }
     
-    // 1. BACKUP : copier _STRUCTURE → _STRUCTURE_V3_BACKUP
-    const backupSheet = ss.getSheetByName('_STRUCTURE_V3_BACKUP');
-    if (backupSheet) {
-      ss.deleteSheet(backupSheet);
-    }
-    
-    const newBackup = structSheet.copyTo(ss);
-    newBackup.setName('_STRUCTURE_V3_BACKUP');
-    Logger.log('✅ Backup créé : _STRUCTURE_V3_BACKUP');
-    
-    // 2. CONVERSION : lire format V3
+    // 0. IDEMPOTENCE : détecter le format AVANT tout. Cette fonction ÉCRASE
+    //    _STRUCTURE en format LEGACY. Au 2e lancement du moteur, _STRUCTURE est
+    //    donc DÉJÀ en LEGACY : il ne faut NI re-convertir, NI écraser le backup
+    //    V3 d'origine avec une copie LEGACY. Sinon → "Format V3 invalide".
     const data = structSheet.getDataRange().getValues();
-    const headers = data[0];
-    
-    // Trouver les colonnes V3
+    const headers = data[0] || [];
+
+    if (headers.indexOf('CLASSE_ORIGINE') !== -1 && headers.indexOf('CLASSE_DEST') !== -1) {
+      Logger.log('ℹ️ _STRUCTURE déjà au format LEGACY : conversion ignorée (idempotent).');
+      return { success: true, alreadyLegacy: true };
+    }
+
+    // Format V3 attendu (créé par la console / l'initialisation).
     const colType = headers.indexOf('Type');
     const colNom = headers.indexOf('Nom Classe');
     const colCapacite = headers.indexOf('Capacité Max');
     const colOptions = headers.indexOf('Options (Quotas)');
-    
+
     if (colType === -1 || colNom === -1 || colCapacite === -1 || colOptions === -1) {
       return { success: false, error: 'Format V3 invalide dans _STRUCTURE' };
     }
+
+    // 1. BACKUP : copier _STRUCTURE → _STRUCTURE_V3_BACKUP (seulement maintenant
+    //    qu'on est certain d'avoir un vrai V3 à convertir).
+    const backupSheet = ss.getSheetByName('_STRUCTURE_V3_BACKUP');
+    if (backupSheet) {
+      ss.deleteSheet(backupSheet);
+    }
+
+    const newBackup = structSheet.copyTo(ss);
+    newBackup.setName('_STRUCTURE_V3_BACKUP');
+    Logger.log('✅ Backup créé : _STRUCTURE_V3_BACKUP');
     
     // 3. RÉÉCRIRE avec format LEGACY pur (4 colonnes essentielles)
     structSheet.clear();
