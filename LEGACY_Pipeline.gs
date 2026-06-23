@@ -171,6 +171,21 @@ function legacy_runFullPipeline_PRIME() {
       prevSwaps = p4Result.swapsApplied;
     }
 
+    // 7bis. RECALCUL FINAL DE LA MOBILITÉ (placement définitif).
+    // ✅ CORRECTIF : la mobilité était calculée en Phase 1, donc AVANT que la
+    //    Phase 3 place les "fillers" (ESP sans option) et que la Phase 4 fasse
+    //    ses swaps. Ces élèves ressortaient alors SANS FIXE/MOBILITE (cellules
+    //    vides). On recalcule ici, sur le placement FINAL, pour que TOUS les
+    //    élèves aient un statut cohérent. Idempotent (réécrit proprement).
+    logLine('INFO', '\n🔁 Recalcul final de la mobilité (après tous les placements/swaps)...');
+    try {
+      if (typeof calculerEtRemplirMobilite_LEGACY === 'function') {
+        calculerEtRemplirMobilite_LEGACY(ctx);
+      }
+    } catch (eMob) {
+      logLine('WARN', `⚠️ Recalcul mobilité final non appliqué: ${eMob.message}`);
+    }
+
     // 8. HABILLAGE DES ONGLETS TEST (en-têtes figés, largeurs, couleurs LV2/OPT, gras)
     // ✅ CORRECTIF : ce formatage existait mais n'était jamais appelé → onglets TEST nus.
     //    Appliqué après l'optimisation, une fois les élèves écrits dans les onglets TEST.
