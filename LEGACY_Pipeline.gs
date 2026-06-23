@@ -574,6 +574,13 @@ function formatFinSheet_LEGACY(sheet) {
  */
 function addStatistics_LEGACY_V2(sheet, headers, rowData, idx) {
   try {
+    // Ne garder que les vraies lignes élèves (NOM non vide) : la fonction
+    // devient idempotente — un re-run, ou un onglet contenant déjà une ligne
+    // de stats, ne fausse plus les comptages ni les moyennes.
+    const idxNomStat = headers.indexOf('NOM');
+    if (idxNomStat >= 0) {
+      rowData = rowData.filter(function(r) { return String(r[idxNomStat] || '').trim() !== ''; });
+    }
     const statsRow = rowData.length + 3; // +3 pour séparer des données
     
     // Couleurs SCORE INTERFACE (EXACTES - vives)
@@ -676,6 +683,36 @@ function addStatistics_LEGACY_V2(sheet, headers, rowData, idx) {
   } catch (e) {
     logLine('WARN', `    ⚠️ Erreur ajout statistiques: ${e.message}`);
   }
+}
+
+/**
+ * Finalise les onglets TEST : mise en forme complète + comptages + ligne de
+ * MOYENNES (COM/TRA/PART/ABS) en bas de chaque onglet, pour contrôler d'un
+ * coup d'œil l'équilibre des classes. Réutilise formatFinSheet_LEGACY.
+ *
+ * Corrige le bug : Orchestration_V14I appelait finalizeTestSheets_ qui n'était
+ * défini NULLE PART → "not defined" avalé en WARN → onglets TEST sans moyennes
+ * et au formatage cassé.
+ *
+ * @param {Object} ctx - Contexte pipeline (ctx.ss, ctx.cacheSheets)
+ */
+function finalizeTestSheets_(ctx) {
+  const ss = ctx.ss || SpreadsheetApp.getActive();
+  const sheets = ctx.cacheSheets || [];
+  logLine('INFO', '🎨 Finalisation onglets TEST (format + moyennes)...');
+  let done = 0;
+  sheets.forEach(function(name) {
+    const sheet = ss.getSheetByName(name);
+    if (!sheet || sheet.getLastRow() <= 1) return;
+    try {
+      formatFinSheet_LEGACY(sheet);
+      done++;
+    } catch (e) {
+      logLine('WARN', '⚠️ Finalisation TEST ' + name + ' : ' + e.message);
+    }
+  });
+  SpreadsheetApp.flush();
+  logLine('INFO', '✅ ' + done + ' onglet(s) TEST finalisé(s) (format + moyennes)');
 }
 
 // logLine() defined in Phase4_Ultimate.gs (single global definition)
