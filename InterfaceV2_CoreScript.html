@@ -875,6 +875,12 @@
       card.dataset.id = eleve.id;
       card.classList.add(`sexe-${eleve.sexe}`);
 
+      // 🔒 Liseré de mobilité (bord gauche, voir CSS .mob-fixe / .mob-permut).
+      //    Posé sur la racine de la carte AVANT les branches de mode → visible
+      //    de la même façon dans les 3 modes (simple / essentiel / détaillé).
+      if (eleve.mobilite === 'FIXE') card.classList.add('mob-fixe');
+      else if (eleve.mobilite === 'PERMUT') card.classList.add('mob-permut');
+
       // Attributs ARIA pour la carte élève
       const nomCompletAria = eleve.prenom ? `${eleve.nom} ${eleve.prenom}` : eleve.nom;
       card.setAttribute('role', 'listitem');

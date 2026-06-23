@@ -620,6 +620,24 @@
       transform-origin: center;
     }
 
+    /* === Liseré de mobilité (bord gauche) — robuste aux 3 modes ===
+       Pseudo-élément : indépendant de la bordure inline (mode simple), du fond
+       et du box-shadow d'élévation. FIXE = ardoise (verrouillé), PERMUT = ambre
+       (échangeable). LIBRE : aucun liseré. */
+    .student-card.mob-fixe::before,
+    .student-card.mob-permut::before {
+      content: '';
+      position: absolute;
+      left: 0;
+      top: 0;
+      bottom: 0;
+      width: 4px;
+      z-index: 2;
+      pointer-events: none;
+    }
+    .student-card.mob-fixe::before   { background: #475569; } /* ardoise */
+    .student-card.mob-permut::before { background: #f59e0b; } /* ambre */
+
     .card-content-line {
       display: flex;
       align-items: center; /* Vertically center items */
