@@ -226,19 +226,20 @@ function collecterStatistiques(onglets) {
       const scorePART = parseInt(eleveRow[colPART]) || 0;
       const scoreABS = parseInt(eleveRow[colABS]) || 0;
 
-      // Catégories COM complètes
+      // Catégories COM complètes — échelle 5 niveaux : la bande haute (>= 4)
+      // regroupe 4 ET 5, sinon les élèves notés 5 disparaissent du tableau.
       if (scoreCOM === 1) statsClasse.elevesCOM1.push(nomPrenom);
       if (scoreCOM === 2) statsClasse.elevesCOM2.push(nomPrenom);
       if (scoreCOM === 3) statsClasse.elevesCOM3.push(nomPrenom);
-      if (scoreCOM === 4) statsClasse.elevesCOM4.push(nomPrenom);
+      if (scoreCOM >= 4) statsClasse.elevesCOM4.push(nomPrenom);
 
-      // Scores 4 par matière
-      if (scoreTRA === 4) statsClasse.elevesTRA4.push(nomPrenom);
-      if (scorePART === 4) statsClasse.elevesPART4.push(nomPrenom);
-      if (scoreABS === 4) statsClasse.elevesABS4.push(nomPrenom);
+      // Bande haute (4-5) par matière
+      if (scoreTRA >= 4) statsClasse.elevesTRA4.push(nomPrenom);
+      if (scorePART >= 4) statsClasse.elevesPART4.push(nomPrenom);
+      if (scoreABS >= 4) statsClasse.elevesABS4.push(nomPrenom);
 
-      // Élèves excellents (tous scores à 4)
-      if (scoreCOM === 4 && scoreTRA === 4 && scorePART === 4 && scoreABS === 4) {
+      // Élèves excellents (tous scores en bande haute 4-5)
+      if (scoreCOM >= 4 && scoreTRA >= 4 && scorePART >= 4 && scoreABS >= 4) {
         statsClasse.elevesExcellents.push(nomPrenom);
       }
 
@@ -460,7 +461,7 @@ function afficherResultats(statistiques, nomOnglet, isTest) {
   currentRow++;
 
   // En-têtes section 4
-  const headers4 = ["Classe", "COM=1 (Diff.)", "COM=2 (Moy-)", "COM=3 (Moy+)", "COM=4 (Exc.)", "TRA=4", "PART=4", "ABS=4", "Excellents"];
+  const headers4 = ["Classe", "COM=1 (Diff.)", "COM=2 (Moy-)", "COM=3 (Moy+)", "COM≥4 (Exc.)", "TRA≥4", "PART≥4", "ABS≥4", "Excellents"];
   headers4.forEach((header, index) => {
     sheet.getRange(currentRow, index + 1).setValue(header)
       .setFontWeight("bold")

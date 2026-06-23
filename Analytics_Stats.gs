@@ -118,19 +118,38 @@ function calculerParite(rows, sexeIdx) {
 }
 
 /**
- * Calcule les LV2 SEULES (sans option)
+ * Compte les LV2 de TOUS les élèves, indépendamment des options.
+ *
+ * ✅ CORRECTIF : une LV2 doit toujours être comptabilisée, qu'un élève ait
+ *    une option ou non. Un élève ITA + CHAV reste un élève qui fait ITA et
+ *    doit donc figurer dans le décompte ITA. L'ancien filtre `if (lv2 && !opt)`
+ *    excluait les profils doubles (ex. les 2 élèves ITA+CHAV / ITA+LATIN
+ *    manquants → 18 au lieu de 20). L'option est comptée séparément, sans
+ *    jamais effacer ni remplacer la LV2.
+ *
+ * @param {Array} rows
+ * @param {number} lv2Idx
+ * @param {number} optIdx - conservé pour compatibilité d'appel (non utilisé)
  */
 function calculerLV2(rows, lv2Idx, optIdx) {
   const lv2Counts = {};
+  if (lv2Idx === -1) return lv2Counts;
+
+  // Même découpe que les combos (gère "/", ",", "+"…) pour rester cohérent
+  const splitList = (value) => String(value || '')
+    .toUpperCase()
+    .split(/[+,;/]|\s+\+\s+|\s*\/\s*/)
+    .map(v => v.trim())
+    .filter(Boolean);
 
   rows.forEach(row => {
-    const lv2 = String(row[lv2Idx] || '').trim().toUpperCase();
-    const opt = String(row[optIdx] || '').trim();
-
-    // Ne compter que si LV2 existe ET pas d'option
-    if (lv2 && !opt) {
+    // Déduplication intra-ligne : éviter de compter 2× la même LV2 saisie en double
+    const seen = new Set();
+    splitList(row[lv2Idx]).forEach(lv2 => {
+      if (seen.has(lv2)) return;
       lv2Counts[lv2] = (lv2Counts[lv2] || 0) + 1;
-    }
+      seen.add(lv2);
+    });
   });
 
   return lv2Counts;
@@ -151,19 +170,35 @@ function calculerSansLV2(rows, lv2Idx) {
 }
 
 /**
- * Calcule les OPTIONS SEULES (sans LV2 spécifique, ou avec ESP par défaut)
+ * Compte les OPTIONS de TOUS les élèves, indépendamment de la LV2.
+ *
+ * ✅ CORRECTIF : symétrique de calculerLV2. Une option (CHAV, LATIN…) est
+ *    comptée pour tout élève qui la suit, qu'il ait une LV2 ou non. L'ancien
+ *    filtre `if (opt && !lv2)` masquait toutes les options des profils doubles
+ *    (CHAV/LATIN n'apparaissaient plus dès qu'une LV2 était présente). L'option
+ *    ne remplace jamais la LV2 : les deux décomptes sont indépendants.
+ *
+ * @param {Array} rows
+ * @param {number} optIdx
+ * @param {number} lv2Idx - conservé pour compatibilité d'appel (non utilisé)
  */
 function calculerOptions(rows, optIdx, lv2Idx) {
   const optCounts = {};
+  if (optIdx === -1) return optCounts;
+
+  const splitList = (value) => String(value || '')
+    .toUpperCase()
+    .split(/[+,;/]|\s+\+\s+|\s*\/\s*/)
+    .map(v => v.trim())
+    .filter(Boolean);
 
   rows.forEach(row => {
-    const opt = String(row[optIdx] || '').trim().toUpperCase();
-    const lv2 = String(row[lv2Idx] || '').trim().toUpperCase();
-
-    // Ne compter que si option existe ET pas de LV2 (car si LV2, c'est un combo)
-    if (opt && !lv2) {
+    const seen = new Set();
+    splitList(row[optIdx]).forEach(opt => {
+      if (seen.has(opt)) return;
       optCounts[opt] = (optCounts[opt] || 0) + 1;
-    }
+      seen.add(opt);
+    });
   });
 
   return optCounts;

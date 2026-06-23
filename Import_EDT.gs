@@ -77,7 +77,10 @@ function edtClassifyHeader_(label) {
   if (h.indexOf('NIVEAU SCOLAIRE') >= 0) return 'TRA';
   if (h.indexOf('COMPORTEMENT') >= 0) return 'COM';
   if (h.indexOf('ABSENT') >= 0) return 'ABS';
-  if (h.indexOf('A DEFINIR') >= 0 || h === 'DEFINIR') return 'PART';
+  // 4e critere (libre dans Pronote, renommable) : « À définir » par defaut,
+  // ou renomme par l'etablissement en « Participation » / « Oral » (oral de langues).
+  if (h.indexOf('A DEFINIR') >= 0 || h === 'DEFINIR' ||
+      h.indexOf('PARTICIPATION') >= 0 || h.indexOf('ORAL') >= 0) return 'PART';
   if (h.indexOf('REGROUPE') >= 0) return 'ASSO';
   if (h.indexOf('SEPARE') >= 0) return 'DISSO';
   if (h.indexOf('VERROU') >= 0) return 'VERROU';
