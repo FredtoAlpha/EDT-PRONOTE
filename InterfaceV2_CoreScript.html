@@ -396,7 +396,6 @@
 
       const r1 = checkTag(e.lv2, 'LV2');
       if (r1 !== true) return r1;
-      console.log(eleveId, e.opt)
       const r2 = checkTag(e.opt, 'Option');
       if (r2 !== true) return r2;
 
@@ -472,28 +471,27 @@
         }
       }
 
-      // Cas 2 : Même LV2 ET même OPT (ou pas d'OPT)
+      // 🔒 MOBILITÉS BLOQUANTES EN PREMIER : un élève FIXE/SPEC/CONDI ne bouge
+      //    JAMAIS en mode Swap — même avec un partenaire de mêmes contraintes.
+      //    (Sinon une classe imposée = FIXE serait défaite par un swap ESP↔ESP,
+      //    et l'auto-swap pourrait déplacer un élève verrouillé.) Cohérent avec
+      //    le filtre Sortable qui bloque déjà le drag d'un FIXE.
+      if (eleve1.mobilite === 'FIXE' || eleve2.mobilite === 'FIXE') {
+        return { ok: false, reason: 'FIXE ne peut pas bouger (utilisez le mode Force)' };
+      }
+      if (eleve1.mobilite === 'SPEC' || eleve2.mobilite === 'SPEC') {
+        return { ok: false, reason: 'SPEC ne peut pas bouger (utilisez le mode Force)' };
+      }
+      if (eleve1.mobilite === 'CONDI' || eleve2.mobilite === 'CONDI') {
+        return { ok: false, reason: 'CONDI ne peut pas bouger (groupe ASSO)' };
+      }
+
+      // Cas 2 : mêmes contraintes (LV2 ET OPT) → swap quota-neutre, autorisé.
       const memeLV2 = lv2_1 === lv2_2 || (lv2_1 === 'ESP' && lv2_2 === 'ESP') || (!lv2_1 && !lv2_2);
       const memeOPT = opt_1 === opt_2 || (!opt_1 && !opt_2);
 
       if (memeLV2 && memeOPT) {
         return { ok: true };
-      }
-
-      // Si pas de mêmes contraintes, vérifier les mobilités
-
-      // FIXE et SPEC : jamais déplaçables en mode Swap (seulement en mode Force)
-      if (eleve1.mobilite === 'FIXE' || eleve2.mobilite === 'FIXE') {
-        return { ok: false, reason: 'FIXE ne peut pas bouger (utilisez le mode Force)' };
-      }
-
-      if (eleve1.mobilite === 'SPEC' || eleve2.mobilite === 'SPEC') {
-        return { ok: false, reason: 'SPEC ne peut pas bouger (utilisez le mode Force)' };
-      }
-
-      // CONDI : jamais déplaçables (conditionnés par le groupe)
-      if (eleve1.mobilite === 'CONDI' || eleve2.mobilite === 'CONDI') {
-        return { ok: false, reason: 'CONDI ne peut pas bouger (groupe ASSO)' };
       }
 
       // PERMUT : vérifier compatibilité
