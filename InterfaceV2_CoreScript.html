@@ -631,6 +631,20 @@
       zone2.appendChild(card1);
       zone1.appendChild(card2);
 
+      // 🔁 Resynchroniser l'ordre interne de Sortable après ce déplacement DOM
+      //    manuel : sinon son cache d'ordre devient périmé et les déplacements
+      //    suivants (drag/swap) peuvent mal se comporter. (Audit interface)
+      try {
+        if (typeof Sortable !== 'undefined' && Sortable.get) {
+          [zone1, zone2].forEach(function (z) {
+            const s = Sortable.get(z);
+            if (s && typeof s.sort === 'function') {
+              s.sort(Array.from(z.querySelectorAll('.student-card')).map(c => c.dataset.id), false);
+            }
+          });
+        }
+      } catch (eSort) { console.warn('Sortable resync:', eSort); }
+
       // Marquer qu'il y a eu une action utilisateur
       if (typeof markUserAction === 'function') {
         markUserAction();
