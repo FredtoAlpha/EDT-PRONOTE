@@ -217,6 +217,20 @@ function edtImportCore_(text, niveauActif, typeImport) {
       if (dm) nivEntrants = dm[1];
     }
 
+    // Classe(s) imposée(s) — colonne « Classe prévisionnelle » (libre en montée
+    // 'base'). UNE seule (ex. "3°2") OU plusieurs au choix séparées par '|'
+    // (ex. "3°1|3°2"). Normalisées ; formes invalides écartées ; vide = le
+    // moteur décide. En mode 'prev', CLASSE_PREV EST déjà la classe d'origine
+    // → pas d'imposition séparée.
+    var classeImposee = '';
+    if (typeImport === 'base') {
+      classeImposee = String(cell(row, 'CLASSE_PREV') || '')
+        .split('|')
+        .map(function (c) { return normClasse(c.trim()).replace(/\s/g, ''); })
+        .filter(function (c) { return /^\d°\d+$/.test(c); })
+        .join('|');
+    }
+
     var el = {
       nom: nom, prenom: prenom, sexe: sexe,
       lv1: 'ANGLAIS', // LV1 = ANGLAIS par defaut (etablissement)
@@ -227,6 +241,7 @@ function edtImportCore_(text, niveauActif, typeImport) {
       abs: edtLetterToScore_(cell(row, 'ABS')),
       dispo: dispoVal,
       asso: cell(row, 'ASSO'), disso: cell(row, 'DISSO'),
+      classeImposee: classeImposee,
       classe: classe
     };
     eleves.push(el);
@@ -255,7 +270,7 @@ function edtImportCore_(text, niveauActif, typeImport) {
 // =============================================================================
 
 var EDT_SOURCE_HEADERS = ['ID_ELEVE', 'NOM', 'PRENOM', 'NOM_PRENOM', 'SEXE', 'LV2', 'OPT',
-  'COM', 'TRA', 'PART', 'ABS', 'DISPO', 'ASSO', 'DISSO', 'SOURCE'];
+  'COM', 'TRA', 'PART', 'ABS', 'DISPO', 'ASSO', 'DISSO', 'SOURCE', 'CLASSE_IMPOSEE'];
 
 /**
  * Importe le fichier EDT/PRONOTE et ecrit les onglets sources, puis enchaine
@@ -290,7 +305,7 @@ function importerEDT_(csvText, niveauActif, typeImport) {
         return ['', e.nom, e.prenom, '', e.sexe, e.lv2, e.opt,
           e.com === '' ? '' : String(e.com), e.tra === '' ? '' : String(e.tra),
           e.part === '' ? '' : String(e.part), e.abs === '' ? '' : String(e.abs),
-          e.dispo, e.asso, e.disso, classe];
+          e.dispo, e.asso, e.disso, classe, e.classeImposee || ''];
       });
       if (rows.length) {
         sheet.getRange(2, 1, rows.length, EDT_SOURCE_HEADERS.length).setValues(rows);
