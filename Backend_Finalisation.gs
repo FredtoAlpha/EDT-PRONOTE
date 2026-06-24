@@ -247,8 +247,15 @@ function finalizeClasses(disposition, mode = 'finalize') {
         finSheet.getRange(1, 1, allRows.length, headersRow.length).setValues(allRows);
         results.created.push(finSheetName);
 
-        // 3. APPLIQUER LE FORMATAGE (non bloquant)
-        try { formatFinSheet(finSheet, studentRows, headersRow); results.formatted.push(finSheetName); } catch (eFmt) {}
+        // 3. APPLIQUER LE FORMATAGE (non bloquant) — MÊME rendu que les onglets
+        //    TEST : formatFinSheet_LEGACY (cellule par cellule + couleurs scores
+        //    1-5 + ligne MOYENNES), PAS l'ancien formatFinSheet qui inondait en
+        //    orange/violet sans stats.
+        try {
+          if (typeof formatFinSheet_LEGACY === 'function') formatFinSheet_LEGACY(finSheet);
+          else formatFinSheet(finSheet, studentRows, headersRow);
+          results.formatted.push(finSheetName);
+        } catch (eFmt) {}
       } else {
         results.failed.push(className);
       }
