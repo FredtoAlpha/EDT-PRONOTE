@@ -3683,6 +3683,17 @@
       // Exposer sur window pour les modules externes (bouton header, raccourcis)
       window.toggleSwapMode = toggleSwapMode;
 
+      // 🔁 EXPOSER performSwap + canSwap au scope global.
+      //    Ces fonctions sont déclarées dans l'IIFE du CoreScript. Les modules
+      //    externes (InterfaceV2_UX_Harmonie : confirmSwapPreview / preview /
+      //    Force, InterfaceV2_AdvancedFeatures) les appellent via
+      //    `typeof performSwap === 'function'`. Sans cet export, la référence
+      //    est introuvable → le garde devient un no-op silencieux : le panneau
+      //    de confirmation s'ouvre (canSwap retombe sur {ok:true}) mais le clic
+      //    « Confirmer » ne déplace rien. (Bug « swap ne se fait pas ».)
+      window.performSwap = performSwap;
+      window.canSwap = canSwap;
+
       // S'assurer que performSwapAndClose est bien défini pour la modal
       window.performSwapAndClose = function (id1, id2) {
         performSwap(id1, id2);
