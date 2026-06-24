@@ -263,9 +263,10 @@
       var eleveId = card.dataset.id;
       if (!eleveId) return;
 
-      // Deuxieme clic : intercepter pour preview ou message humanise
+      // Deuxieme clic : echange.
       if (STATE.swapFirst && eleveId !== STATE.swapFirst) {
-        var check = typeof canSwap === 'function' ? canSwap(STATE.swapFirst, eleveId) : { ok: true };
+        var forceOn = !!STATE.adminMode; // 🔥 Mode Force : tout est permis
+        var check = forceOn ? { ok: true } : (typeof canSwap === 'function' ? canSwap(STATE.swapFirst, eleveId) : { ok: true });
         e.stopImmediatePropagation();
         e.preventDefault();
 
@@ -276,7 +277,11 @@
         STATE.swapFirst = null;
         updateSwapInstruction();
 
-        if (check.ok) {
+        if (forceOn) {
+          // 🔥 MODE FORCE : echange DIRECT, sans apercu ni aucune verification
+          //    (DISSO, LV2, quotas, FIXE... tout est ignore). « Totalement. »
+          if (typeof performSwap === 'function') performSwap(firstId, eleveId);
+        } else if (check.ok) {
           showSwapPreview(firstId, eleveId);
         } else {
           if (typeof toast === 'function') toast(humanizeSwapReason(check.reason, firstId, eleveId), 'error');
