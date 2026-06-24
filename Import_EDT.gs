@@ -196,6 +196,11 @@ function edtImportCore_(text, niveauActif, typeImport) {
 
     var optStr = cell(row, 'OPT_PREV') || cell(row, 'OPT_PREC');
     var lo = parseOpt(optStr) || { lv2: '', opt: '' };
+    // DEFENSE : cohorte (drapeau d'affichage). Détectée dans la liste d'options
+    // mais NON stockée dans OPT (qui reste l'option réelle : LATIN…) → canaux
+    // séparés, un élève peut cumuler LATIN (OPT) + DEFENSE (drapeau). Le
+    // PLACEMENT de la cohorte est géré par la classe imposée (colonne H).
+    var defense = (String(optStr).toUpperCase().indexOf('DEFENSE') >= 0) ? 'OUI' : '';
     var sexe = cell(row, 'SEXE').toUpperCase();
     if (sexe === 'G' || sexe === 'H') sexe = 'M'; // Pronote F/G -> etablissement F/M
     // Dispositif (PAP/GEVASCO/PAI/ULIS…) : information affichée en badge, sans
@@ -242,6 +247,7 @@ function edtImportCore_(text, niveauActif, typeImport) {
       dispo: dispoVal,
       asso: cell(row, 'ASSO'), disso: cell(row, 'DISSO'),
       classeImposee: classeImposee,
+      defense: defense,
       classe: classe
     };
     eleves.push(el);
@@ -270,7 +276,7 @@ function edtImportCore_(text, niveauActif, typeImport) {
 // =============================================================================
 
 var EDT_SOURCE_HEADERS = ['ID_ELEVE', 'NOM', 'PRENOM', 'NOM_PRENOM', 'SEXE', 'LV2', 'OPT',
-  'COM', 'TRA', 'PART', 'ABS', 'DISPO', 'ASSO', 'DISSO', 'SOURCE', 'CLASSE_IMPOSEE'];
+  'COM', 'TRA', 'PART', 'ABS', 'DISPO', 'ASSO', 'DISSO', 'SOURCE', 'CLASSE_IMPOSEE', 'DEFENSE'];
 
 /**
  * Importe le fichier EDT/PRONOTE et ecrit les onglets sources, puis enchaine
@@ -305,7 +311,7 @@ function importerEDT_(csvText, niveauActif, typeImport) {
         return ['', e.nom, e.prenom, '', e.sexe, e.lv2, e.opt,
           e.com === '' ? '' : String(e.com), e.tra === '' ? '' : String(e.tra),
           e.part === '' ? '' : String(e.part), e.abs === '' ? '' : String(e.abs),
-          e.dispo, e.asso, e.disso, classe, e.classeImposee || ''];
+          e.dispo, e.asso, e.disso, classe, e.classeImposee || '', e.defense || ''];
       });
       if (rows.length) {
         sheet.getRange(2, 1, rows.length, EDT_SOURCE_HEADERS.length).setValues(rows);

@@ -501,7 +501,7 @@ function mapStudentsForInterface(headers, rows) {
   // Liste des champs standards à normaliser (mapping majuscules -> minuscules)
   const FIELD_MAPPINGS = [
     'NOM', 'PRENOM', 'SEXE', 'LV2', 'OPT',
-    'ASSO', 'DISSO', 'DISPO', 'MOBILITE', 'SOURCE'
+    'ASSO', 'DISSO', 'DISPO', 'MOBILITE', 'SOURCE', 'DEFENSE', 'CLASSE_IMPOSEE'
   ];
 
   return rows.map(row => {
