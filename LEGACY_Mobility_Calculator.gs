@@ -250,7 +250,22 @@ function calculerMobiliteEleve_LEGACY(row, headers, allData, ctx) {
       return true;
     });
   }
-  
+
+  // 2bis. CLASSE(S) IMPOSÉE(S) : restreindre les classes compatibles à
+  //       l'ensemble imposé (∩). 1 classe → FIXE ; 2 → PERMUT ; 3+ → LIBRE.
+  //       Si l'intersection est vide (imposition incompatible LV2/OPT), on
+  //       IGNORE l'imposition (on garde les classes compatibles) — cohérent
+  //       avec le pré-placement de Phase 1.
+  const idxImposee = headers.indexOf('CLASSE_IMPOSEE');
+  if (idxImposee !== -1) {
+    const rawImp = String(row[idxImposee] || '').trim();
+    if (rawImp) {
+      const imposeeSet = rawImp.split('|').map(function (c) { return c.trim(); });
+      const inter = classesCompatibles.filter(function (c) { return imposeeSet.indexOf(c) !== -1; });
+      if (inter.length > 0) classesCompatibles = inter;
+    }
+  }
+
   // 3. Déterminer mobilité selon le nombre
   const nbClasses = classesCompatibles.length;
   

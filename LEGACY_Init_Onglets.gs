@@ -43,12 +43,26 @@ function initEmptyTestTabs_LEGACY(ctx) {
       logLine('INFO', '  ✨ ' + name + ' créé');
     }
 
-    // ✅ VIDAGE DOUX : Garde les en-têtes (ligne 1), vide seulement les données
+    // ✅ VIDAGE DOUX : Garde les en-têtes (ligne 1), vide seulement les données.
     if (sh.getLastRow() > 1) {
-      const numRows = sh.getLastRow() - 1; // Nombre de lignes de données
-      const numCols = Math.max(1, sh.getLastColumn());
-      sh.getRange(2, 1, numRows, numCols).clearContent();
-      logLine('INFO', '  🧹 ' + name + ' : ' + numRows + ' lignes vidées (en-tête conservé)');
+      // ⚠️ Détection de schéma PÉRIMÉ : si l'en-tête TEST ne contient PAS la
+      //    colonne CLASSE_IMPOSEE alors que les onglets sources l'ont désormais,
+      //    cet onglet date d'AVANT l'ajout de colonne → il est plus étroit que
+      //    les données à écrire, d'où l'erreur « N colonnes de données ≠ M de la
+      //    plage » au setValues des phases. On RECONSTRUIT l'en-tête depuis la
+      //    source (les données sont de toute façon recalculées par le pipeline).
+      const hdr = sh.getRange(1, 1, 1, sh.getLastColumn()).getValues()[0]
+        .map(function (h) { return String(h || '').trim().toUpperCase(); });
+      if (hdr.indexOf('CLASSE_IMPOSEE') === -1) {
+        sh.clear();
+        writeTestHeaders_LEGACY(ctx, sh, name);
+        logLine('INFO', '  🔁 ' + name + ' : en-tête périmé (sans CLASSE_IMPOSEE) → reconstruit depuis la source');
+      } else {
+        const numRows = sh.getLastRow() - 1; // Nombre de lignes de données
+        const numCols = Math.max(1, sh.getLastColumn());
+        sh.getRange(2, 1, numRows, numCols).clearContent();
+        logLine('INFO', '  🧹 ' + name + ' : ' + numRows + ' lignes vidées (en-tête conservé)');
+      }
     } else {
       // Pas d'en-têtes → créer
       writeTestHeaders_LEGACY(ctx, sh, name);
