@@ -766,7 +766,7 @@ function saveCacheData(cacheData) {
  * @param {Object} disposition - Objet {className: {headers: [], students: []}}
  * @returns {Object} {success: boolean, saved: number, failed: number, errors: Array, timestamp: string}
  */
-function saveDispositionToSheets(disposition) {
+function saveDispositionToSheets(disposition, mode) {
   try {
     // Validation des paramètres
     if (!disposition || typeof disposition !== 'object' || Object.keys(disposition).length === 0) {
@@ -774,6 +774,35 @@ function saveDispositionToSheets(disposition) {
     }
 
     const ss = getActiveSpreadsheetCached();
+
+    // ⚠️ Le client envoie disposition = { "5°1": [id1, id2, ...] } : UNIQUEMENT
+    //    des IDs par classe (état après déplacements manuels). On résout ici les
+    //    LIGNES complètes par ID depuis les onglets du mode (TEST par défaut).
+    //    (Avant, la fonction attendait { classe: {headers, students} } → elle
+    //    levait « Données invalides » pour chaque classe → auto-save ET brouillon
+    //    échouaient côté serveur.)
+    const src = collectClassesDataByMode(mode || 'TEST', ss) || {};
+    let headers = null;
+    Object.keys(src).forEach(k => {
+      if (!headers && src[k] && src[k].headers && src[k].headers.length) headers = src[k].headers;
+    });
+
+    const idIdx = headers ? headers.indexOf('ID_ELEVE') : -1;
+    const width = headers ? headers.length : 0;
+    const idToRow = {};
+    if (headers) {
+      Object.keys(src).forEach(k => {
+        const students = (src[k] && src[k].students) || [];
+        students.forEach(row => {
+          const id = idIdx >= 0 ? String(row[idIdx] || '').trim() : '';
+          if (!id) return;
+          const r = row.slice(0, width);
+          while (r.length < width) r.push(''); // normaliser à la largeur des en-têtes
+          idToRow[id] = r;
+        });
+      });
+    }
+
     let savedCount = 0;
     let failedCount = 0;
     const errors = [];
@@ -781,42 +810,42 @@ function saveDispositionToSheets(disposition) {
     for (const className in disposition) {
       try {
         const classData = disposition[className];
+        let allRows, w;
 
-        // Validation des données de classe
-        if (!classData || !classData.headers || !classData.students) {
-          throw new Error(`Données invalides pour la classe ${className}`);
+        if (classData && classData.headers && classData.students) {
+          // Format complet (legacy) : utiliser tel quel.
+          allRows = [classData.headers].concat(classData.students);
+          w = classData.headers.length;
+        } else {
+          // Format IDs (actuel) : résoudre les lignes depuis la source.
+          if (!headers) throw new Error('Aucune donnée source (' + (mode || 'TEST') + ') pour résoudre les élèves');
+          const ids = Array.isArray(classData) ? classData : [];
+          const rows = ids.map(id => idToRow[String(id || '').trim()]).filter(Boolean);
+          allRows = [headers].concat(rows);
+          w = width;
         }
 
-        // Nom de l'onglet CACHE (ex: "5°1 TEST" -> "5°1 CACHE")
-        const cacheSheetName = className.replace(/(TEST|FIN|PREVIOUS)$/i, 'CACHE');
+        // Nom de l'onglet CACHE (durable). On retire tout suffixe puis on ajoute CACHE.
+        const cacheSheetName = String(className).replace(/\s*(TEST|FIN|PREVIOUS|CACHE)\s*$/i, '').trim() + 'CACHE';
 
-        // Créer ou obtenir l'onglet CACHE
         let cacheSheet = ss.getSheetByName(cacheSheetName);
         if (!cacheSheet) {
           cacheSheet = ss.insertSheet(cacheSheetName);
-          console.log(`✅ Onglet créé: ${cacheSheetName}`);
         } else {
           cacheSheet.clearContents();
-          console.log(`🔄 Onglet vidé: ${cacheSheetName}`);
         }
 
-        // Écrire les données
-        const allRows = [classData.headers, ...classData.students];
-        if (allRows.length > 0 && classData.headers.length > 0) {
-          cacheSheet.getRange(1, 1, allRows.length, classData.headers.length)
-            .setValues(allRows);
-          savedCount++;
+        if (allRows.length > 0 && w > 0) {
+          cacheSheet.getRange(1, 1, allRows.length, w).setValues(allRows);
         }
+        savedCount++;
       } catch (classError) {
         failedCount++;
-        const errorMsg = `Erreur pour ${className}: ${classError.message}`;
-        errors.push(errorMsg);
-        console.log(`⚠️ ${errorMsg}`);
+        errors.push(`Erreur pour ${className}: ${classError.message}`);
       }
     }
 
     SpreadsheetApp.flush();
-
     console.log(`💾 Sauvegarde terminée: ${savedCount} succès, ${failedCount} échecs`);
 
     return {

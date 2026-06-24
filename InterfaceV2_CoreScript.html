@@ -2338,8 +2338,9 @@
 
             if (typeof gsRun === 'function') {
               try {
-                // 🔥 NOUVEAU: Appel à saveDispositionToSheets pour créer les onglets CACHE
-                const result = await gsRun('saveDispositionToSheets', disposition);
+                // 🔥 saveDispositionToSheets : crée les onglets CACHE (résout les
+                //    IDs -> lignes côté serveur depuis le mode courant).
+                const result = await gsRun('saveDispositionToSheets', disposition, STATE.currentMode);
 
                 if (result && result.success) {
 
@@ -5350,7 +5351,7 @@
           date: new Date().toISOString(), disposition, mode: STATE.currentMode
         }));
       } catch (_) {}
-      const result = await gsRun('saveDispositionToSheets', disposition);
+      const result = await gsRun('saveDispositionToSheets', disposition, STATE.currentMode);
       if (result && result.success) {
         STATE.has_user_action = false;
         STATE.last_save_ts = Date.now();
