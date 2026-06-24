@@ -146,6 +146,50 @@ function Phase1I_dispatchOptionsLV2_LEGACY(ctx) {
     classeCounts[classe] = 0;
   }
 
+  // ========== ÉTAPE 3bis : CLASSES IMPOSÉES (colonne CLASSE_IMPOSEE) ==========
+  // Pré-place les élèves dont la colonne H Pronote (« classe prévisionnelle »)
+  // impose UNE ou PLUSIEURS classes au choix. Pré-affectés AVANT la répartition
+  // normale → le quota loop les saute (déjà assigned), ils sont écrits dans leur
+  // onglet TEST, Phase 3 ne les reprend pas, et leur mobilité (FIXE si 1 classe,
+  // PERMUT si 2) est calculée plus bas. Garde-fou : on ne retient que les
+  // classes qui EXISTENT dans la structure ET sont compatibles LV2/OPT — sinon
+  // warning + on ignore l'imposition (le moteur décide).
+  const idxImposee = headersRef.indexOf('CLASSE_IMPOSEE');
+  if (idxImposee !== -1) {
+    let nbImposes = 0;
+    for (let i = 0; i < allData.length; i++) {
+      const item = allData[i];
+      const raw = String(item.row[idxImposee] || '').trim();
+      if (!raw) continue;
+      const lv2 = String(item.row[idxLV2] || '').trim().toUpperCase();
+      const opt = String(item.row[idxOPT] || '').trim().toUpperCase();
+      const allowed = raw.split('|').map(function (c) { return c.trim(); }).filter(function (c) {
+        const q = ctx.quotas[c];
+        if (!q) return false; // classe imposée inexistante dans la structure
+        if (lv2 && lv2Universelles.indexOf(lv2) === -1 && isKnownLV2(lv2) && (!q[lv2] || q[lv2] <= 0)) return false;
+        if (opt && isKnownOPT(opt) && (!q[opt] || q[opt] <= 0)) return false;
+        return true;
+      });
+      const nom = (String(item.row[idxNom] || '') + ' ' + String(item.row[idxPrenom] || '')).trim();
+      if (allowed.length === 0) {
+        logLine('WARN', '  ⚠️ Classe imposée "' + raw + '" pour ' + nom +
+          ' : inexistante ou incompatible LV2/OPT → ignorée (le moteur décide).');
+        continue;
+      }
+      // 1 classe → elle ; plusieurs → la MOINS remplie (pour préserver l'équilibre).
+      let cible = allowed[0];
+      for (let k = 1; k < allowed.length; k++) {
+        if (classeCounts[allowed[k]] < classeCounts[cible]) cible = allowed[k];
+      }
+      item.assigned = cible;
+      classeCounts[cible]++;
+      nbImposes++;
+      logLine('INFO', '  📌 Imposé : ' + nom + ' → ' + cible +
+        (allowed.length > 1 ? ' (parmi ' + raw + ')' : '') + ' [' + classeCounts[cible] + ']');
+    }
+    logLine('INFO', '  📌 Classes imposées : ' + nbImposes + ' élève(s) pré-placé(s).');
+  }
+
   // Parcourir les quotas par classe
   for (const classe in (ctx.quotas || {})) {
     const quotas = ctx.quotas[classe];
