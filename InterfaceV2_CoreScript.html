@@ -3830,7 +3830,44 @@
         }
       }
 
+      // ========== ACTIVATION / DÉSACTIVATION DES SUGGESTIONS (persisté) ==========
+      function isSmartSwapEnabled() {
+        try { return localStorage.getItem('smartSwapEnabled') !== 'false'; }
+        catch (e) { return true; }
+      }
+      function applySmartSwapEnabledUI() {
+        const on = isSmartSwapEnabled();
+        const b = document.getElementById('btnSmartSwap');
+        if (b) b.style.display = on ? '' : 'none';
+        const chk = document.getElementById('chkSmartSwap');
+        if (chk) chk.checked = on;
+      }
+      window.setSmartSwapEnabled = function (on) {
+        try { localStorage.setItem('smartSwapEnabled', on ? 'true' : 'false'); } catch (e) {}
+        // Nettoyer un éventuel état de suggestion en cours (cartes dimmed/ring).
+        if (!on && typeof dismissSmartSwap === 'function') dismissSmartSwap();
+        applySmartSwapEnabledUI();
+        if (typeof toast === 'function') toast(on ? '💡 Suggestions activées' : '🚫 Suggestions désactivées', 'info');
+      };
+      (function initSmartSwapToggle() {
+        const wire = () => {
+          const chk = document.getElementById('chkSmartSwap');
+          if (chk && !chk.dataset.wired) {
+            chk.dataset.wired = '1';
+            chk.addEventListener('change', e => window.setSmartSwapEnabled(e.target.checked));
+          }
+          applySmartSwapEnabledUI();
+        };
+        if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', wire);
+        else setTimeout(wire, 300);
+      })();
+
       window.triggerSmartSwap = function () {
+        // ⛔ Suggestions désactivables (interrupteur barre de swap). Si OFF, stop.
+        if (!isSmartSwapEnabled()) {
+          if (typeof toast === 'function') toast('🚫 Suggestions désactivées', 'info');
+          return;
+        }
         const btn = document.getElementById('btnSmartSwap');
         if (btn) btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Calcul...';
 
