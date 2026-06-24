@@ -429,6 +429,29 @@
       // Mode admin : tout est permis
       if (STATE.adminMode) return { ok: true };
 
+      // 🔒 COMPATIBILITÉ LV2/OPT AVEC LA CLASSE CIBLE — vérifiée EN PREMIER,
+      //    avant tout raccourci. Après le swap, chaque élève va dans l'AUTRE
+      //    classe : sa LV2/option doit y être proposée (présente dans les quotas
+      //    et > 0). ESP est universel. Corrige le swap absurde « ITA → classe
+      //    non-ITA » que la suggestion automatique proposait (le check existant
+      //    plus bas ratait les options ABSENTES du quota, pas seulement à 0).
+      const swapTargetOK = (eleve, targetClasse) => {
+        const quotas = (STATE.rules[targetClasse] || {}).quotas || {};
+        const tags = [String(eleve.lv2 || '').trim().toUpperCase(),
+                      String(eleve.opt || '').trim().toUpperCase()];
+        for (const tag of tags) {
+          if (!tag || tag === 'ESP') continue; // vide ou ESP (universel) → OK
+          if (!(tag in quotas) || quotas[tag] === 0) {
+            return { ok: false, reason: `${tag} non proposé dans ${targetClasse}` };
+          }
+        }
+        return { ok: true };
+      };
+      const tgt1 = swapTargetOK(eleve1, classe2);
+      if (!tgt1.ok) return tgt1;
+      const tgt2 = swapTargetOK(eleve2, classe1);
+      if (!tgt2.ok) return tgt2;
+
       // ✅ PRIORITÉ 1 : SWAP DE MÊME CONTRAINTE
       // Si les deux élèves ont les mêmes contraintes (LV2, OPT, code D), le swap est autorisé
       // Car cela ne change pas les quotas : on échange juste deux élèves identiques
@@ -591,12 +614,14 @@
       const card1 = document.querySelector(`.student-card[data-id="${id1}"]`);
       const card2 = document.querySelector(`.student-card[data-id="${id2}"]`);
 
-      if (!card1 || !card2) return;
+      // 🔎 DIAGNOSTIC : trace l'exécution réelle du swap
+      console.log('🔁 performSwap', { id1, id2, card1: !!card1, card2: !!card2 });
+      if (!card1 || !card2) { console.warn('🔁 performSwap ABORT : carte introuvable'); return; }
 
       const zone1 = card1.closest('.droppable-zone');
       const zone2 = card2.closest('.droppable-zone');
 
-      if (!zone1 || !zone2) return;
+      if (!zone1 || !zone2) { console.warn('🔁 performSwap ABORT : zone introuvable', { zone1: !!zone1, zone2: !!zone2 }); return; }
 
       // Animation de swap
       card1.style.transition = 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)';
@@ -875,6 +900,12 @@
       card.dataset.id = eleve.id;
       card.classList.add(`sexe-${eleve.sexe}`);
 
+      // 🔒 Liseré de mobilité (bord gauche, voir CSS .mob-fixe / .mob-permut).
+      //    Posé sur la racine de la carte AVANT les branches de mode → visible
+      //    de la même façon dans les 3 modes (simple / essentiel / détaillé).
+      if (eleve.mobilite === 'FIXE') card.classList.add('mob-fixe');
+      else if (eleve.mobilite === 'PERMUT') card.classList.add('mob-permut');
+
       // Attributs ARIA pour la carte élève
       const nomCompletAria = eleve.prenom ? `${eleve.nom} ${eleve.prenom}` : eleve.nom;
       card.setAttribute('role', 'listitem');
@@ -1010,11 +1041,9 @@
           fullNameElement.style.fontWeight = '700';
         }
 
-        // Badge DISPO (using createBadge)
-        const dispoContainer = card.querySelector('.badge-dispo-container');
-        if (eleve.dispo && eleve.dispo.trim()) {
-          dispoContainer.appendChild(createBadge('dispo', eleve.dispo));
-        }
+        // Badge DISPO : déplacé du coin absolu (haut-droite) — où il recouvrait
+        // la fin du nom et gênait la lecture — vers la LIGNE DE BADGES ci-dessous
+        // (ajouté après LV2/OPT/DISSO/ASSO). Plus de chevauchement.
 
         // ========== LIGNE 2: TOUS LES BADGES (LV2, OPT, DISSO, ASSO) ==========
         const allBadgesContainer = card.querySelector('.all-badges');
@@ -1035,6 +1064,12 @@
 
         if (eleve.asso) {
           allBadgesContainer.appendChild(createBadge('asso', eleve.asso));
+        }
+
+        // Dispositif (PAP/ULIS/GEVASCO…) en fin de ligne de badges (lisible,
+        // sans recouvrir le nom).
+        if (eleve.dispo && eleve.dispo.trim()) {
+          allBadgesContainer.appendChild(createBadge('dispo', eleve.dispo));
         }
 
         // ========== LIGNE 3: Source + Scores ==========
@@ -1414,6 +1449,9 @@
         result.data.forEach(group => {
           group.eleves.forEach(eleve => {
             STATE.students[eleve.id] = eleve;
+            // 📍 Classe de DÉPART (au chargement = sortie moteur), figée une fois :
+            //    sert de référence au bilan des déplacements (départ → arrivée).
+            if (eleve.classeInitiale === undefined) eleve.classeInitiale = group.classe;
             // Grouper les associations
             if (eleve.asso) {
               const key = `A${eleve.asso}`;
@@ -3792,7 +3830,44 @@
         }
       }
 
+      // ========== ACTIVATION / DÉSACTIVATION DES SUGGESTIONS (persisté) ==========
+      function isSmartSwapEnabled() {
+        try { return localStorage.getItem('smartSwapEnabled') !== 'false'; }
+        catch (e) { return true; }
+      }
+      function applySmartSwapEnabledUI() {
+        const on = isSmartSwapEnabled();
+        const b = document.getElementById('btnSmartSwap');
+        if (b) b.style.display = on ? '' : 'none';
+        const chk = document.getElementById('chkSmartSwap');
+        if (chk) chk.checked = on;
+      }
+      window.setSmartSwapEnabled = function (on) {
+        try { localStorage.setItem('smartSwapEnabled', on ? 'true' : 'false'); } catch (e) {}
+        // Nettoyer un éventuel état de suggestion en cours (cartes dimmed/ring).
+        if (!on && typeof dismissSmartSwap === 'function') dismissSmartSwap();
+        applySmartSwapEnabledUI();
+        if (typeof toast === 'function') toast(on ? '💡 Suggestions activées' : '🚫 Suggestions désactivées', 'info');
+      };
+      (function initSmartSwapToggle() {
+        const wire = () => {
+          const chk = document.getElementById('chkSmartSwap');
+          if (chk && !chk.dataset.wired) {
+            chk.dataset.wired = '1';
+            chk.addEventListener('change', e => window.setSmartSwapEnabled(e.target.checked));
+          }
+          applySmartSwapEnabledUI();
+        };
+        if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', wire);
+        else setTimeout(wire, 300);
+      })();
+
       window.triggerSmartSwap = function () {
+        // ⛔ Suggestions désactivables (interrupteur barre de swap). Si OFF, stop.
+        if (!isSmartSwapEnabled()) {
+          if (typeof toast === 'function') toast('🚫 Suggestions désactivées', 'info');
+          return;
+        }
         const btn = document.getElementById('btnSmartSwap');
         if (btn) btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Calcul...';
 
@@ -4037,6 +4112,73 @@
         toast('Export Excel généré avec succès', 'success');
         closeExportModal();
       }
+
+      // ========== EXPORT PDF — BILAN DES DÉPLACEMENTS ==========
+      // Liste UNIQUEMENT les élèves dont la classe a changé depuis la sortie
+      // moteur (classe de départ ≠ classe actuelle). Une ligne par élève :
+      // départ → arrivée + langues/options/dispositif/scores, pour que la
+      // direction repère une erreur d'un coup d'œil (ex. un latiniste déplacé
+      // dans une classe sans latin). Les élèves non déplacés n'y figurent pas.
+      window.exportDeplacementsPDF = function () {
+        if (!window.jspdf) { if (typeof toast === 'function') toast('jsPDF non chargé', 'error'); return; }
+        const { jsPDF } = window.jspdf;
+
+        // 1. Bilan net : départ ≠ arrivée
+        const lignes = [];
+        Object.keys(STATE.students || {}).forEach(id => {
+          const e = STATE.students[id];
+          if (!e || e.classeInitiale === undefined) return;
+          const card = document.querySelector(`.student-card[data-id="${id}"]`);
+          const actuelle = card?.closest('.droppable-zone')?.dataset.classe;
+          if (!actuelle || String(actuelle) === String(e.classeInitiale)) return; // pas déplacé
+          const sc = e.scores || {};
+          lignes.push({
+            nom: `${e.nom || ''} ${e.prenom || ''}`.trim(),
+            depart: String(e.classeInitiale), arrivee: String(actuelle),
+            sexe: e.sexe || '', lv2: e.lv2 || '', opt: e.opt || '', dispo: e.dispo || '',
+            com: sc.COM ?? '', tra: sc.TRA ?? '', part: sc.PART ?? '', abs: sc.ABS ?? ''
+          });
+        });
+        lignes.sort((a, b) => a.depart.localeCompare(b.depart) || a.nom.localeCompare(b.nom));
+
+        // 2. PDF paysage
+        const pdf = new jsPDF('l', 'mm', 'a4');
+        const pageW = pdf.internal.pageSize.getWidth();
+        pdf.setFontSize(18);
+        pdf.text(`Bilan des déplacements — ${STATE.niveau || ''}`, pageW / 2, 16, { align: 'center' });
+        pdf.setFontSize(10);
+        pdf.text(new Date().toLocaleString('fr-FR'), pageW / 2, 23, { align: 'center' });
+        pdf.text(`${lignes.length} élève(s) déplacé(s)`, pageW / 2, 28, { align: 'center' });
+
+        const cols = [
+          { t: 'Élève', x: 12 }, { t: 'Départ', x: 64 }, { t: '→', x: 80 }, { t: 'Arrivée', x: 86 },
+          { t: 'Sexe', x: 104 }, { t: 'LV2', x: 116 }, { t: 'Option', x: 130 }, { t: 'Dispositif', x: 150 },
+          { t: 'COM', x: 178 }, { t: 'TRA', x: 190 }, { t: 'PART', x: 202 }, { t: 'ABS', x: 214 }
+        ];
+        let y = 38;
+        const drawHeader = () => {
+          pdf.setFontSize(9); pdf.setFont(undefined, 'bold');
+          cols.forEach(c => pdf.text(c.t, c.x, y));
+          pdf.setDrawColor(180); pdf.line(12, y + 1.5, 224, y + 1.5);
+          pdf.setFont(undefined, 'normal'); y += 6;
+        };
+
+        if (lignes.length === 0) {
+          pdf.setFontSize(13);
+          pdf.text('Aucun déplacement depuis la sortie du moteur.', pageW / 2, 52, { align: 'center' });
+        } else {
+          drawHeader();
+          pdf.setFontSize(8.5);
+          lignes.forEach(l => {
+            if (y > 195) { pdf.addPage(); y = 18; drawHeader(); pdf.setFontSize(8.5); }
+            const row = [l.nom, l.depart, '→', l.arrivee, l.sexe, l.lv2, l.opt, l.dispo,
+              String(l.com), String(l.tra), String(l.part), String(l.abs)];
+            row.forEach((v, i) => pdf.text(String(v).substring(0, 30), cols[i].x, y));
+            y += 5.5;
+          });
+        }
+        pdf.save(`bilan_deplacements_${STATE.niveau || ''}_${new Date().toISOString().split('T')[0]}.pdf`);
+      };
 
       // ========== EXPORT PDF ==========
       window.exportPDF = async function () {
