@@ -276,19 +276,69 @@ function validateClassData(sheetName) {
 function saveElevesSnapshot(disposition, mode) {
   try {
     const ss = SpreadsheetApp.getActiveSpreadsheet();
-    
-    // Sauvegarder chaque classe
-    for (const [className, classData] of Object.entries(disposition)) {
-      const sheet = ss.getSheetByName(className);
-      if (!sheet) continue;
-      
-      const headers = classData.headers || sheet.getRange(1, 1, 1, sheet.getLastColumn()).getValues()[0];
-      const students = classData.students || [];
-      
-      saveStudentsToSheet(className, students, headers);
+
+    // ⚠️ Le client envoie disposition = { "4°1": [id1, id2, ...] } : UNIQUEMENT
+    //    des IDs. L'ancienne version lisait classData.students (undefined pour un
+    //    tableau) → elle finalisait des classes VIDES, et getSheetByName("4°1")
+    //    échouait (seul "4°1TEST" existe) → skip. On résout ici les lignes par ID
+    //    depuis les onglets du mode (TEST par défaut) et on écrit les onglets FIN.
+    const src = collectClassesDataByMode(mode || 'TEST', ss) || {};
+    let headers = null;
+    Object.keys(src).forEach(k => {
+      if (!headers && src[k] && src[k].headers && src[k].headers.length) headers = src[k].headers;
+    });
+    const idIdx = headers ? headers.indexOf('ID_ELEVE') : -1;
+    const width = headers ? headers.length : 0;
+    const idToRow = {};
+    if (headers) {
+      Object.keys(src).forEach(k => {
+        ((src[k] && src[k].students) || []).forEach(row => {
+          const id = idIdx >= 0 ? String(row[idIdx] || '').trim() : '';
+          if (!id) return;
+          const r = row.slice(0, width);
+          while (r.length < width) r.push('');
+          idToRow[id] = r;
+        });
+      });
     }
-    
-    return { success: true, message: 'Snapshot sauvegardé avec succès' };
+
+    let saved = 0, failed = 0;
+    const errors = [];
+    for (const className in disposition) {
+      try {
+        const classData = disposition[className];
+        let hdr, rows, w;
+        if (classData && classData.headers && classData.students) {
+          hdr = classData.headers; rows = classData.students; w = hdr.length; // legacy
+        } else {
+          if (!headers) throw new Error('Aucune donnée source (' + (mode || 'TEST') + ') pour résoudre les élèves');
+          hdr = headers; w = width;
+          const ids = Array.isArray(classData) ? classData : [];
+          rows = ids.map(id => idToRow[String(id || '').trim()]).filter(Boolean);
+        }
+
+        const finName = String(className).replace(/\s*(TEST|FIN|PREVIOUS|CACHE)\s*$/i, '').trim() + 'FIN';
+        let sheet = ss.getSheetByName(finName) || ss.insertSheet(finName);
+        sheet.clearContents();
+        const allRows = [hdr].concat(rows);
+        sheet.getRange(1, 1, allRows.length, w).setValues(allRows);
+
+        // Mise en forme (couleurs + moyennes), comme les onglets TEST. Non bloquant.
+        try { if (typeof formatFinSheet_LEGACY === 'function') formatFinSheet_LEGACY(sheet); } catch (eFmt) {}
+        saved++;
+      } catch (classError) {
+        failed++;
+        errors.push(className + ': ' + classError.message);
+      }
+    }
+
+    SpreadsheetApp.flush();
+    return {
+      success: failed === 0,
+      saved: saved, failed: failed,
+      errors: errors.length ? errors : undefined,
+      message: saved + ' classe(s) finalisée(s) → onglets FIN'
+    };
   } catch (e) {
     return { success: false, error: e.toString() };
   }

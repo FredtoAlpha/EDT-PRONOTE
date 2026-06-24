@@ -814,6 +814,11 @@
           displayContent: content.toUpperCase().trim(),
           defaultTitle: `Dispositif: ${content}`
         },
+        defense: {
+          baseClass: 'mini-badge badge-defense',
+          displayContent: 'DÉFENSE',
+          defaultTitle: 'Classe DÉFENSE (cohorte)'
+        },
         gender: {
           baseClass: 'badge-sexe',
           extraClass: `sexe-${content}`,
@@ -1021,6 +1026,11 @@
           allBadgesContainer.appendChild(createBadge('opt', eleve.opt));
         }
 
+        // Cohorte DÉFENSE (drapeau) — visible aussi en mode essentiel.
+        if (eleve.defense && String(eleve.defense).trim() && String(eleve.defense).trim().toUpperCase() !== 'NON') {
+          allBadgesContainer.appendChild(createBadge('defense', 'DÉFENSE'));
+        }
+
         // Source uniquement (pas de scores)
         card.querySelector('.source-class').textContent = eleve.source || '';
         card.querySelector('.scores').innerHTML = '';
@@ -1070,6 +1080,13 @@
         // sans recouvrir le nom).
         if (eleve.dispo && eleve.dispo.trim()) {
           allBadgesContainer.appendChild(createBadge('dispo', eleve.dispo));
+        }
+
+        // Cohorte DÉFENSE (drapeau séparé de l'option) : badge visible pour que
+        // le prof reconnaisse la cohorte. Le placement est déjà verrouillé par la
+        // classe imposée (FIXE/PERMUT) — le badge ne sert qu'à la lisibilité.
+        if (eleve.defense && String(eleve.defense).trim() && String(eleve.defense).trim().toUpperCase() !== 'NON') {
+          allBadgesContainer.appendChild(createBadge('defense', 'DÉFENSE'));
         }
 
         // ========== LIGNE 3: Source + Scores ==========
@@ -2321,8 +2338,9 @@
 
             if (typeof gsRun === 'function') {
               try {
-                // 🔥 NOUVEAU: Appel à saveDispositionToSheets pour créer les onglets CACHE
-                const result = await gsRun('saveDispositionToSheets', disposition);
+                // 🔥 saveDispositionToSheets : crée les onglets CACHE (résout les
+                //    IDs -> lignes côté serveur depuis le mode courant).
+                const result = await gsRun('saveDispositionToSheets', disposition, STATE.currentMode);
 
                 if (result && result.success) {
 
@@ -5333,7 +5351,7 @@
           date: new Date().toISOString(), disposition, mode: STATE.currentMode
         }));
       } catch (_) {}
-      const result = await gsRun('saveDispositionToSheets', disposition);
+      const result = await gsRun('saveDispositionToSheets', disposition, STATE.currentMode);
       if (result && result.success) {
         STATE.has_user_action = false;
         STATE.last_save_ts = Date.now();

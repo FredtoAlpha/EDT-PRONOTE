@@ -53,10 +53,12 @@ function initEmptyTestTabs_LEGACY(ctx) {
       //    source (les données sont de toute façon recalculées par le pipeline).
       const hdr = sh.getRange(1, 1, 1, sh.getLastColumn()).getValues()[0]
         .map(function (h) { return String(h || '').trim().toUpperCase(); });
-      if (hdr.indexOf('CLASSE_IMPOSEE') === -1) {
+      // Colonnes ajoutées au fil du temps : si l'une manque, l'en-tête est plus
+      // étroit que les données → on reconstruit. (CLASSE_IMPOSEE puis DEFENSE.)
+      if (hdr.indexOf('CLASSE_IMPOSEE') === -1 || hdr.indexOf('DEFENSE') === -1) {
         sh.clear();
         writeTestHeaders_LEGACY(ctx, sh, name);
-        logLine('INFO', '  🔁 ' + name + ' : en-tête périmé (sans CLASSE_IMPOSEE) → reconstruit depuis la source');
+        logLine('INFO', '  🔁 ' + name + ' : en-tête périmé (colonne manquante) → reconstruit depuis la source');
       } else {
         const numRows = sh.getLastRow() - 1; // Nombre de lignes de données
         const numCols = Math.max(1, sh.getLastColumn());
