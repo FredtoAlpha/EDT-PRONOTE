@@ -631,6 +631,20 @@
       zone2.appendChild(card1);
       zone1.appendChild(card2);
 
+      // 🔁 Resynchroniser l'ordre interne de Sortable après ce déplacement DOM
+      //    manuel : sinon son cache d'ordre devient périmé et les déplacements
+      //    suivants (drag/swap) peuvent mal se comporter. (Audit interface)
+      try {
+        if (typeof Sortable !== 'undefined' && Sortable.get) {
+          [zone1, zone2].forEach(function (z) {
+            const s = Sortable.get(z);
+            if (s && typeof s.sort === 'function') {
+              s.sort(Array.from(z.querySelectorAll('.student-card')).map(c => c.dataset.id), false);
+            }
+          });
+        }
+      } catch (eSort) { console.warn('Sortable resync:', eSort); }
+
       // Marquer qu'il y a eu une action utilisateur
       if (typeof markUserAction === 'function') {
         markUserAction();
@@ -2459,6 +2473,10 @@
     function exportDisposition() {
       return App.Data.exportDisposition();
     }
+    // Exposé globalement : InterfaceV2_HeaderControls (script séparé) appelle
+    // exportDisposition() pour la finalisation. Sans ça, il ne le trouvait pas
+    // (défini dans l'IIFE) → disposition vide → « Aucune classe à finaliser ».
+    window.exportDisposition = exportDisposition;
 
     // Wrapper pour saveImmediateCache
     async function saveImmediateCache() {
@@ -3665,6 +3683,17 @@
       // Exposer sur window pour les modules externes (bouton header, raccourcis)
       window.toggleSwapMode = toggleSwapMode;
 
+      // 🔁 EXPOSER performSwap + canSwap au scope global.
+      //    Ces fonctions sont déclarées dans l'IIFE du CoreScript. Les modules
+      //    externes (InterfaceV2_UX_Harmonie : confirmSwapPreview / preview /
+      //    Force, InterfaceV2_AdvancedFeatures) les appellent via
+      //    `typeof performSwap === 'function'`. Sans cet export, la référence
+      //    est introuvable → le garde devient un no-op silencieux : le panneau
+      //    de confirmation s'ouvre (canSwap retombe sur {ok:true}) mais le clic
+      //    « Confirmer » ne déplace rien. (Bug « swap ne se fait pas ».)
+      window.performSwap = performSwap;
+      window.canSwap = canSwap;
+
       // S'assurer que performSwapAndClose est bien défini pour la modal
       window.performSwapAndClose = function (id1, id2) {
         performSwap(id1, id2);
@@ -4459,7 +4488,7 @@
         // HTML COMPLET avec tous les graphiques existants + nouveaux
         statsContent.innerHTML = `
         <div class="mb-2">
-          <div class="flex gap-2 mb-2">
+          <div class="flex gap-2 mb-2 justify-center">
             <button onclick="switchChart('COM')" class="px-3 py-1 text-xs rounded font-semibold bg-green-500 text-white" id="btnCOM">COM</button>
             <button onclick="switchChart('TRA')" class="px-3 py-1 text-xs rounded font-semibold bg-gray-300" id="btnTRA">TRA</button>
             <button onclick="switchChart('PART')" class="px-3 py-1 text-xs rounded font-semibold bg-gray-300" id="btnPART">PART</button>
