@@ -2459,6 +2459,10 @@
     function exportDisposition() {
       return App.Data.exportDisposition();
     }
+    // Exposé globalement : InterfaceV2_HeaderControls (script séparé) appelle
+    // exportDisposition() pour la finalisation. Sans ça, il ne le trouvait pas
+    // (défini dans l'IIFE) → disposition vide → « Aucune classe à finaliser ».
+    window.exportDisposition = exportDisposition;
 
     // Wrapper pour saveImmediateCache
     async function saveImmediateCache() {

@@ -187,37 +187,70 @@ function finalizeClasses(disposition, mode = 'finalize') {
     return { ok: false, error: 'Disposition invalide', results: results };
   }
 
+  // ⚠️ Le client envoie disposition = { "3°1": [id1, id2, ...] } : UNIQUEMENT des
+  //    IDs (état après déplacements manuels). On résout ici les lignes par ID
+  //    depuis les onglets TEST (données complètes). Avant, classData.students était
+  //    undefined sur un tableau → toutes les classes en 'failed' → 0 onglet FIN.
+  let _headers = null;
+  const _idToRow = {};
+  try {
+    const _src = (typeof collectClassesDataByMode === 'function') ? (collectClassesDataByMode('TEST', ss) || {}) : {};
+    Object.keys(_src).forEach(k => {
+      if (!_headers && _src[k] && _src[k].headers && _src[k].headers.length) _headers = _src[k].headers;
+    });
+    if (_headers) {
+      const _idIdx = _headers.indexOf('ID_ELEVE');
+      const _w = _headers.length;
+      Object.keys(_src).forEach(k => {
+        ((_src[k] && _src[k].students) || []).forEach(row => {
+          const id = _idIdx >= 0 ? String(row[_idIdx] || '').trim() : '';
+          if (!id) return;
+          const r = row.slice(0, _w);
+          while (r.length < _w) r.push('');
+          _idToRow[id] = r;
+        });
+      });
+    }
+  } catch (eSrc) { Logger.log('[WARN] résolution IDs finalisation : ' + eSrc); }
+
   try {
     for (const className in disposition) {
       const classData = disposition[className];
-      if (!classData || !classData.students || !Array.isArray(classData.students)) {
+
+      // Résoudre : format IDs (actuel) OU { headers, students } (legacy).
+      let headersRow, studentRows;
+      if (classData && classData.students && Array.isArray(classData.students)) {
+        headersRow = classData.headers || _headers || [];
+        studentRows = classData.students;
+      } else if (Array.isArray(classData)) {
+        if (!_headers) { results.failed.push(className); continue; }
+        headersRow = _headers;
+        studentRows = classData.map(id => _idToRow[String(id || '').trim()]).filter(Boolean);
+      } else {
         results.failed.push(className);
         continue;
       }
 
-      const finSheetName = `${className}FIN`;
+      const finSheetName = `${String(className).replace(/\s*(TEST|FIN|PREVIOUS|CACHE)\s*$/i, '').trim()}FIN`;
 
       // 1. CRÉER OU OBTENIR L'ONGLET FIN
       let finSheet = ss.getSheetByName(finSheetName);
       if (!finSheet) {
         finSheet = ss.insertSheet(finSheetName);
-        Logger.log(`[INFO] Onglet ${finSheetName} créé`);
       } else {
         finSheet.clearContents();
-        Logger.log(`[INFO] Onglet ${finSheetName} vidé`);
       }
 
       // 2. ÉCRIRE LES DONNÉES
-      if (classData.students.length > 0) {
-        const headersRow = classData.headers || [];
-        const allRows = [headersRow, ...classData.students];
-
+      if (studentRows.length > 0 && headersRow.length > 0) {
+        const allRows = [headersRow].concat(studentRows);
         finSheet.getRange(1, 1, allRows.length, headersRow.length).setValues(allRows);
         results.created.push(finSheetName);
 
-        // 3. APPLIQUER LE FORMATAGE
-        formatFinSheet(finSheet, classData.students, headersRow);
-        results.formatted.push(finSheetName);
+        // 3. APPLIQUER LE FORMATAGE (non bloquant)
+        try { formatFinSheet(finSheet, studentRows, headersRow); results.formatted.push(finSheetName); } catch (eFmt) {}
+      } else {
+        results.failed.push(className);
       }
     }
 
