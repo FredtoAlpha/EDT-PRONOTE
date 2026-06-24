@@ -495,6 +495,18 @@ function canSwapForParity_Phase3(studentIdx, targetClass, allData, headers, ctx)
     return false; // Élève FIXE ne peut pas être swappé
   }
 
+  // 1.2 📌 CLASSE IMPOSÉE : si l'élève a une (ou plusieurs) classe(s) imposée(s)
+  //     via la colonne CLASSE_IMPOSEE (ex. "4°2|4°3"), il ne peut être déplacé
+  //     que vers une de ces classes — jamais ailleurs (sinon la parité défaisait
+  //     l'imposition du pré-placement).
+  const idxImposee = headers.indexOf('CLASSE_IMPOSEE');
+  if (idxImposee !== -1) {
+    const rawImp = String(row[idxImposee] || '').trim();
+    if (rawImp && rawImp.split('|').map(function (c) { return c.trim(); }).indexOf(targetClass) === -1) {
+      return false; // Cible hors de l'ensemble imposé
+    }
+  }
+
   // 1.5 ✅ Vérifier si élève fait partie d'un groupe ASSO
   const asso = String(row[idxASSO] || '').trim().toUpperCase();
   if (asso) {

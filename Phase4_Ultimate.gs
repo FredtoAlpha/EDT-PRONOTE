@@ -783,6 +783,24 @@ function canSwapStudents_Ultimate(idx1, idx2, cls1Name, cls2Name, idxList1, idxL
   const idxDISSO = headers.indexOf('DISSO');
   const idxASSO = headers.indexOf('ASSO');
 
+  // 📌 CLASSE IMPOSÉE : un élève dont la colonne CLASSE_IMPOSEE restreint les
+  //    classes autorisées (ex. "4°2|4°3") NE DOIT JAMAIS atterrir hors de cet
+  //    ensemble. Le pré-placement (Phase 1) le pose bien, mais sans ce garde le
+  //    moteur de swap le déplaçait quand même (mobilité PERMUT = « déplaçable »,
+  //    et la classe cible proposait la même LV2/OPT). s1 part vers cls2, s2 vers
+  //    cls1 : on refuse le swap si la destination n'est pas dans l'ensemble imposé.
+  const idxImposee = headers.indexOf('CLASSE_IMPOSEE');
+  if (idxImposee !== -1) {
+    const imp1 = String(s1.row[idxImposee] || '').trim();
+    if (imp1 && imp1.split('|').map(function (c) { return c.trim(); }).indexOf(cls2Name) === -1) {
+      return false; // s1 imposé ailleurs → ne peut pas aller en cls2
+    }
+    const imp2 = String(s2.row[idxImposee] || '').trim();
+    if (imp2 && imp2.split('|').map(function (c) { return c.trim(); }).indexOf(cls1Name) === -1) {
+      return false; // s2 imposé ailleurs → ne peut pas aller en cls1
+    }
+  }
+
   // HARMONY FIX : Vérifier ASSO - ne jamais séparer un groupe ASSO
   if (idxASSO >= 0) {
     const asso_s1 = String(s1.row[idxASSO] || '').trim().toUpperCase();
