@@ -165,6 +165,10 @@
   /* Une seule classe à l'écran, en GRAND : ses noms s'étalent sur plusieurs
      sous-colonnes (--focus-cols) pour utiliser toute la largeur → lisible même
      en 800×600. Navigation ◀ ▶ entre classes. */
+  /* Masquage des classes non focalisées : via une CLASSE plus spécifique que
+     « .class-column { display:flex !important } » — sinon le display:none inline
+     (sans !important) était écrasé et toutes les classes restaient visibles. */
+  body.presentation-mode .class-column.pres-hidden { display: none !important; }
   body.presentation-mode.pres-focus #board { gap: 0 !important; }
   body.presentation-mode.pres-focus .droppable-zone {
     flex-direction: row !important;
@@ -321,7 +325,7 @@
   function enterFocus() { focusOn = true; document.body.classList.add('pres-focus'); applyFocus(); }
   function exitFocus() {
     focusOn = false; document.body.classList.remove('pres-focus');
-    focusColumns().forEach(function (c) { c.style.display = ''; });
+    focusColumns().forEach(function (c) { c.classList.remove('pres-hidden'); });
     document.documentElement.style.removeProperty('--focus-cols');
     syncDock(); fit();
   }
@@ -334,7 +338,7 @@
   function applyFocus() {
     var cols = focusColumns(); if (!cols.length) return;
     if (focusIdx >= cols.length) focusIdx = 0;
-    cols.forEach(function (c, i) { c.style.display = (i === focusIdx) ? '' : 'none'; });
+    cols.forEach(function (c, i) { c.classList.toggle('pres-hidden', i !== focusIdx); });
     var lbl = qs('#presFocusBar .pf-label');
     if (lbl) {
       var nameEl = qs('.classe-name', cols[focusIdx]);
@@ -369,7 +373,7 @@
     window.removeEventListener('resize', onResize);
     try { if (document.fullscreenElement) document.exitFullscreen(); } catch (e) {}
     // sortir du Focus proprement (ré-affiche toutes les classes)
-    if (focusOn) { focusOn = false; document.body.classList.remove('pres-focus'); focusColumns().forEach(function (c) { c.style.display = ''; }); }
+    if (focusOn) { focusOn = false; document.body.classList.remove('pres-focus'); focusColumns().forEach(function (c) { c.classList.remove('pres-hidden'); }); }
     document.body.classList.remove('pres-panning', 'pres-panmode');
     var r = document.documentElement.style;
     r.removeProperty('--pres-row'); r.removeProperty('--pres-font'); r.removeProperty('--pres-safe');
