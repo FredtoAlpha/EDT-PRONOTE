@@ -825,10 +825,21 @@
     });
     // Bouton Focus (action, pas une palette)
     var focusBtn = ce('button', null, '<span>🔍</span><span class="pres-dock-label">Focus</span>');
-    focusBtn.title = 'Mode Focus : une classe en grand (← →)';
+    focusBtn.title = 'Mode Focus : choisir des classes à comparer côte à côte';
     focusBtn.addEventListener('click', toggleFocus);
     dock.appendChild(focusBtn);
     dockButtons.__focus = focusBtn;
+
+    // Bouton Brouillon (le header — donc Brouillon — est masqué en présentation).
+    // Appelle EXACTEMENT la même sauvegarde que le bouton du header (onglets CACHE).
+    var saveBtn = ce('button', null, '<span>💾</span><span class="pres-dock-label">Brouillon</span>');
+    saveBtn.title = 'Sauvegarder le brouillon (onglets CACHE) sans quitter la présentation';
+    saveBtn.addEventListener('click', function () {
+      if (typeof window.sauvegardeBrouillonManuelle === 'function') window.sauvegardeBrouillonManuelle(saveBtn);
+      else if (typeof window.toast === 'function') window.toast('Sauvegarde indisponible.', 'error');
+    });
+    dock.appendChild(saveBtn);
+
     document.body.appendChild(dock);
 
     // Barre de navigation Focus (◀ classe ▶ + sortie)
