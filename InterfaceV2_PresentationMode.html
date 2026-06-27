@@ -29,7 +29,10 @@
 
   body.presentation-mode main {
     margin: 0 !important;
-    padding: var(--pres-safe, 24px) !important;   /* marge de sécurité overscan */
+    /* marge de sécurité (overscan) + réserve en bas réglable (pour passer
+       au-dessus de la barre / rail à feutres du tableau qui mange le bas) */
+    padding: var(--pres-safe, 24px) !important;
+    padding-bottom: calc(var(--pres-safe, 24px) + var(--pres-reserve-bottom, 0px)) !important;
     width: 100vw !important;
     height: 100vh !important;
     overflow: hidden !important;
@@ -48,8 +51,11 @@
     height: 100% !important;
     min-width: 0 !important;
     align-items: stretch !important;
-    transform: none !important;
+    /* déplacement manuel (pan) pour caler le plateau dans le cadre projeté */
+    transform: translate(var(--pres-pan-x, 0px), var(--pres-pan-y, 0px)) !important;
   }
+  body.presentation-mode.pres-panning #board { cursor: grabbing !important; }
+  body.presentation-mode.pres-panmode #board { cursor: grab; }
   body.presentation-mode .class-column {
     flex: 1 1 0 !important;
     min-width: 0 !important;
@@ -257,12 +263,26 @@
   var built = false;
   var zoom = 1;
   var safePct = 2;            // marge de sécurité (overscan) en % de la plus petite dimension écran
+  var panX = 0, panY = 0;     // déplacement manuel du plateau (px) pour caler dans le cadre projeté
+  var reserveBottom = 0;      // espace réservé en bas (px) pour passer au-dessus de la barre du tableau
   var lastSort = { type: null, dir: 'asc' };
   var resizeRAF = null;
   var palettes = {};         // id -> element
   var dockButtons = {};      // id -> bouton du dock
 
   function isOn() { return document.body.classList.contains('presentation-mode'); }
+
+  // -------------------- déplacement (pan) + réserve en bas --------------------
+  function applyPan() {
+    var r = document.documentElement.style;
+    r.setProperty('--pres-pan-x', panX + 'px');
+    r.setProperty('--pres-pan-y', panY + 'px');
+  }
+  function applyReserve() {
+    document.documentElement.style.setProperty('--pres-reserve-bottom', reserveBottom + 'px');
+    fit();
+  }
+  function recenter() { panX = 0; panY = 0; reserveBottom = 0; applyPan(); applyReserve(); }
 
   // -------------------- ENTRÉE / SORTIE --------------------
   function enter() {
@@ -277,8 +297,10 @@
     document.body.classList.remove('presentation-mode');
     window.removeEventListener('resize', onResize);
     try { if (document.fullscreenElement) document.exitFullscreen(); } catch (e) {}
+    document.body.classList.remove('pres-panning', 'pres-panmode');
     var r = document.documentElement.style;
     r.removeProperty('--pres-row'); r.removeProperty('--pres-font'); r.removeProperty('--pres-safe');
+    r.removeProperty('--pres-pan-x'); r.removeProperty('--pres-pan-y'); r.removeProperty('--pres-reserve-bottom');
     // on enlève les estompages de recherche éventuels
     qsa('.student-card.pres-dim, .student-card.pres-hit').forEach(function (c) { c.classList.remove('pres-dim', 'pres-hit'); });
   }
@@ -301,7 +323,7 @@
     document.documentElement.style.setProperty('--pres-safe', safe + 'px');
 
     var headerReserve = 56;  // en-tête de colonne (nom + décompte)
-    var avail = window.innerHeight - safe * 2 - headerReserve - 10;
+    var avail = window.innerHeight - safe * 2 - reserveBottom - headerReserve - 10;
     var perCard = (avail / maxCards) * zoom;
     perCard = Math.max(13, Math.min(48, perCard));
     var font = Math.max(9, Math.min(28, perCard * 0.58));
@@ -461,6 +483,26 @@
     exitBtn.addEventListener('click', exit);
     document.body.appendChild(exitBtn);
 
+    // Glisser le FOND du plateau (zone vide, hors carte) pour le déplacer et le
+    // caler dans le cadre projeté. Les cartes gardent leur drag/échange propre.
+    var boardEl = qs('#board');
+    if (boardEl) {
+      var panning = false, psx, psy, p0x, p0y;
+      boardEl.addEventListener('mousedown', function (e) {
+        if (e.button !== 0) return;
+        if (e.target.closest('.student-card, button, .pres-palette, .pres-dock')) return;
+        panning = true; psx = e.clientX; psy = e.clientY; p0x = panX; p0y = panY;
+        document.body.classList.add('pres-panning'); e.preventDefault();
+      });
+      document.addEventListener('mousemove', function (e) {
+        if (!panning) return;
+        panX = p0x + (e.clientX - psx); panY = p0y + (e.clientY - psy); applyPan();
+      });
+      document.addEventListener('mouseup', function () {
+        if (panning) { panning = false; document.body.classList.remove('pres-panning'); }
+      });
+    }
+
     // ---- Palette TRI ----
     makePalette('palTri', '🔤 Tri (toutes les classes)', 80, 90, function (body) {
       var row = ce('div', 'pres-row');
@@ -527,6 +569,35 @@
       slider.addEventListener('input', function () { safePct = parseFloat(slider.value); sval.textContent = safePct + ' %'; fit(); });
       sl.appendChild(slider); sl.appendChild(sval);
       body.appendChild(sl);
+
+      // ---- Déplacement manuel (caler le plateau dans le cadre projeté) ----
+      body.appendChild(ce('div', 'pres-hint', '<b>Position du plateau</b> (caler dans l\'écran) :'));
+      var pad = ce('div'); pad.style.cssText = 'display:grid;grid-template-columns:repeat(3,34px);gap:4px;justify-content:center;margin:6px 0;';
+      var STEP = 24;
+      function nudge(dx, dy) { panX += dx; panY += dy; applyPan(); }
+      [['', null], ['▲', [0, -1]], ['', null],
+       ['◀', [-1, 0]], ['◉', 'c'], ['▶', [1, 0]],
+       ['', null], ['▼', [0, 1]], ['', null]].forEach(function (cell) {
+        if (cell[1] === null) { pad.appendChild(ce('span')); return; }
+        var b = ce('button', 'pres-btn', cell[0]); b.style.padding = '6px 0';
+        if (cell[1] === 'c') { b.title = 'Recentrer'; b.addEventListener('click', function () { recenter(); slider.value = String(safePct); sval.textContent = safePct + ' %'; rsl.value = '0'; rval.textContent = '0 %'; }); }
+        else b.addEventListener('click', function () { nudge(cell[1][0] * STEP, cell[1][1] * STEP); });
+        pad.appendChild(b);
+      });
+      body.appendChild(pad);
+      body.appendChild(ce('div', 'pres-hint', 'Astuce : on peut aussi <b>glisser le fond</b> du plateau à la souris.'));
+
+      // ---- Réserve en bas (passer au-dessus de la barre du tableau) ----
+      var rs = ce('div'); rs.style.marginTop = '10px';
+      rs.appendChild(ce('div', 'pres-hint', 'Réserve en bas (barre / rail du tableau) :'));
+      var rsl = ce('input', 'pres-slider'); rsl.type = 'range'; rsl.min = '0'; rsl.max = '25'; rsl.step = '1'; rsl.value = '0';
+      var rval = ce('span', 'pres-hint', '0 %');
+      rsl.addEventListener('input', function () {
+        var pct = parseFloat(rsl.value); rval.textContent = pct + ' %';
+        reserveBottom = Math.round(window.innerHeight * pct / 100); applyReserve();
+      });
+      rs.appendChild(rsl); rs.appendChild(rval);
+      body.appendChild(rs);
     });
 
     // ---- Palette ÉCHANGER ----
