@@ -1,0 +1,595 @@
+<!--
+  ===================================================================
+  INTERFACEV2_PRESENTATIONMODE.HTML  —  Mode Présentation (branche 2027)
+  ===================================================================
+  Objectif : un mode SCÉNIQUE pour vidéoprojecteur en conseil de classe.
+   - Plein écran navigateur (requestFullscreen) + masquage TOTAL de la barre
+     d'en-tête  →  le plateau prend 100vh : plus de débordement « en haut ».
+   - « fit-to-screen » : TOUTES les colonnes de classes + TOUS les noms tiennent
+     à l'écran, taille des cartes calculée automatiquement.
+   - Marge de sécurité réglable (overscan) pour les projecteurs qui rognent.
+   - Cartes épurées : NOM (gros) + uniquement ce qui BLOQUE un placement
+     (LV2, option, FIXE, DÉFENSE). Scores / dispositif / DISSO / ASSO masqués.
+   - Outils en PALETTES FLOTTANTES détachables (glisser / réduire / fermer),
+     reprenant ce que portaient les en-têtes : Tri (Nom/LV2/OPT/COM), Effectifs
+     & Parité, Recherche/Filtre, Affichage (zoom + marge), Échanger.
+  100 % additif et réversible : aucune logique du mode travail n'est modifiée.
+  ===================================================================
+-->
+<style>
+  /* ====================== ÉTAT PRÉSENTATION ====================== */
+  body.presentation-mode { overflow: hidden !important; background: #0b1220 !important; }
+
+  /* On masque toute la « chrome » qui mange l'écran / fait déborder l'image */
+  body.presentation-mode #mainHeader,
+  body.presentation-mode #feedbackPanel,
+  body.presentation-mode #statsPanel,
+  body.presentation-mode #swapContextBar,
+  body.presentation-mode .save-progress { display: none !important; }
+
+  body.presentation-mode main {
+    margin: 0 !important;
+    padding: var(--pres-safe, 24px) !important;   /* marge de sécurité overscan */
+    width: 100vw !important;
+    height: 100vh !important;
+    overflow: hidden !important;
+    box-sizing: border-box !important;
+    background: #0b1220 !important;
+  }
+  /* Le wrapper visuel du plateau ne doit plus rien contraindre */
+  body.presentation-mode main > div { padding: 0 !important; background: transparent !important; box-shadow: none !important; height: 100% !important; }
+
+  /* ---- Plateau : toutes les colonnes côte à côte, partagées équitablement ---- */
+  body.presentation-mode #board {
+    display: flex !important;
+    flex-wrap: nowrap !important;
+    gap: 8px !important;
+    width: 100% !important;
+    height: 100% !important;
+    min-width: 0 !important;
+    align-items: stretch !important;
+    transform: none !important;
+  }
+  body.presentation-mode .class-column {
+    flex: 1 1 0 !important;
+    min-width: 0 !important;
+    max-width: none !important;
+    display: flex !important;
+    flex-direction: column !important;
+    height: 100% !important;
+    background: #111827 !important;
+    border: 1px solid #243044 !important;
+    border-radius: 10px !important;
+    overflow: hidden !important;
+    margin: 0 !important;
+  }
+
+  /* ---- En-tête de colonne allégé : NOM de classe + décompte + parité ---- */
+  /*      (les boutons de tri partent dans la palette flottante « Tri »)     */
+  body.presentation-mode .sort-buttons { display: none !important; }
+  body.presentation-mode .class-header {
+    padding: 6px 10px !important;
+    background: #0f172a !important;
+    border-bottom: 2px solid #3b82f6 !important;
+    border-radius: 0 !important;
+  }
+  body.presentation-mode .classe-name {
+    font-size: clamp(15px, 1.7vw, 24px) !important;
+    color: #ffffff !important;
+    font-weight: 900 !important;
+    letter-spacing: 0.02em !important;
+    margin: 0 !important;
+  }
+  body.presentation-mode .class-counts {
+    font-size: clamp(11px, 1.1vw, 15px) !important;
+    color: #cbd5e1 !important;
+    font-weight: 700 !important;
+  }
+
+  /* ---- Zone des cartes : remplit la hauteur, sans débordement (auto en secours) ---- */
+  body.presentation-mode .droppable-zone {
+    flex: 1 1 auto !important;
+    overflow-y: auto !important;
+    overflow-x: hidden !important;
+    padding: 3px 5px !important;
+    display: flex !important;
+    flex-direction: column !important;
+    gap: 2px !important;
+  }
+  body.presentation-mode .droppable-zone::-webkit-scrollbar { width: 6px; }
+  body.presentation-mode .droppable-zone::-webkit-scrollbar-thumb { background: #334155; border-radius: 3px; }
+
+  /* ---- Carte : NOM en gros, sur une seule ligne avec les badges bloquants ---- */
+  body.presentation-mode .student-card {
+    display: flex !important;
+    flex-direction: row !important;
+    align-items: center !important;
+    gap: 8px !important;
+    min-height: var(--pres-row, 24px) !important;
+    padding: 2px 9px !important;
+    margin: 0 !important;
+    opacity: 1 !important;
+    border-radius: 5px !important;
+    border-width: 1px !important;
+  }
+  body.presentation-mode .student-card .card-line,
+  body.presentation-mode .student-card .card-line-1,
+  body.presentation-mode .student-card .card-line-2 {
+    margin: 0 !important;
+    height: auto !important;
+    display: inline-flex !important;
+    align-items: center !important;
+  }
+  body.presentation-mode .student-fullname {
+    font-size: var(--pres-font, 15px) !important;
+    font-weight: 800 !important;
+    line-height: 1.08 !important;
+    white-space: nowrap !important;
+    overflow: hidden !important;
+    text-overflow: ellipsis !important;
+  }
+
+  /* On retire tout ce qui NE bloque PAS un placement */
+  body.presentation-mode .student-card .source-class,
+  body.presentation-mode .student-card .scores,
+  body.presentation-mode .student-card .score-pill,
+  body.presentation-mode .student-card .badge-dispo,
+  body.presentation-mode .student-card .badge-disso,
+  body.presentation-mode .student-card .badge-asso,
+  body.presentation-mode .student-card .card-line-3 { display: none !important; }
+
+  /* On GARDE et on met à l'échelle : LV2 / option / FIXE / DÉFENSE */
+  body.presentation-mode .student-card .mini-badge {
+    height: calc(var(--pres-font, 15px) * 1.3) !important;
+    font-size: calc(var(--pres-font, 15px) * 0.72) !important;
+    padding: 0 6px !important;
+    border: 1px solid rgba(0, 0, 0, 0.25) !important;
+  }
+
+  /* Recherche / filtre : on estompe les non-correspondants, on cible les hits */
+  body.presentation-mode .student-card.pres-dim { opacity: 0.16 !important; filter: grayscale(1); }
+  body.presentation-mode .student-card.pres-hit { outline: 3px solid #f59e0b !important; outline-offset: -1px; }
+
+  /* ====================== OUTILS FLOTTANTS ====================== */
+  /* Cachés hors mode présentation */
+  body:not(.presentation-mode) .pres-dock,
+  body:not(.presentation-mode) .pres-palette,
+  body:not(.presentation-mode) #presExitBtn { display: none !important; }
+
+  /* Dock vertical d'icônes (bord droit) */
+  .pres-dock {
+    position: fixed; top: 50%; right: 10px; transform: translateY(-50%);
+    z-index: 90000; display: flex; flex-direction: column; gap: 8px;
+    background: rgba(15, 23, 42, 0.85); padding: 8px; border-radius: 14px;
+    box-shadow: 0 10px 30px rgba(0, 0, 0, 0.5); backdrop-filter: blur(4px);
+  }
+  .pres-dock button {
+    width: 46px; height: 46px; border-radius: 11px; border: none; cursor: pointer;
+    background: #1e293b; color: #e2e8f0; font-size: 18px;
+    display: flex; align-items: center; justify-content: center;
+    transition: background 0.15s, transform 0.1s;
+  }
+  .pres-dock button:hover { background: #334155; transform: scale(1.06); }
+  .pres-dock button.active { background: #2563eb; color: #fff; box-shadow: 0 0 14px rgba(37, 99, 235, 0.6); }
+  .pres-dock .pres-dock-label { font-size: 8.5px; line-height: 1; margin-top: 2px; font-weight: 700; letter-spacing: 0.02em; }
+  .pres-dock button { flex-direction: column; gap: 1px; }
+
+  /* Bouton Quitter (toujours visible) */
+  #presExitBtn {
+    position: fixed; top: 12px; right: 12px; z-index: 90002;
+    background: #dc2626; color: #fff; border: none; cursor: pointer;
+    padding: 9px 14px; border-radius: 10px; font-weight: 800; font-size: 14px;
+    box-shadow: 0 6px 18px rgba(220, 38, 38, 0.5);
+    display: flex; align-items: center; gap: 7px;
+  }
+  #presExitBtn:hover { background: #b91c1c; }
+
+  /* Palettes flottantes (fenêtres déplaçables) */
+  .pres-palette {
+    position: fixed; z-index: 90001; min-width: 220px; max-width: 360px;
+    background: #ffffff; border-radius: 12px; overflow: hidden;
+    box-shadow: 0 16px 44px rgba(0, 0, 0, 0.55); border: 1px solid #cbd5e1;
+    font-family: 'Inter', system-ui, sans-serif; color: #0f172a;
+  }
+  .pres-palette.minimized .pres-palette-body { display: none; }
+  .pres-palette-head {
+    background: linear-gradient(135deg, #1e3a8a, #2563eb); color: #fff;
+    padding: 9px 12px; font-weight: 800; font-size: 14px; cursor: grab;
+    display: flex; align-items: center; justify-content: space-between; user-select: none;
+  }
+  .pres-palette-btns { display: flex; gap: 4px; }
+  .pres-ico {
+    width: 22px; height: 22px; border: none; border-radius: 6px; cursor: pointer;
+    background: rgba(255, 255, 255, 0.2); color: #fff; font-size: 15px; line-height: 1;
+    display: flex; align-items: center; justify-content: center;
+  }
+  .pres-ico:hover { background: rgba(255, 255, 255, 0.38); }
+  .pres-palette-body { padding: 12px; max-height: 64vh; overflow-y: auto; }
+
+  /* Boutons internes des palettes */
+  .pres-palette-body .pres-row { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 8px; }
+  .pres-btn {
+    border: 1px solid #cbd5e1; background: #f1f5f9; color: #1e293b;
+    padding: 7px 11px; border-radius: 8px; cursor: pointer; font-weight: 700; font-size: 13px;
+  }
+  .pres-btn:hover { background: #e2e8f0; }
+  .pres-btn.active { background: #2563eb; color: #fff; border-color: #1d4ed8; }
+  .pres-btn.com-active { background: #dc2626 !important; color: #fff !important; border-color: #b91c1c !important; }
+  .pres-input {
+    width: 100%; box-sizing: border-box; padding: 8px 10px; border: 1px solid #cbd5e1;
+    border-radius: 8px; font-size: 14px; margin-bottom: 8px;
+  }
+  .pres-hint { font-size: 11.5px; color: #64748b; margin-top: 4px; }
+
+  /* Tableau Effectifs & Parité */
+  .pres-stats-table { width: 100%; border-collapse: collapse; font-size: 13px; }
+  .pres-stats-table th, .pres-stats-table td { padding: 4px 6px; text-align: center; border-bottom: 1px solid #e2e8f0; }
+  .pres-stats-table th { background: #f1f5f9; font-weight: 800; color: #334155; }
+  .pres-stats-table td.pn { text-align: left; font-weight: 800; }
+  .pres-stats-table td.cf { color: #db2777; font-weight: 800; }
+  .pres-stats-table td.cm { color: #2563eb; font-weight: 800; }
+  .pres-parbar { display: inline-flex; width: 64px; height: 12px; border-radius: 6px; overflow: hidden; border: 1px solid #cbd5e1; }
+  .pres-parbar i { display: block; height: 100%; }
+  .pres-parbar .pf { background: #ec4899; }
+  .pres-parbar .pm { background: #3b82f6; }
+
+  .pres-zoomval { font-weight: 800; min-width: 48px; text-align: center; display: inline-block; }
+  .pres-slider { width: 100%; }
+</style>
+
+<script>
+(function () {
+  'use strict';
+
+  // -------------------- petits utilitaires --------------------
+  function qs(sel, root) { return (root || document).querySelector(sel); }
+  function qsa(sel, root) { return Array.prototype.slice.call((root || document).querySelectorAll(sel)); }
+  function ce(tag, cls, html) { var e = document.createElement(tag); if (cls) e.className = cls; if (html != null) e.innerHTML = html; return e; }
+  function esc(s) { return String(s == null ? '' : s).replace(/[&<>"]/g, function (c) { return ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' })[c]; }); }
+  function student(card) { return (window.STATE && STATE.students && STATE.students[card.dataset.id]) || {}; }
+  function notify(msg) { if (typeof window.toast === 'function') { try { toast(msg, 'info'); return; } catch (e) {} } }
+
+  var built = false;
+  var zoom = 1;
+  var safePct = 2;            // marge de sécurité (overscan) en % de la plus petite dimension écran
+  var lastSort = { type: null, dir: 'asc' };
+  var resizeRAF = null;
+  var palettes = {};         // id -> element
+  var dockButtons = {};      // id -> bouton du dock
+
+  function isOn() { return document.body.classList.contains('presentation-mode'); }
+
+  // -------------------- ENTRÉE / SORTIE --------------------
+  function enter() {
+    document.body.classList.add('presentation-mode');
+    build();
+    try { if (document.documentElement.requestFullscreen && !document.fullscreenElement) document.documentElement.requestFullscreen(); } catch (e) {}
+    fit();
+    window.addEventListener('resize', onResize);
+    notify('Mode Présentation — Échap pour quitter');
+  }
+  function exit() {
+    document.body.classList.remove('presentation-mode');
+    window.removeEventListener('resize', onResize);
+    try { if (document.fullscreenElement) document.exitFullscreen(); } catch (e) {}
+    var r = document.documentElement.style;
+    r.removeProperty('--pres-row'); r.removeProperty('--pres-font'); r.removeProperty('--pres-safe');
+    // on enlève les estompages de recherche éventuels
+    qsa('.student-card.pres-dim, .student-card.pres-hit').forEach(function (c) { c.classList.remove('pres-dim', 'pres-hit'); });
+  }
+  function toggle() { isOn() ? exit() : enter(); }
+  window.togglePresentationMode = toggle;
+
+  function onResize() { if (resizeRAF) cancelAnimationFrame(resizeRAF); resizeRAF = requestAnimationFrame(fit); }
+
+  // -------------------- FIT-TO-SCREEN --------------------
+  // Tout doit tenir : colonnes partagées en flex (largeur), cartes mises à
+  // l'échelle (hauteur) d'après la colonne la plus peuplée.
+  function fit() {
+    if (!isOn()) return;
+    var board = qs('#board'); if (!board) return;
+    var maxCards = 1;
+    qsa('.class-column', board).forEach(function (c) {
+      var n = qsa('.student-card', c).length; if (n > maxCards) maxCards = n;
+    });
+    var safe = Math.round(Math.min(window.innerWidth, window.innerHeight) * safePct / 100);
+    document.documentElement.style.setProperty('--pres-safe', safe + 'px');
+
+    var headerReserve = 56;  // en-tête de colonne (nom + décompte)
+    var avail = window.innerHeight - safe * 2 - headerReserve - 10;
+    var perCard = (avail / maxCards) * zoom;
+    perCard = Math.max(13, Math.min(48, perCard));
+    var font = Math.max(9, Math.min(28, perCard * 0.58));
+    document.documentElement.style.setProperty('--pres-row', perCard + 'px');
+    document.documentElement.style.setProperty('--pres-font', font + 'px');
+  }
+
+  // -------------------- panneau flottant générique --------------------
+  function makeFloatable(panel, handle) {
+    var dragging = false, sx, sy, sl, st;
+    handle.addEventListener('mousedown', function (e) {
+      if (e.target.closest('button')) return;
+      dragging = true;
+      var r = panel.getBoundingClientRect();
+      sx = e.clientX; sy = e.clientY; sl = r.left; st = r.top;
+      panel.style.left = sl + 'px'; panel.style.top = st + 'px'; panel.style.right = 'auto';
+      handle.style.cursor = 'grabbing'; e.preventDefault();
+    });
+    document.addEventListener('mousemove', function (e) {
+      if (!dragging) return;
+      panel.style.left = Math.max(0, Math.min(window.innerWidth - 60, sl + e.clientX - sx)) + 'px';
+      panel.style.top = Math.max(0, Math.min(window.innerHeight - 30, st + e.clientY - sy)) + 'px';
+    });
+    document.addEventListener('mouseup', function () { if (dragging) { dragging = false; handle.style.cursor = 'grab'; } });
+  }
+
+  function makePalette(id, title, x, y, bodyBuilder) {
+    var p = ce('div', 'pres-palette'); p.id = id; p.style.display = 'none';
+    p.style.left = x + 'px'; p.style.top = y + 'px';
+    var head = ce('div', 'pres-palette-head', '<span>' + title + '</span>');
+    var btns = ce('div', 'pres-palette-btns');
+    var mini = ce('button', 'pres-ico', '&minus;'); mini.title = 'Réduire';
+    var close = ce('button', 'pres-ico', '&times;'); close.title = 'Fermer';
+    mini.addEventListener('click', function () { p.classList.toggle('minimized'); });
+    close.addEventListener('click', function () { p.style.display = 'none'; syncDock(); });
+    btns.appendChild(mini); btns.appendChild(close); head.appendChild(btns);
+    var body = ce('div', 'pres-palette-body');
+    bodyBuilder(body);
+    p.appendChild(head); p.appendChild(body);
+    document.body.appendChild(p);
+    makeFloatable(p, head);
+    palettes[id] = p;
+    return p;
+  }
+
+  function togglePalette(id) {
+    var p = palettes[id]; if (!p) return;
+    p.style.display = (p.style.display === 'none') ? 'block' : 'none';
+    if (id === 'palStats' && p.style.display === 'block') buildStats(qs('.pres-palette-body', p));
+    syncDock();
+  }
+  function syncDock() {
+    Object.keys(dockButtons).forEach(function (id) {
+      var p = palettes[id];
+      dockButtons[id].classList.toggle('active', !!p && p.style.display !== 'none');
+    });
+  }
+
+  // -------------------- TRI global (reprend les en-têtes) --------------------
+  function sortAll(type) {
+    var dir = (lastSort.type === type && lastSort.dir === 'asc') ? 'desc' : 'asc';
+    lastSort = { type: type, dir: dir };
+    var f = dir === 'asc' ? 1 : -1;
+    qsa('.droppable-zone').forEach(function (zone) {
+      var cards = qsa('.student-card', zone);
+      cards.sort(function (ca, cb) {
+        var a = student(ca), b = student(cb);
+        switch (type) {
+          case 'name': return f * String(a.nom || '').localeCompare(String(b.nom || ''));
+          case 'lv2': {
+            var o = ['ESP', 'ITA', 'ALL', 'LATIN', 'GRECO'];
+            var ia = o.indexOf(String(a.lv2 || '').toUpperCase()), ib = o.indexOf(String(b.lv2 || '').toUpperCase());
+            return f * ((ia < 0 ? 99 : ia) - (ib < 0 ? 99 : ib));
+          }
+          case 'option': {
+            if (!a.opt && !b.opt) return 0; if (!a.opt) return f; if (!b.opt) return -f;
+            return f * String(a.opt).localeCompare(String(b.opt));
+          }
+          case 'score': {
+            var sa = (a.scores && a.scores.COM) || 0, sb = (b.scores && b.scores.COM) || 0;
+            return -f * (sb - sa);   // meilleurs en haut au 1er clic
+          }
+        }
+        return 0;
+      });
+      // appendChild RÉORDONNE sans détacher → conserve les refs SortableJS
+      cards.forEach(function (c) { zone.appendChild(c); });
+      try {
+        if (window.Sortable && Sortable.get) {
+          var s = Sortable.get(zone);
+          if (s && s.sort) s.sort(cards.map(function (c) { return c.dataset.id; }), false);
+        }
+      } catch (e) {}
+    });
+    // état visuel des boutons (COM en ROUGE quand actif, rappel des en-têtes)
+    qsa('#palTri .pres-btn').forEach(function (b) {
+      var on = b.dataset.sort === type;
+      b.classList.toggle('active', on && type !== 'score');
+      b.classList.toggle('com-active', on && type === 'score');
+      if (on) b.textContent = b.dataset.label + (dir === 'asc' ? ' ↑' : ' ↓');
+      else b.textContent = b.dataset.label;
+    });
+  }
+
+  // -------------------- Effectifs & Parité --------------------
+  function buildStats(body) {
+    var rows = '';
+    qsa('.class-column').forEach(function (col) {
+      var zone = qs('.droppable-zone', col); if (!zone) return;
+      var nameEl = qs('.classe-name', col);
+      var classe = (zone.dataset.classe) || (nameEl ? nameEl.textContent : '') || '?';
+      var cards = qsa('.student-card', zone);
+      var f = 0, m = 0;
+      cards.forEach(function (c) {
+        var sx = String(student(c).sexe || '').toUpperCase().charAt(0);
+        if (sx === 'F') f++; else if (sx === 'M' || sx === 'G' || sx === 'H') m++;
+      });
+      var t = cards.length;
+      var fp = t ? Math.round(f / t * 100) : 0, mp = 100 - fp;
+      rows += '<tr><td class="pn">' + esc(classe) + '</td><td>' + t + '</td>' +
+        '<td class="cf">' + f + '</td><td class="cm">' + m + '</td>' +
+        '<td><span class="pres-parbar"><i class="pf" style="width:' + fp + '%"></i><i class="pm" style="width:' + mp + '%"></i></span></td></tr>';
+    });
+    body.innerHTML = '<table class="pres-stats-table"><thead><tr><th>Classe</th><th>Tot</th>' +
+      '<th>F</th><th>M</th><th>Parité</th></tr></thead><tbody>' + rows + '</tbody></table>' +
+      '<div class="pres-row" style="margin-top:8px"><button class="pres-btn" id="presStatsRefresh">↻ Rafraîchir</button></div>';
+    var rb = qs('#presStatsRefresh', body);
+    if (rb) rb.addEventListener('click', function () { buildStats(body); });
+  }
+
+  // -------------------- Recherche / filtre --------------------
+  function applySearch(text, filter) {
+    var q = String(text || '').trim().toLowerCase();
+    qsa('.student-card').forEach(function (c) {
+      var s = student(c);
+      var name = String(s.nom || '').toLowerCase() + ' ' + String(s.prenom || '').toLowerCase();
+      var okText = !q || name.indexOf(q) !== -1;
+      var okFilter = true;
+      if (filter) {
+        var lv2 = String(s.lv2 || '').toUpperCase(), opt = String(s.opt || '').toUpperCase();
+        var def = String(s.defense || '').toUpperCase();
+        okFilter = (filter === lv2) || (filter === opt) || (filter === 'DEFENSE' && def && def !== 'NON') ||
+          (filter === 'FIXE' && String(s.mobilite || '').toUpperCase() === 'FIXE');
+      }
+      c.classList.toggle('pres-dim', !(okText && okFilter));
+      c.classList.toggle('pres-hit', !!q && okText && okFilter);
+    });
+  }
+
+  // -------------------- construction des outils (une seule fois) --------------------
+  function build() {
+    if (built) return; built = true;
+
+    // Bouton Quitter
+    var exitBtn = ce('button', null, '<span style="font-size:16px">⤢</span> Quitter');
+    exitBtn.id = 'presExitBtn'; exitBtn.title = 'Quitter le mode Présentation (Échap)';
+    exitBtn.addEventListener('click', exit);
+    document.body.appendChild(exitBtn);
+
+    // ---- Palette TRI ----
+    makePalette('palTri', '🔤 Tri (toutes les classes)', 80, 90, function (body) {
+      var row = ce('div', 'pres-row');
+      [['name', 'Nom'], ['lv2', 'LV2'], ['option', 'OPT'], ['score', 'COM']].forEach(function (d) {
+        var b = ce('button', 'pres-btn', d[1]); b.dataset.sort = d[0]; b.dataset.label = d[1];
+        b.addEventListener('click', function () { sortAll(d[0]); });
+        row.appendChild(b);
+      });
+      body.appendChild(row);
+      body.appendChild(ce('div', 'pres-hint', 'Re-cliquer inverse l\'ordre. COM passe en rouge (pires en haut ↓).'));
+    });
+
+    // ---- Palette EFFECTIFS & PARITÉ ----
+    makePalette('palStats', '📊 Effectifs & Parité', 80, 300, function (body) { buildStats(body); });
+
+    // ---- Palette RECHERCHE / FILTRE ----
+    makePalette('palSearch', '🔎 Recherche & filtre', 80, 520, function (body) {
+      var inp = ce('input', 'pres-input'); inp.type = 'search'; inp.placeholder = 'Nom d\'élève…';
+      var current = { filter: null };
+      inp.addEventListener('input', function () { applySearch(inp.value, current.filter); });
+      body.appendChild(inp);
+      var row = ce('div', 'pres-row');
+      [['ESP', 'ESP'], ['ITA', 'ITA'], ['ALL', 'ALL'], ['LATIN', 'LATIN'], ['GREC', 'GREC'], ['CHAV', 'CHAV'], ['DEFENSE', 'DÉFENSE'], ['FIXE', 'FIXE']].forEach(function (d) {
+        var b = ce('button', 'pres-btn', d[1]);
+        b.addEventListener('click', function () {
+          if (current.filter === d[0]) { current.filter = null; b.classList.remove('active'); }
+          else {
+            current.filter = d[0];
+            qsa('.pres-btn', row).forEach(function (x) { x.classList.remove('active'); });
+            b.classList.add('active');
+          }
+          applySearch(inp.value, current.filter);
+        });
+        row.appendChild(b);
+      });
+      body.appendChild(row);
+      var clr = ce('button', 'pres-btn', '✕ Tout afficher');
+      clr.addEventListener('click', function () {
+        inp.value = ''; current.filter = null;
+        qsa('.pres-btn', row).forEach(function (x) { x.classList.remove('active'); });
+        applySearch('', null);
+      });
+      body.appendChild(clr);
+    });
+
+    // ---- Palette AFFICHAGE (zoom + marge de sécurité) ----
+    makePalette('palView', '⚙️ Affichage', 80, 730, function (body) {
+      var zr = ce('div', 'pres-row');
+      var zoomOut = ce('button', 'pres-btn', '−'); var zval = ce('span', 'pres-zoomval', '100%'); var zoomIn = ce('button', 'pres-btn', '+');
+      function applyZoom(nz) { zoom = Math.max(0.5, Math.min(2.5, nz)); zval.textContent = Math.round(zoom * 100) + '%'; fit(); }
+      zoomOut.addEventListener('click', function () { applyZoom(zoom / 1.1); });
+      zoomIn.addEventListener('click', function () { applyZoom(zoom * 1.1); });
+      zr.appendChild(ce('span', null, 'Zoom :&nbsp;')); zr.appendChild(zoomOut); zr.appendChild(zval); zr.appendChild(zoomIn);
+      body.appendChild(zr);
+
+      var allBtn = ce('button', 'pres-btn', '⤢ Tout voir (réinitialiser)');
+      allBtn.addEventListener('click', function () { applyZoom(1); });
+      body.appendChild(allBtn);
+
+      var sl = ce('div'); sl.style.marginTop = '10px';
+      sl.appendChild(ce('div', 'pres-hint', 'Marge de sécurité (projecteur qui rogne les bords) :'));
+      var slider = ce('input', 'pres-slider'); slider.type = 'range'; slider.min = '0'; slider.max = '6'; slider.step = '0.5'; slider.value = String(safePct);
+      var sval = ce('span', 'pres-hint', safePct + ' %');
+      slider.addEventListener('input', function () { safePct = parseFloat(slider.value); sval.textContent = safePct + ' %'; fit(); });
+      sl.appendChild(slider); sl.appendChild(sval);
+      body.appendChild(sl);
+    });
+
+    // ---- Palette ÉCHANGER ----
+    makePalette('palSwap', '🔁 Échanger', 80, 900, function (body) {
+      var st = ce('div', 'pres-hint', '');
+      var b = ce('button', 'pres-btn', 'Activer / désactiver le mode Échange');
+      function refresh() {
+        var on = !!(window.STATE && STATE.swapMode);
+        b.classList.toggle('active', on);
+        st.textContent = on ? 'Mode Échange ACTIF : cliquez 2 élèves pour les permuter.' : 'Mode Échange inactif.';
+      }
+      b.addEventListener('click', function () {
+        if (typeof window.toggleSwapMode === 'function') window.toggleSwapMode();
+        setTimeout(refresh, 30);
+      });
+      body.appendChild(b); body.appendChild(st); refresh();
+    });
+
+    // ---- DOCK d'icônes ----
+    var dock = ce('div', 'pres-dock'); dock.id = 'presDock';
+    var items = [
+      ['palTri', '🔤', 'Tri'],
+      ['palStats', '📊', 'Stats'],
+      ['palSearch', '🔎', 'Cherch.'],
+      ['palView', '⚙️', 'Vue'],
+      ['palSwap', '🔁', 'Échang.']
+    ];
+    items.forEach(function (it) {
+      var btn = ce('button', null, '<span>' + it[1] + '</span><span class="pres-dock-label">' + it[2] + '</span>');
+      btn.title = it[2];
+      btn.addEventListener('click', function () { togglePalette(it[0]); });
+      dock.appendChild(btn);
+      dockButtons[it[0]] = btn;
+    });
+    document.body.appendChild(dock);
+
+    // ouvre Tri + Stats par défaut
+    togglePalette('palTri'); togglePalette('palStats');
+  }
+
+  // -------------------- raccordements globaux --------------------
+  document.addEventListener('keydown', function (e) {
+    if (e.key === 'Escape' && isOn()) { exit(); }
+  });
+  // Si on sort du plein écran navigateur (Échap natif), on quitte aussi le mode.
+  document.addEventListener('fullscreenchange', function () {
+    if (!document.fullscreenElement && isOn()) exit();
+  });
+
+  // Bouton dans l'en-tête (injecté à côté de « Reunion » pour la découvrabilité)
+  function injectHeaderButton() {
+    if (qs('#btnPresentation')) return;
+    var ref = qs('#btnModeReunion');
+    if (!ref || !ref.parentNode) return;
+    var b = ce('button', 'header-btn flex items-center gap-1.5 rounded-lg tracking-[-0.03em] bg-indigo-600 text-white hover:bg-indigo-500 shadow-[0_4px_10px_rgba(0,0,0,0.15)]');
+    b.id = 'btnPresentation';
+    b.title = 'Mode Présentation plein écran pour vidéoprojecteur';
+    b.innerHTML = '<i class="fas fa-chalkboard text-sm opacity-90"></i><span>Présentation</span>';
+    b.addEventListener('click', toggle);
+    ref.parentNode.insertBefore(b, ref.nextSibling);
+  }
+
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', injectHeaderButton);
+  } else {
+    injectHeaderButton();
+  }
+  // filet : ré-essayer si le header est rendu tardivement
+  setTimeout(injectHeaderButton, 1200);
+})();
+</script>
