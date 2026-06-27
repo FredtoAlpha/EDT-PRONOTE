@@ -178,19 +178,28 @@
   /* Barre de navigation Focus (haut, centrée) */
   #presFocusBar {
     position: fixed; top: 12px; left: 50%; transform: translateX(-50%); z-index: 90002;
-    display: none; align-items: center; gap: 10px;
-    background: rgba(15, 23, 42, 0.92); color: #fff; padding: 8px 12px; border-radius: 12px;
+    display: none; align-items: center; gap: 8px; flex-wrap: wrap; justify-content: center;
+    max-width: 94vw;
+    background: rgba(15, 23, 42, 0.94); color: #fff; padding: 8px 12px; border-radius: 12px;
     box-shadow: 0 8px 24px rgba(0, 0, 0, 0.5); font-family: 'Inter', system-ui, sans-serif;
   }
   body.presentation-mode.pres-focus #presFocusBar { display: flex; }
-  #presFocusBar button {
-    border: none; cursor: pointer; background: #1e293b; color: #fff;
-    width: 38px; height: 38px; border-radius: 9px; font-size: 18px; font-weight: 900;
+  #presFocusBar .pf-cap { font-weight: 800; font-size: 13px; opacity: 0.85; }
+  #presFocusBar .pf-chips { display: flex; flex-wrap: wrap; gap: 6px; }
+  /* Pastilles de choix de classe */
+  #presFocusBar .pf-chip {
+    border: 2px solid #334155; cursor: pointer; background: #1e293b; color: #cbd5e1;
+    height: 34px; padding: 0 12px; border-radius: 9px; font-size: 14px; font-weight: 800;
   }
-  #presFocusBar button:hover { background: #334155; }
-  #presFocusBar .pf-label { font-weight: 900; font-size: 16px; min-width: 130px; text-align: center; }
-  #presFocusBar .pf-exit { background: #2563eb; width: auto; padding: 0 12px; font-size: 13px; font-weight: 800; }
-  #presFocusBar button.active { background: #dc2626 !important; }
+  #presFocusBar .pf-chip:hover { background: #334155; }
+  #presFocusBar .pf-chip.active { background: #2563eb; color: #fff; border-color: #60a5fa; }
+  /* Boutons d'action (Échanger / Vue d'ensemble) */
+  #presFocusBar .pf-exit {
+    border: none; cursor: pointer; background: #2563eb; color: #fff;
+    height: 34px; padding: 0 12px; border-radius: 9px; font-size: 13px; font-weight: 800;
+  }
+  #presFocusBar .pf-exit:hover { filter: brightness(1.1); }
+  #presFocusBar .pf-exit.active { background: #dc2626 !important; }
 
   /* ====================== OUTILS FLOTTANTS ====================== */
   /* Cachés hors mode présentation */
@@ -306,48 +315,58 @@
   var reserveBottom = 0;      // espace réservé en bas (px) pour passer au-dessus de la barre du tableau
   var lastSort = { type: null, dir: 'asc' };
   var balanceCrit = 'COM';   // critère affiché dans le tableau d'équilibre (COM | TRA)
-  var focusOn = false;       // Mode Focus : une classe à l'écran, en grand
-  var focusIdx = 0;          // index de la classe affichée en Focus
+  var focusOn = false;       // Mode Focus : classes choisies, côte à côte
+  var focusSel = [];         // noms des classes affichées en Focus (choix du prof)
   var resizeRAF = null;
   var palettes = {};         // id -> element
   var dockButtons = {};      // id -> bouton du dock
 
   function isOn() { return document.body.classList.contains('presentation-mode'); }
 
-  // -------------------- MODE FOCUS --------------------
+  // -------------------- MODE FOCUS (sélection libre de classes) --------------------
+  // Le prof choisit QUELLES classes afficher côte à côte (2, 3, autant qu'il
+  // veut) via des pastilles. Les autres sont masquées. Échanges possibles entre
+  // toutes les classes affichées.
   function focusColumns() { return qsa('#board .class-column'); }
-  function enterFocus() { focusOn = true; document.body.classList.add('pres-focus'); applyFocus(); }
+  function classeOf(col) {
+    var z = qs('.droppable-zone', col);
+    if (z && z.dataset.classe) return z.dataset.classe;
+    var n = qs('.classe-name', col); return n ? n.textContent.trim() : '';
+  }
+  function enterFocus() {
+    focusOn = true; document.body.classList.add('pres-focus');
+    var cols = focusColumns();
+    if (!focusSel.length) focusSel = cols.slice(0, 2).map(classeOf).filter(Boolean); // défaut : 2 premières
+    buildFocusChips();
+    applyFocus();
+  }
   function exitFocus() {
     focusOn = false; document.body.classList.remove('pres-focus');
     focusColumns().forEach(function (c) { c.classList.remove('pres-hidden'); });
-    document.documentElement.style.removeProperty('--focus-cols');
     syncDock(); fit();
   }
   function toggleFocus() { focusOn ? exitFocus() : enterFocus(); }
-  function focusNav(delta) {
-    var cols = focusColumns(); if (!cols.length) return;
-    var maxStart = Math.max(0, cols.length - 2);   // fenêtre de 2, sans rebouclage
-    focusIdx = Math.min(maxStart, Math.max(0, focusIdx + delta));
-    applyFocus();
+  function toggleFocusClasse(name) {
+    var i = focusSel.indexOf(name);
+    if (i >= 0) focusSel.splice(i, 1); else focusSel.push(name);
+    buildFocusChips(); applyFocus();
   }
+  function selectedFocus(cols) { return focusSel.length ? focusSel : cols.map(classeOf); }
   function applyFocus() {
     var cols = focusColumns(); if (!cols.length) return;
-    var len = cols.length, maxStart = Math.max(0, len - 2);
-    if (focusIdx > maxStart) focusIdx = maxStart;
-    if (focusIdx < 0) focusIdx = 0;
-    cols.forEach(function (c, i) {
-      var show = (i === focusIdx) || (len >= 2 && i === focusIdx + 1);
-      c.classList.toggle('pres-hidden', !show);
-    });
-    var lbl = qs('#presFocusBar .pf-label');
-    if (lbl) {
-      var n1 = qs('.classe-name', cols[focusIdx]);
-      var second = cols[focusIdx + 1];
-      var n2 = second ? qs('.classe-name', second) : null;
-      lbl.textContent = (n1 ? n1.textContent : '?') + (n2 ? '  ↔  ' + n2.textContent : '') +
-        '   (' + (focusIdx + 1) + (n2 ? '-' + (focusIdx + 2) : '') + '/' + len + ')';
-    }
+    var sel = selectedFocus(cols); // si rien de coché, on montre tout (pas d'écran vide)
+    cols.forEach(function (c) { c.classList.toggle('pres-hidden', sel.indexOf(classeOf(c)) === -1); });
     syncDock(); fit();
+  }
+  function buildFocusChips() {
+    var cont = qs('#presFocusChips'); if (!cont) return;
+    cont.innerHTML = '';
+    focusColumns().forEach(function (c) {
+      var name = classeOf(c); if (!name) return;
+      var chip = ce('button', 'pf-chip' + (focusSel.indexOf(name) >= 0 ? ' active' : ''), esc(name));
+      chip.addEventListener('click', function () { toggleFocusClasse(name); });
+      cont.appendChild(chip);
+    });
   }
 
   // -------------------- déplacement (pan) + réserve en bas --------------------
@@ -405,14 +424,13 @@
     var root = document.documentElement.style;
 
     if (focusOn) {
-      // Deux classes côte à côte : on dimensionne les cartes d'après la plus
-      // peuplée des deux classes visibles (tout visible, sans scroll).
+      // Classes choisies côte à côte : cartes dimensionnées d'après la plus
+      // peuplée des classes AFFICHÉES (tout visible, sans scroll).
       var cols = focusColumns();
+      var sel = selectedFocus(cols);
       var maxV = 1;
-      cols.forEach(function (c, i) {
-        if (i === focusIdx || i === focusIdx + 1) {
-          var n = qsa('.student-card', c).length; if (n > maxV) maxV = n;
-        }
+      cols.forEach(function (c) {
+        if (sel.indexOf(classeOf(c)) >= 0) { var n = qsa('.student-card', c).length; if (n > maxV) maxV = n; }
       });
       var availF = window.innerHeight - safe * 2 - reserveBottom - 60 - 12;
       var perF = Math.max(16, Math.min(44, (availF / maxV) * zoom));
@@ -815,19 +833,16 @@
 
     // Barre de navigation Focus (◀ classe ▶ + sortie)
     var fb = ce('div'); fb.id = 'presFocusBar';
-    var prev = ce('button', null, '◀'); prev.title = 'Paire précédente (←)';
-    var lab = ce('span', 'pf-label', '');
-    var next = ce('button', null, '▶'); next.title = 'Paire suivante (→)';
-    var swp = ce('button', 'pf-exit', '🔁 Échanger'); swp.title = 'Activer l\'échange entre les 2 classes';
+    var caption = ce('span', 'pf-cap', 'Afficher :');
+    var chips = ce('div', 'pf-chips'); chips.id = 'presFocusChips';
+    var swp = ce('button', 'pf-exit', '🔁 Échanger'); swp.title = 'Activer l\'échange entre les classes affichées';
     var ex = ce('button', 'pf-exit', '⊞ Vue d\'ensemble');
-    prev.addEventListener('click', function () { focusNav(-1); });
-    next.addEventListener('click', function () { focusNav(1); });
     swp.addEventListener('click', function () {
       if (typeof window.toggleSwapMode === 'function') window.toggleSwapMode();
       setTimeout(function () { swp.classList.toggle('active', !!(window.STATE && STATE.swapMode)); }, 30);
     });
     ex.addEventListener('click', exitFocus);
-    fb.appendChild(prev); fb.appendChild(lab); fb.appendChild(next); fb.appendChild(swp); fb.appendChild(ex);
+    fb.appendChild(caption); fb.appendChild(chips); fb.appendChild(swp); fb.appendChild(ex);
     document.body.appendChild(fb);
 
     // ouvre Équilibre + Tri par défaut (le dashboard est l'outil central)
@@ -840,8 +855,6 @@
     // Échap quitte tout le mode (le navigateur sort de toute façon du plein écran).
     // Pour seulement quitter le Focus : bouton « ⊞ Vue d'ensemble » ou icône Focus.
     if (e.key === 'Escape') { exit(); return; }
-    if (focusOn && e.key === 'ArrowLeft') { e.preventDefault(); focusNav(-1); }
-    else if (focusOn && e.key === 'ArrowRight') { e.preventDefault(); focusNav(1); }
   });
   // Si on sort du plein écran navigateur (Échap natif), on quitte aussi le mode.
   document.addEventListener('fullscreenchange', function () {
