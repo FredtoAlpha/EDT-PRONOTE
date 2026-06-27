@@ -161,27 +161,20 @@
   body.presentation-mode .student-card.pres-dim { opacity: 0.16 !important; filter: grayscale(1); }
   body.presentation-mode .student-card.pres-hit { outline: 3px solid #f59e0b !important; outline-offset: -1px; }
 
-  /* ====================== MODE FOCUS ====================== */
-  /* Une seule classe à l'écran, en GRAND : ses noms s'étalent sur plusieurs
-     sous-colonnes (--focus-cols) pour utiliser toute la largeur → lisible même
-     en 800×600. Navigation ◀ ▶ entre classes. */
-  /* Masquage des classes non focalisées : via une CLASSE plus spécifique que
-     « .class-column { display:flex !important } » — sinon le display:none inline
-     (sans !important) était écrasé et toutes les classes restaient visibles. */
+  /* ====================== MODE FOCUS (comparaison de 2 classes) ====================== */
+  /* Deux classes côte à côte pour les comparer et échanger des élèves entre
+     elles. Navigation ◀ ▶ (paire glissante). Les autres classes sont masquées
+     via une CLASSE plus spécifique que « .class-column { display:flex !important } »
+     — sinon le display:none inline (sans !important) était écrasé. */
   body.presentation-mode .class-column.pres-hidden { display: none !important; }
-  body.presentation-mode.pres-focus #board { gap: 0 !important; }
-  body.presentation-mode.pres-focus .droppable-zone {
-    flex-direction: row !important;
-    flex-wrap: wrap !important;
-    align-content: flex-start !important;
-    column-gap: 16px !important;
-    row-gap: 3px !important;
-    overflow: hidden !important;
+  body.presentation-mode.pres-focus #board { gap: 14px !important; }
+  /* Carte alignée à GAUCHE en Focus : nom + badges groupés, plus de « gros vide »
+     (la carte .card-content-line est en space-between par défaut). */
+  body.presentation-mode.pres-focus .card-content-line {
+    justify-content: flex-start !important;
+    gap: 10px !important;
   }
-  body.presentation-mode.pres-focus .student-card {
-    flex: 0 0 calc((100% - (var(--focus-cols, 1) - 1) * 16px) / var(--focus-cols, 1)) !important;
-    box-sizing: border-box !important;
-  }
+  body.presentation-mode.pres-focus .student-card { padding-right: 14px !important; }
   /* Barre de navigation Focus (haut, centrée) */
   #presFocusBar {
     position: fixed; top: 12px; left: 50%; transform: translateX(-50%); z-index: 90002;
@@ -197,6 +190,7 @@
   #presFocusBar button:hover { background: #334155; }
   #presFocusBar .pf-label { font-weight: 900; font-size: 16px; min-width: 130px; text-align: center; }
   #presFocusBar .pf-exit { background: #2563eb; width: auto; padding: 0 12px; font-size: 13px; font-weight: 800; }
+  #presFocusBar button.active { background: #dc2626 !important; }
 
   /* ====================== OUTILS FLOTTANTS ====================== */
   /* Cachés hors mode présentation */
@@ -332,17 +326,26 @@
   function toggleFocus() { focusOn ? exitFocus() : enterFocus(); }
   function focusNav(delta) {
     var cols = focusColumns(); if (!cols.length) return;
-    focusIdx = (focusIdx + delta + cols.length) % cols.length;
+    var maxStart = Math.max(0, cols.length - 2);   // fenêtre de 2, sans rebouclage
+    focusIdx = Math.min(maxStart, Math.max(0, focusIdx + delta));
     applyFocus();
   }
   function applyFocus() {
     var cols = focusColumns(); if (!cols.length) return;
-    if (focusIdx >= cols.length) focusIdx = 0;
-    cols.forEach(function (c, i) { c.classList.toggle('pres-hidden', i !== focusIdx); });
+    var len = cols.length, maxStart = Math.max(0, len - 2);
+    if (focusIdx > maxStart) focusIdx = maxStart;
+    if (focusIdx < 0) focusIdx = 0;
+    cols.forEach(function (c, i) {
+      var show = (i === focusIdx) || (len >= 2 && i === focusIdx + 1);
+      c.classList.toggle('pres-hidden', !show);
+    });
     var lbl = qs('#presFocusBar .pf-label');
     if (lbl) {
-      var nameEl = qs('.classe-name', cols[focusIdx]);
-      lbl.textContent = (nameEl ? nameEl.textContent : '?') + '  (' + (focusIdx + 1) + '/' + cols.length + ')';
+      var n1 = qs('.classe-name', cols[focusIdx]);
+      var second = cols[focusIdx + 1];
+      var n2 = second ? qs('.classe-name', second) : null;
+      lbl.textContent = (n1 ? n1.textContent : '?') + (n2 ? '  ↔  ' + n2.textContent : '') +
+        '   (' + (focusIdx + 1) + (n2 ? '-' + (focusIdx + 2) : '') + '/' + len + ')';
     }
     syncDock(); fit();
   }
@@ -402,19 +405,18 @@
     var root = document.documentElement.style;
 
     if (focusOn) {
-      // Une seule classe : on étale ses noms sur assez de sous-colonnes pour
-      // qu'ils tiennent tous SANS scroll, donc le plus GRAND possible.
+      // Deux classes côte à côte : on dimensionne les cartes d'après la plus
+      // peuplée des deux classes visibles (tout visible, sans scroll).
       var cols = focusColumns();
-      var col = cols[focusIdx] || cols[0];
-      var N = col ? qsa('.student-card', col).length : 1; N = Math.max(N, 1);
+      var maxV = 1;
+      cols.forEach(function (c, i) {
+        if (i === focusIdx || i === focusIdx + 1) {
+          var n = qsa('.student-card', c).length; if (n > maxV) maxV = n;
+        }
+      });
       var availF = window.innerHeight - safe * 2 - reserveBottom - 60 - 12;
-      var minRow = 26;
-      var maxRows = Math.max(1, Math.floor(availF / minRow));
-      var sub = Math.min(4, Math.max(1, Math.ceil(N / maxRows)));
-      var rows = Math.ceil(N / sub);
-      var perF = Math.max(22, Math.min(72, (availF / rows) * zoom));
-      var fontF = Math.max(13, Math.min(44, perF * 0.5));
-      root.setProperty('--focus-cols', sub);
+      var perF = Math.max(16, Math.min(44, (availF / maxV) * zoom));
+      var fontF = Math.max(12, Math.min(28, perF * 0.6));
       root.setProperty('--pres-row', perF + 'px');
       root.setProperty('--pres-font', fontF + 'px');
       return;
@@ -813,14 +815,19 @@
 
     // Barre de navigation Focus (◀ classe ▶ + sortie)
     var fb = ce('div'); fb.id = 'presFocusBar';
-    var prev = ce('button', null, '◀'); prev.title = 'Classe précédente (←)';
+    var prev = ce('button', null, '◀'); prev.title = 'Paire précédente (←)';
     var lab = ce('span', 'pf-label', '');
-    var next = ce('button', null, '▶'); next.title = 'Classe suivante (→)';
+    var next = ce('button', null, '▶'); next.title = 'Paire suivante (→)';
+    var swp = ce('button', 'pf-exit', '🔁 Échanger'); swp.title = 'Activer l\'échange entre les 2 classes';
     var ex = ce('button', 'pf-exit', '⊞ Vue d\'ensemble');
     prev.addEventListener('click', function () { focusNav(-1); });
     next.addEventListener('click', function () { focusNav(1); });
+    swp.addEventListener('click', function () {
+      if (typeof window.toggleSwapMode === 'function') window.toggleSwapMode();
+      setTimeout(function () { swp.classList.toggle('active', !!(window.STATE && STATE.swapMode)); }, 30);
+    });
     ex.addEventListener('click', exitFocus);
-    fb.appendChild(prev); fb.appendChild(lab); fb.appendChild(next); fb.appendChild(ex);
+    fb.appendChild(prev); fb.appendChild(lab); fb.appendChild(next); fb.appendChild(swp); fb.appendChild(ex);
     document.body.appendChild(fb);
 
     // ouvre Équilibre + Tri par défaut (le dashboard est l'outil central)
