@@ -576,25 +576,8 @@
     if (!document.fullscreenElement && isOn()) exit();
   });
 
-  // Bouton dans l'en-tête (injecté à côté de « Reunion » pour la découvrabilité)
-  function injectHeaderButton() {
-    if (qs('#btnPresentation')) return;
-    var ref = qs('#btnModeReunion');
-    if (!ref || !ref.parentNode) return;
-    var b = ce('button', 'header-btn flex items-center gap-1.5 rounded-lg tracking-[-0.03em] bg-indigo-600 text-white hover:bg-indigo-500 shadow-[0_4px_10px_rgba(0,0,0,0.15)]');
-    b.id = 'btnPresentation';
-    b.title = 'Mode Présentation plein écran pour vidéoprojecteur';
-    b.innerHTML = '<i class="fas fa-chalkboard text-sm opacity-90"></i><span>Présentation</span>';
-    b.addEventListener('click', toggle);
-    ref.parentNode.insertBefore(b, ref.nextSibling);
-  }
-
-  if (document.readyState === 'loading') {
-    document.addEventListener('DOMContentLoaded', injectHeaderButton);
-  } else {
-    injectHeaderButton();
-  }
-  // filet : ré-essayer si le header est rendu tardivement
-  setTimeout(injectHeaderButton, 1200);
+  // Le bouton « Présentation » est en dur dans le header (#btnPresentation, avec
+  // onclick="window.togglePresentationMode()"). Rien à câbler ici : window.
+  // togglePresentationMode est exposé plus haut. Raccourci clavier : touche R.
 })();
 </script>

@@ -94,11 +94,11 @@ function setupKeyboardShortcuts() {
       return;
     }
 
-    // R : Mode Reunion (projection optimisee)
+    // R : Mode Présentation (plein écran vidéoprojecteur)
     if (!e.ctrlKey && !e.altKey && key === 'r') {
       e.preventDefault();
-      if (typeof window.toggleModeReunion === 'function') {
-        window.toggleModeReunion();
+      if (typeof window.togglePresentationMode === 'function') {
+        window.togglePresentationMode();
       }
       return;
     }
