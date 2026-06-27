@@ -26,6 +26,8 @@
   body.presentation-mode #statsPanel,
   body.presentation-mode #swapContextBar,
   body.presentation-mode .save-progress { display: none !important; }
+  /* La modale de confirmation Finaliser doit passer AU-DESSUS du dock (z 90000) */
+  body.presentation-mode #finalizeConfirmModal { z-index: 90003 !important; }
 
   body.presentation-mode main {
     margin: 0 !important;
@@ -839,6 +841,18 @@
       else if (typeof window.toast === 'function') window.toast('Sauvegarde indisponible.', 'error');
     });
     dock.appendChild(saveBtn);
+
+    // Bouton Finaliser — discret comme les autres. Réutilise le bouton du header
+    // (masqué) : un .click() rouvre la MÊME modale de confirmation + le même
+    // processus (onglets FIN). Aucune logique dupliquée.
+    var finBtn = ce('button', null, '<span>✅</span><span class="pres-dock-label">Final.</span>');
+    finBtn.title = 'Finaliser la répartition (onglets FIN) — avec confirmation';
+    finBtn.addEventListener('click', function () {
+      var hb = document.getElementById('btnFinalize');
+      if (hb) hb.click();
+      else if (typeof window.toast === 'function') window.toast('Finalisation indisponible.', 'error');
+    });
+    dock.appendChild(finBtn);
 
     document.body.appendChild(dock);
 
