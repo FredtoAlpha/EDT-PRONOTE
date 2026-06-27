@@ -129,14 +129,19 @@
     text-overflow: ellipsis !important;
   }
 
-  /* On retire tout ce qui NE bloque PAS un placement */
+  /* On retire ce qui NE contraint PAS le placement : scores, dispositif, source.
+     On GARDE les codes de séparation/regroupement D1/A1 (DISSO/ASSO) : ce sont
+     des contraintes que le prof doit voir en conseil. La pastille F/P/L (carré
+     à gauche) porte déjà la mobilité → on masque le badge-mobilité redondant. */
   body.presentation-mode .student-card .source-class,
   body.presentation-mode .student-card .scores,
   body.presentation-mode .student-card .score-pill,
   body.presentation-mode .student-card .badge-dispo,
-  body.presentation-mode .student-card .badge-disso,
-  body.presentation-mode .student-card .badge-asso,
+  body.presentation-mode .student-card .badge-mobilite,
   body.presentation-mode .student-card .card-line-3 { display: none !important; }
+
+  /* La pastille F/P/L mesure 19px : on garde la place à gauche même en présentation */
+  body.presentation-mode .student-card.has-mob { padding-left: 24px !important; }
 
   /* On GARDE et on met à l'échelle : LV2 / option / FIXE / DÉFENSE */
   body.presentation-mode .student-card .mini-badge {
