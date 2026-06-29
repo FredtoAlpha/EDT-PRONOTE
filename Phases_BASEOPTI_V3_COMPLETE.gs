@@ -1474,7 +1474,7 @@ function calculateTargetDistribution_V3(data, headers, byClass) {
 
   criteria.forEach(crit => {
     const idx = headers.indexOf(crit);
-    globalCounts[crit] = { '1': 0, '2': 0, '3': 0, '4': 0 };
+    globalCounts[crit] = { '1': 0, '2': 0, '3': 0, '4': 0, '5': 0 };
     for (let i = 1; i < data.length; i++) {
       const score = String(data[i][idx] || '3');
       if (globalCounts[crit][score]) {
@@ -1488,7 +1488,7 @@ function calculateTargetDistribution_V3(data, headers, byClass) {
   const targetDistribution = {};
   criteria.forEach(crit => {
     targetDistribution[crit] = {};
-    for (let s = 1; s <= 4; s++) {
+    for (let s = 1; s <= 5; s++) {   // échelle 1-5 (5 = meilleur) : inclure les têtes
       targetDistribution[crit][s] = globalCounts[crit][s] / totalStudents;
     }
   });
@@ -1505,15 +1505,15 @@ function calculateHarmonyError_V3(byClass, data, headers, criterion, targetDistr
 
   for (const cls in byClass) {
     const classSize = byClass[cls].length;
-    const currentCounts = { '1': 0, '2': 0, '3': 0, '4': 0 };
+    const currentCounts = { '1': 0, '2': 0, '3': 0, '4': 0, '5': 0 };
 
     byClass[cls].forEach(studentIdx => {
       const score = String(data[studentIdx][idx] || '3');
       if (currentCounts[score]) currentCounts[score]++; else currentCounts[score] = 1;
     });
 
-    for (let s = 1; s <= 4; s++) {
-      const targetCount = targetDistribution[criterion][s] * classSize;
+    for (let s = 1; s <= 5; s++) {   // échelle 1-5 : équilibrer aussi le niveau 5 (têtes)
+      const targetCount = (targetDistribution[criterion][s] || 0) * classSize;
       totalError += Math.abs(currentCounts[s] - targetCount);
     }
   }
@@ -1846,10 +1846,10 @@ function generateOptimizationAudit_V3(ctx, data, headers, byClass, distributions
       male: 0,
       parityRatio: 0,
       scores: {
-        COM: { 1: 0, 2: 0, 3: 0, 4: 0, avg: 0 },
-        TRA: { 1: 0, 2: 0, 3: 0, 4: 0, avg: 0 },
-        PART: { 1: 0, 2: 0, 3: 0, 4: 0, avg: 0 },
-        ABS: { 1: 0, 2: 0, 3: 0, 4: 0, avg: 0 }
+        COM: { 1: 0, 2: 0, 3: 0, 4: 0, 5: 0, avg: 0 },
+        TRA: { 1: 0, 2: 0, 3: 0, 4: 0, 5: 0, avg: 0 },
+        PART: { 1: 0, 2: 0, 3: 0, 4: 0, 5: 0, avg: 0 },
+        ABS: { 1: 0, 2: 0, 3: 0, 4: 0, 5: 0, avg: 0 }
       },
       lv2: {},
       opt: {},
@@ -1901,7 +1901,7 @@ function generateOptimizationAudit_V3(ctx, data, headers, byClass, distributions
     ['COM', 'TRA', 'PART', 'ABS'].forEach(function(scoreType) {
       let sum = 0;
       let count = 0;
-      for (let score = 1; score <= 4; score++) {
+      for (let score = 1; score <= 5; score++) {   // échelle 1-5 : la moyenne doit inclure le niveau 5
         sum += score * classData.scores[scoreType][score];
         count += classData.scores[scoreType][score];
       }
