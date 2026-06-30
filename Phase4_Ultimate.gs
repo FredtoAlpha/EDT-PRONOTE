@@ -26,13 +26,22 @@ const ULTIMATE_CONFIG_DEFAULTS = {
     distrib: 5.0,
     parity: 4.0,
     profiles: 10.0,
-    friends: 1000.0
+    friends: 1000.0,
+    // MAXIMIN (branche 2028) : « relever le plancher » des têtes plutôt que
+    // tout égaliser. Le surplus (souvent imposé par les options, verrouillé)
+    // n'est PAS combattu ; on pousse les têtes vers les classes pauvres.
+    headDeficit: 500.0,   // déficit de têtes vs cible → puni FORT (quadratique)
+    headSurplus: 0.0,     // surplus de têtes → NON puni par défaut (options figées)
+    niv1Excess: 300.0     // excès d'élèves fragiles → puni FORT (anti classe-ghetto)
   },
   targets: {
     headMin: 2,
     headMax: 5,
     niv1Max: 4,
-    niv1Min: 0
+    niv1Min: 0,
+    // true : cibles têtes/fragiles = part globale × effectif de la classe
+    // (proportion adaptative à l'offre réelle). false : anciens seuils fixes.
+    proportional: true
   },
   // Recuit Simulé (Simulated Annealing) — permet de sortir des optima locaux
   // en acceptant ponctuellement des swaps légèrement dégradants avec une
@@ -409,20 +418,39 @@ function calculateScore_Ultimate(indices, allData, globalStats, className, ctx, 
     score += Math.pow(sizeDiff, 2) * 800;
   }
 
-  // --- 1. CRITÈRE PROFILS (Héritage LEGACY - Priorité Absolue) ---
+  // --- 1. CRITÈRE PROFILS — MAXIMIN (relever le plancher des têtes) ---
+  // Objectif : éviter qu'une classe devienne un « ghetto » privé de têtes parce
+  // que les options ont aspiré les bons scores ailleurs. On vise une cible
+  // PROPORTIONNELLE (part globale × effectif), on punit FORT le DÉFICIT de têtes
+  // (→ le recuit pousse les têtes via des swaps PERMUT/LIBRE option-compatibles
+  // vers les classes pauvres), et on NE punit PAS le surplus (souvent verrouillé
+  // par les options). Symétrie en bas pour ne pas entasser les fragiles.
   const nbTetes = students.filter(s => s.isHead).length;
   const nbNiv1 = students.filter(s => s.isNiv1).length;
 
-  // PONDÉRATION ASYMÉTRIQUE DES EXTRÊMES
-  if (nbTetes < config.targets.headMin) {
-    score += Math.pow(config.targets.headMin - nbTetes, 2) * 500;
-  }
-  if (nbTetes > config.targets.headMax) {
-    score += (nbTetes - config.targets.headMax) * 200;
-  }
+  const propOn = !(config.targets && config.targets.proportional === false);
+  const targetHead = propOn
+    ? Math.round((globalStats.headRatio || 0) * total)
+    : config.targets.headMin;
+  const targetNiv1 = propOn
+    ? Math.round((globalStats.niv1Ratio || 0) * total)
+    : config.targets.niv1Max;
 
-  if (nbNiv1 > config.targets.niv1Max) {
-    score += Math.pow(nbNiv1 - config.targets.niv1Max, 3) * 100;
+  const wDef = (config.weights.headDeficit != null) ? config.weights.headDeficit : 500;
+  const wSur = (config.weights.headSurplus != null) ? config.weights.headSurplus : 0;
+  const wN1 = (config.weights.niv1Excess != null) ? config.weights.niv1Excess : 300;
+
+  // DÉFICIT de têtes : puni fort (quadratique) → c'est le maximin (relever le plancher)
+  if (nbTetes < targetHead) {
+    score += Math.pow(targetHead - nbTetes, 2) * wDef;
+  }
+  // SURPLUS de têtes : non puni par défaut (wSur=0) car souvent imposé par les options
+  if (wSur > 0 && nbTetes > targetHead) {
+    score += (nbTetes - targetHead) * wSur;
+  }
+  // EXCÈS d'élèves fragiles : puni fort (quadratique) → anti classe-ghetto
+  if (nbNiv1 > targetNiv1) {
+    score += Math.pow(nbNiv1 - targetNiv1, 2) * wN1;
   }
 
   // --- 2. CRITÈRE PARITÉ (Adaptatif) ---
@@ -645,9 +673,21 @@ function calculateGlobalStats_Ultimate(allData) {
   const DEFAULT_AVG = 2.5;
   const DEFAULT_VAL = 2;
   let total = allData.length;
-  if (total === 0) return { ratioF: 0.5, avgCOM: DEFAULT_AVG, avgTRA: DEFAULT_AVG, avgPART: DEFAULT_AVG, avgABS: DEFAULT_AVG };
+  if (total === 0) return { ratioF: 0.5, avgCOM: DEFAULT_AVG, avgTRA: DEFAULT_AVG, avgPART: DEFAULT_AVG, avgABS: DEFAULT_AVG, headRatio: 0, niv1Ratio: 0 };
 
   const nbFilles = allData.filter(s => s.sexe === 'F').length;
+
+  // MAXIMIN : part globale de têtes et d'élèves fragiles → sert de cible
+  // proportionnelle par classe (part × effectif de la classe).
+  let nbHeads = 0, nbNiv1 = 0;
+  for (let k = 0; k < total; k++) {
+    const st = allData[k];
+    const cH = safe(st.COM, DEFAULT_VAL), tH = safe(st.TRA, DEFAULT_VAL), pH = safe(st.PART, DEFAULT_VAL);
+    const isH = (typeof isHeadStudent === 'function') ? isHeadStudent(cH, tH, pH) : (cH >= 4 || tH >= 4);
+    const isN = (typeof isNiv1Student === 'function') ? isNiv1Student(cH, tH) : (cH <= 1 || tH <= 1);
+    if (isH) nbHeads++;
+    if (isN) nbNiv1++;
+  }
   const sumCOM = allData.reduce((sum, s) => sum + safe(s.COM, DEFAULT_VAL), 0);
   const sumTRA = allData.reduce((sum, s) => sum + safe(s.TRA, DEFAULT_VAL), 0);
   const sumPART = allData.reduce((sum, s) => sum + safe(s.PART, DEFAULT_VAL), 0);
@@ -663,7 +703,9 @@ function calculateGlobalStats_Ultimate(allData) {
     avgCOM: avg(sumCOM),
     avgTRA: avg(sumTRA),
     avgPART: avg(sumPART),
-    avgABS: avg(sumABS)
+    avgABS: avg(sumABS),
+    headRatio: total > 0 ? nbHeads / total : 0,
+    niv1Ratio: total > 0 ? nbNiv1 / total : 0
   };
 }
 
