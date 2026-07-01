@@ -850,7 +850,10 @@ function deriveMobilite_(row, idx) {
  */
 function isFixed(student) {
   var mob = String(student.mobilite || '').toUpperCase().trim();
-  return !(mob === 'PERMUT' || mob === 'LIBRE');
+  // Déplaçables = tout ce qui CONTIENT 'PERMUT' ou 'LIBRE' : PERMUT, LIBRE,
+  // GROUPE_PERMUT, GROUPE_LIBRE (tous fixe=NON dans LEGACY_Mobility_Calculator).
+  // Immobiles = FIXE, GROUPE_FIXE, ERREUR, GROUPE_ERREUR, ou statut vide/inconnu.
+  return !(mob.indexOf('PERMUT') >= 0 || mob.indexOf('LIBRE') >= 0);
 }
 
 /**
