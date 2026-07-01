@@ -25,8 +25,8 @@ const ULTIMATE_CONFIG_DEFAULTS = {
   weights: {
     distrib: 5.0,
     parity: 4.0,
-    profiles: 10.0,
     friends: 1000.0,
+    // 'profiles' retiré (2028) : remplacé par headDeficit/headSurplus/niv1Excess ci-dessous
     // MAXIMIN (branche 2028) : « relever le plancher » des têtes plutôt que
     // tout égaliser. Le surplus (souvent imposé par les options, verrouillé)
     // n'est PAS combattu ; on pousse les têtes vers les classes pauvres.
@@ -438,10 +438,10 @@ function calculateScore_Ultimate(indices, allData, globalStats, className, ctx, 
 
   const propOn = !(config.targets && config.targets.proportional === false);
   const targetHead = propOn
-    ? Math.round((globalStats.headRatio || 0) * total)
+    ? Math.floor((globalStats.headRatio || 0) * total)   // plancher FAISABLE (somme des cibles ≤ nb têtes dispo)
     : config.targets.headMin;
   const targetNiv1 = propOn
-    ? Math.round((globalStats.niv1Ratio || 0) * total)
+    ? Math.ceil((globalStats.niv1Ratio || 0) * total)    // plafond FAISABLE (aucune classe forcée en excès)
     : config.targets.niv1Max;
 
   const wDef = (config.weights.headDeficit != null) ? config.weights.headDeficit : 500;
