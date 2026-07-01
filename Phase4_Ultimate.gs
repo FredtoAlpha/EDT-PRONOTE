@@ -48,10 +48,14 @@ const ULTIMATE_CONFIG_DEFAULTS = {
   // probabilité décroissante (température qui refroidit).
   sa: {
     enabled: true,          // Activer le recuit simulé
-    initialTemp: 50.0,      // Température initiale T₀ (échelle du score)
+    // Échelle MAXIMIN (2028) : les pénalités de déficit de têtes sont quadratiques
+    // ×500 → un swap qui DÉPLACE une tête peut dégrader le score de ~1000-2000.
+    // Avec T₀=50/maxDeg=200 (échelle 1-4 d'origine), ces swaps étaient toujours
+    // refusés → le recuit ne pouvait pas franchir les crêtes que le maximin exige.
+    initialTemp: 600.0,     // Température initiale T₀, à l'échelle des pénalités maximin
     coolingRate: 0.995,      // Facteur de refroidissement géométrique par itération
     minTemp: 0.1,           // Température plancher (en dessous = glouton pur)
-    maxDegradation: 200.0   // Gain négatif max toléré (sécurité anti-dégradation)
+    maxDegradation: 2500.0  // Gain négatif max toléré : autorise les swaps déplaçant une tête/fragile
   }
 };
 
@@ -256,8 +260,12 @@ function runPhase4CoreLoop_Ultimate_(allData, byClass, headers, globalStats, ctx
 
     const bestSwap = findBestSwapPrioritized_Ultimate(worstClassKey, partnerClassKey, allData, byClass, headers, globalStats, ctx, rng, config);
 
-    // TWO-PIPELINE : Appliquer la pénalité swap history sur le gain
-    if (bestSwap) {
+    // Pénalité anti-cycle : UNIQUEMENT sur les gains POSITIFS (départage des
+    // swaps améliorants pour éviter A↔B↔A). NE JAMAIS l'appliquer à un gain
+    // négatif : diviser un gain négatif le rapproche de 0 et GONFLE la proba
+    // d'acceptation SA (Metropolis) — l'inverse de l'effet voulu. Le gain passé
+    // à Math.exp doit rester le vrai delta de score.
+    if (bestSwap && bestSwap.gain > 0) {
       const h1 = swapHistory.get(bestSwap.idx1) || 0;
       const h2 = swapHistory.get(bestSwap.idx2) || 0;
       bestSwap.gain = bestSwap.gain / (1 + h1 + h2);
@@ -624,7 +632,9 @@ function loadAndClassifyData_Ultimate(ctx) {
       PART: headers.indexOf('PART'),
       ABS: headers.indexOf('ABSENCE') !== -1 ? headers.indexOf('ABSENCE') : headers.indexOf('ABS'),
       MOB: headers.indexOf('MOBILITE'),
-      FIXE: headers.indexOf('FIXE')
+      FIXE: headers.indexOf('FIXE'),
+      OPT: headers.indexOf('OPT'),
+      LV2: headers.indexOf('LV2')
     };
 
     for (let i = 1; i < data.length; i++) {
@@ -640,7 +650,9 @@ function loadAndClassifyData_Ultimate(ctx) {
         TRA: Number(row[idx.TRA]) || 2,
         PART: Number(row[idx.PART]) || 2,
         ABS: idx.ABS >= 0 ? (Number(row[idx.ABS]) || 2) : 2,
-        mobilite: String(row[idx.MOB] || row[idx.FIXE] || '').toUpperCase()
+        opt: idx.OPT >= 0 ? String(row[idx.OPT] || '').toUpperCase().trim() : '',
+        lv2: idx.LV2 >= 0 ? String(row[idx.LV2] || '').toUpperCase().trim() : '',
+        mobilite: deriveMobilite_(row, idx)
       };
 
       // --- CLASSIFICATION LOGIQUE ---
@@ -746,6 +758,9 @@ function findPartnerClass_Ultimate(worstClass, byClass, allData, globalStats, rn
   const worstAvgCOM = worstStudents.reduce((s, st) => s + st.COM, 0) / worstTotal;
   // U2: Ajouter PART à la complémentarité
   const worstAvgPART = worstStudents.reduce((s, st) => s + (st.PART || 2), 0) / worstTotal;
+  // 2028 : options rares de la classe pauvre → un swap PERMUT option-compatible
+  // (ex. LATIN-4 ↔ LATIN-5) n'est possible qu'avec une classe qui partage l'option.
+  const worstOpts = collectRareOptions_(worstStudents);
 
   let bestPartner = null;
   let bestComplementarity = -Infinity;
@@ -790,6 +805,13 @@ function findPartnerClass_Ultimate(worstClass, byClass, allData, globalStats, rn
       comp += Math.abs(worstAvgPART - clsAvgPART) * 1.5;
     }
 
+    // 2028 : BONUS fort si la classe candidate partage une option rare avec la
+    // classe pauvre → seul cas où un swap PERMUT relevant le plancher de têtes
+    // est réellement autorisé par canSwapStudents_Ultimate. Sans ce guidage, le
+    // moteur appariait des classes non-compatibles et laissait dormir le vivier PERMUT.
+    const clsOpts = collectRareOptions_(clsStudents);
+    for (var _o in worstOpts) { if (clsOpts[_o]) { comp += 8; break; } }
+
     if (comp > bestComplementarity) {
       bestComplementarity = comp;
       bestPartner = cls;
@@ -805,11 +827,46 @@ function findPartnerClass_Ultimate(worstClass, byClass, allData, globalStats, rn
 }
 
 /**
- * Vérifie si un élève est "fixe" (non mobile)
+ * Dérive la mobilité d'un élève. Source de vérité = colonne MOBILITE (calculée
+ * par LEGACY_Mobility_Calculator : FIXE/PERMUT/LIBRE/ERREUR…). Repli SEULEMENT si
+ * MOBILITE absente : on mappe la colonne booléenne FIXE avec la BONNE sémantique
+ * (OUI=immobile→FIXE, NON=mobile→LIBRE) — jamais 'OUI'/'NON' brut dans mobilite.
+ */
+function deriveMobilite_(row, idx) {
+  var mob = String((idx.MOB >= 0 ? row[idx.MOB] : '') || '').toUpperCase().trim();
+  if (mob) return mob;
+  var fixeVal = String((idx.FIXE >= 0 ? row[idx.FIXE] : '') || '').toUpperCase().trim();
+  if (fixeVal === 'OUI') return 'FIXE';
+  if (fixeVal === 'NON') return 'LIBRE';
+  return '';
+}
+
+/**
+ * Vérifie si un élève est "fixe" (non déplaçable par le moteur de swaps).
+ * Seuls PERMUT et LIBRE sont déplaçables ; tout le reste (FIXE, GROUPE_FIXE,
+ * ERREUR/GROUPE_ERREUR = 0 classe compatible, SPEC, CONDI, statut inconnu) est
+ * immobile — prudence : ne jamais déplacer un élève au statut ambigu. Ne teste
+ * PLUS includes('NON') (qui inversait la sémantique et gelait le vivier mobile).
  */
 function isFixed(student) {
-  const mob = student.mobilite;
-  return mob.includes('FIXE') || mob.includes('NON');
+  var mob = String(student.mobilite || '').toUpperCase().trim();
+  return !(mob === 'PERMUT' || mob === 'LIBRE');
+}
+
+/**
+ * Options/LV2 NON universelles présentes dans un groupe d'élèves. Ce sont elles
+ * qui définissent le vivier PERMUT réellement échangeable (ex. LATIN, GREC, CHAV).
+ */
+function collectRareOptions_(students) {
+  var set = {};
+  var universal = { 'ESP': 1, 'ANG': 1, 'AGL': 1, 'ANGLAIS': 1, 'ESPAGNOL': 1 };
+  for (var i = 0; i < students.length; i++) {
+    var o = String(students[i].opt || '').toUpperCase().trim();
+    var l = String(students[i].lv2 || '').toUpperCase().trim();
+    if (o && !universal[o]) set[o] = 1;
+    if (l && !universal[l]) set[l] = 1;
+  }
+  return set;
 }
 
 /**
