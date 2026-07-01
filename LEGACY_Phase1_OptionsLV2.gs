@@ -226,9 +226,13 @@ function Phase1I_dispatchOptionsLV2_LEGACY(ctx) {
           opt = '';
         }
 
-        // Vérification compatibilité LV2+OPT (ex: ITA+CHAV interdit)
+        // Combinaison LV2+OPT intrinsèquement interdite (ex. ITA+CHAV, incompatibilité
+        // horaire) : l'élève ne peut pas suivre les deux → on NEUTRALISE l'OPT et on
+        // le place sur sa LV2 seule, au lieu de le placer quand même dans une classe
+        // qui prétend offrir les deux (contrainte dure violée + gel à vie par canSwap).
         if (!isLV2OPTCompatible(lv2, opt)) {
-          logLine('WARN', '⚠️ Combinaison interdite ligne ' + i + ': LV2=' + lv2 + ' + OPT=' + opt);
+          logLine('WARN', '⚠️ Combinaison interdite ligne ' + i + ': LV2=' + lv2 + ' + OPT=' + opt + ' → OPT neutralisée (placement sur la LV2 seule)');
+          opt = '';
         }
 
         let match = false;

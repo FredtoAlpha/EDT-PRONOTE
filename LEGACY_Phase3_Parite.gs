@@ -312,25 +312,33 @@ function Phase3I_completeAndParity_LEGACY(ctx) {
       }
     }
 
-    // Trouver classes déséquilibrées
+    // Ratio F GLOBAL = cible ADAPTATIVE, cohérente avec Phase4 (globalStats.ratioF).
+    // Avant, Phase3 visait 50/50 par classe (|F-M|) alors que Phase4 vise le ratio
+    // global → sur un vivier non paritaire (ex. 60% M) les deux se défaisaient
+    // mutuellement. On vise désormais la même cible que Phase4.
+    let _totF = 0, _totAll = 0;
+    for (const _c in paritiesByClass) { _totF += paritiesByClass[_c].F; _totAll += paritiesByClass[_c].total; }
+    const globalRatioF = _totAll > 0 ? _totF / _totAll : 0.5;
+
+    // Trouver classes déséquilibrées vs le ratio global
     for (const cls1 in paritiesByClass) {
       const p1 = paritiesByClass[cls1];
-      const gap1 = Math.abs(p1.F - p1.M);
+      const excess1 = p1.F - globalRatioF * p1.total; // >0 : trop de filles ; <0 : trop de garçons
 
-      if (gap1 <= tolParite) continue;
+      if (Math.abs(excess1) <= tolParite) continue;
 
       // Chercher swap avec autre classe
       for (const cls2 in paritiesByClass) {
         if (cls1 === cls2) continue;
 
         const p2 = paritiesByClass[cls2];
-        const gap2 = Math.abs(p2.F - p2.M);
+        const excess2 = p2.F - globalRatioF * p2.total;
 
-        // Si les deux ont le même déséquilibre opposé, swap
-        if ((p1.F > p1.M && p2.M > p2.F) || (p1.M > p1.F && p2.F > p2.M)) {
-          // Trouver élèves à swapper
-          const sexeNeeded1 = p1.F > p1.M ? 'M' : 'F';
-          const sexeNeeded2 = p2.F > p2.M ? 'M' : 'F';
+        // Déséquilibres OPPOSÉS vs le ratio global → swap bénéfique
+        if ((excess1 > 0 && excess2 < 0) || (excess1 < 0 && excess2 > 0)) {
+          // cls1 donne ce dont cls2 a besoin et reçoit ce dont cls1 a besoin
+          const sexeNeeded1 = excess1 > 0 ? 'M' : 'F';
+          const sexeNeeded2 = excess2 > 0 ? 'M' : 'F';
 
           let idx1 = -1, idx2 = -1;
 

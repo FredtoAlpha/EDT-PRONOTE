@@ -924,10 +924,11 @@ function canSwapStudents_Ultimate(idx1, idx2, cls1Name, cls2Name, idxList1, idxL
     }
   }
 
-  // ✅ SAFETY CHECK: Vérifier que les colonnes critiques existent
-  if (idxDISSO === -1) {
-    logLine('ERROR', '❌ CRITIQUE: Colonne DISSO non trouvée dans les headers! Headers: ' + headers.join(', '));
-    // Ne pas autoriser le swap si on ne peut pas valider DISSO
+  // ✅ SAFETY CHECK: Vérifier que les colonnes critiques existent. Fail-CLOSED :
+  //    sans DISSO **ou** ASSO on ne peut pas valider les contraintes de groupe →
+  //    refuser le swap (avant, ASSO absente = fail-OPEN → groupes séparables sans garde-fou).
+  if (idxDISSO === -1 || idxASSO === -1) {
+    logLine('ERROR', '❌ CRITIQUE: Colonne DISSO ou ASSO absente — swap refusé (validation groupes impossible). Headers: ' + headers.join(', '));
     return false;
   }
 
@@ -940,10 +941,11 @@ function canSwapStudents_Ultimate(idx1, idx2, cls1Name, cls2Name, idxList1, idxL
   if (isOPTAnomalyLV2(opt_s1)) opt_s1 = '';
   if (isOPTAnomalyLV2(opt_s2)) opt_s2 = '';
 
-  // Bloquer swap si combinaison LV2+OPT interdite dans la classe cible
-  if (!isLV2OPTCompatible(lv2_s2, opt_s2) || !isLV2OPTCompatible(lv2_s1, opt_s1)) {
-    return false;
-  }
+  // Combinaison LV2+OPT intrinsèquement interdite (ex. ITA+CHAV) : l'élève ne peut
+  // pas suivre les deux → on NEUTRALISE l'OPT (traité comme LV2 seule) au lieu de
+  // GELER l'élève à vie (l'ancien return false l'immobilisait pour toujours).
+  if (!isLV2OPTCompatible(lv2_s1, opt_s1)) opt_s1 = '';
+  if (!isLV2OPTCompatible(lv2_s2, opt_s2)) opt_s2 = '';
   const disso_s1 = String(s1.row[idxDISSO] || '').trim().toUpperCase();
   const disso_s2 = String(s2.row[idxDISSO] || '').trim().toUpperCase();
 
