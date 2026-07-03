@@ -652,10 +652,17 @@
                                 <span style="font-size:12px; color:#94a3b8;">Classes réelles d'aujourd'hui évaluées (ex. des 4°). Utilise l'« ancienne classe ».</span>
                             </span>
                         </label>
+                        <label class="edt-type-opt" style="flex:1; min-width:240px; display:flex; gap:10px; align-items:flex-start; padding:12px 14px; border:2px solid #334155; border-radius:10px; cursor:pointer; background:#0f172a;">
+                            <input type="radio" name="edt-type" value="primaire" onchange="edtTypeChange()" style="margin-top:3px;">
+                            <span>
+                                <span style="font-weight:800; color:#e2e8f0;">🎒 Entrants 6e (primaire)</span><br>
+                                <span style="font-size:12px; color:#94a3b8;">Export prévisionnel des futurs 6e. « Ancienne classe » = école d'origine → onglets 7°1, 7°2… (petites écoles regroupées). Noms fusionnés scindés, A/B/C → 5/3/1, ITALIEN→LV2, CHAV→option, ULIS/UPE2A/AESH→dispositif.</span>
+                            </span>
+                        </label>
                     </div>
                 </div>
 
-                <p style="color:#cbd5e1; margin:8px 0 12px;">Glisse ton fichier (ou colle son contenu). Séparateur détecté automatiquement (virgule / point-virgule / tabulation). Seuls les élèves du niveau actif sont conservés ; A→5, B→4, C→3, D→2, E→1.</p>
+                <p style="color:#cbd5e1; margin:8px 0 12px;">Glisse ton fichier (ou colle son contenu). Séparateur détecté automatiquement (virgule / point-virgule / tabulation). Seuls les élèves du niveau actif sont conservés ; A→5, B→4, C→3, D→2, E→1 (mode 6e : A→5, B→3, C→1, pas de filtrage de niveau).</p>
                 <div id="edt-drop" style="border:2px dashed #475569; border-radius:10px; padding:18px; text-align:center; color:#94a3b8; cursor:pointer;">📄 Glisser-déposer le fichier ici (ou cliquer)
                     <input type="file" id="edt-file" accept=".csv,.txt" style="display:none">
                 </div>
@@ -1574,7 +1581,7 @@
             if (!edtContenu.trim()) { edtOut('Charge ou colle d\'abord un fichier.'); return; }
             edtOut('Analyse…');
             google.script.run.withSuccessHandler(function (r) {
-                var typeLbl = (r.typeImport === 'base') ? 'Base actuelle' : 'Classes prévisionnelles';
+                var typeLbl = (r.typeImport === 'base') ? 'Base actuelle' : (r.typeImport === 'primaire' ? 'Entrants 6e (primaire)' : 'Classes prévisionnelles');
                 edtOut('Type : ' + typeLbl + '\nSéparateur : ' + r.sep + '\nNiveau ' + r.niveau + ' : ' + r.stats.lu + ' lus, ' + r.stats.gardes + ' gardés, ' + r.stats.filtres + ' filtrés.' +
                     (r.warnings.length ? ('\n⚠ ' + r.warnings.join('\n⚠ ')) : '') + '\n\nAperçu :\n - ' + (r.apercu.join('\n - ') || '(aucun)'));
             }).withFailureHandler(function (e) { edtOut('Erreur : ' + e.message); }).apiApercuEDT(edtContenu, null, edtTypeSelected());
