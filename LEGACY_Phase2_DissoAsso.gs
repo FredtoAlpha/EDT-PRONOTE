@@ -167,11 +167,14 @@ function Phase2I_applyDissoAsso_LEGACY(ctx) {
   const groupsD = {};
   for (let i = 0; i < allData.length; i++) {
     const item = allData[i];
-    const codeD = String(item.row[idxD] || '').trim().toUpperCase();
-    if (codeD) {
-      if (!groupsD[codeD]) groupsD[codeD] = [];
-      groupsD[codeD].push(i);
+    // multi-codes : « D6 D7 » → l'élève appartient aux groupes D6 ET D7
+    const codesD = dissoCodesOf_(String(item.row[idxD] || ''));
+    if (codesD.length) {
       dissoMoved++;
+      codesD.forEach(function(c) {
+        if (!groupsD[c]) groupsD[c] = [];
+        groupsD[c].push(i);
+      });
     }
   }
 

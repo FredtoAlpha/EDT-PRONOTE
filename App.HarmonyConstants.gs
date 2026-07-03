@@ -430,3 +430,23 @@ function computeTotalError_(classStates, globalStats, targetDistribution, weight
   }
   return err;
 }
+
+/**
+ * ===== MULTI-CODES DISSO (branche PRIMAIRE) =====
+ * En 6e, un élève peut porter PLUSIEURS codes de séparation (« D6 D7 ») :
+ * il doit être séparé du groupe D6 ET du groupe D7. L'ancienne comparaison
+ * stricte (otherDisso === disso) ne matchait ni D6 ni D7 → contrainte
+ * silencieusement ignorée. Ces helpers normalisent la comparaison partout.
+ */
+function dissoCodesOf_(val) {
+  return String(val || '').toUpperCase().trim().split(/[\s,;+\/]+/).filter(function (c) { return c; });
+}
+
+/** true si les deux cellules DISSO partagent AU MOINS un code. */
+function partageCodeDisso_(a, b) {
+  var A = dissoCodesOf_(a);
+  if (!A.length) return false;
+  var B = dissoCodesOf_(b);
+  for (var i = 0; i < A.length; i++) { if (B.indexOf(A[i]) >= 0) return true; }
+  return false;
+}
