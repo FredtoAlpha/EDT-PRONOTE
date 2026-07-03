@@ -139,6 +139,12 @@ function Phase4_Ultimate_Run(ctx) {
   let bestSeed = 0;
 
   for (let restart = 0; restart < maxRestarts; restart++) {
+    // ⏱️ Budget temps : si la deadline du pipeline approche, on s'arrête ici —
+    // le meilleur restart déjà validé sera sauvegardé (rien n'est perdu).
+    if (ctx.deadlineMs && Date.now() > ctx.deadlineMs) {
+      logLine('WARN', `  ⏱️ Budget temps épuisé — arrêt après ${restart}/${maxRestarts} restart(s), meilleur état conservé.`);
+      break;
+    }
     const seed = ctx.seed ? ctx.seed + restart * mrConfig.seedSpacing : restart * mrConfig.seedSpacing;
     const rng = createRNG(seed);
 
@@ -245,6 +251,11 @@ function runPhase4CoreLoop_Ultimate_(allData, byClass, headers, globalStats, ctx
   let saAccepted = 0; // Compteur de swaps dégradants acceptés par SA
 
   for (let iter = 0; iter < config.maxSwaps; iter++) {
+    // ⏱️ Budget temps : contrôle périodique (peu coûteux : 1 Date.now / 50 itér.)
+    if (ctx.deadlineMs && (iter % 50 === 0) && Date.now() > ctx.deadlineMs) {
+      logLine('WARN', `  ⏱️ Budget temps épuisé à l'itération ${iter} — sortie propre du core loop.`);
+      break;
+    }
     const worstClassKey = findWorstClass_Ultimate(byClass, allData, globalStats, ctx, config);
     if (!worstClassKey) break;
 
@@ -317,6 +328,7 @@ function runPhase4CoreLoop_Ultimate_(allData, byClass, headers, globalStats, ctx
     let postSASwaps = 0;
     let postStagnation = 0;
     for (let iter2 = 0; iter2 < Math.floor(config.maxSwaps * 0.3); iter2++) {
+      if (ctx.deadlineMs && (iter2 % 50 === 0) && Date.now() > ctx.deadlineMs) break;  // ⏱️ budget temps
       const worstKey = findWorstClass_Ultimate(byClass, allData, globalStats, ctx, config);
       if (!worstKey) break;
       const partnerKey = findPartnerClass_Ultimate(worstKey, byClass, allData, globalStats, rng, config);
@@ -342,6 +354,7 @@ function runPhase4CoreLoop_Ultimate_(allData, byClass, headers, globalStats, ctx
   const classNames = Object.keys(byClass);
 
   for (let iter3 = 0; iter3 < 200; iter3++) {
+    if (ctx.deadlineMs && Date.now() > ctx.deadlineMs) break;  // ⏱️ budget temps
     let bestGain3 = 0.001;
     let best3Way = null;
 
@@ -411,74 +424,88 @@ function runPhase4CoreLoop_Ultimate_(allData, byClass, headers, globalStats, ctx
  * - Pénalité très forte (au cube) si excès de Niv1
  * ✅ BUG #4 CORRECTION : Ajout critère d'effectif
  */
-function calculateScore_Ultimate(indices, allData, globalStats, className, ctx, config) {
-  config = config || ULTIMATE_CONFIG; // fallback sécurité
-  let score = 0;
-  const students = indices.map(i => allData[i]);
-  const total = students.length;
-  if (total === 0) return 10000;
+// ---- DELTA-SCORING (perf 2028) -------------------------------------------
+// Tous les termes du score se calculent depuis des AGRÉGATS de classe
+// (effectif, têtes, niv1, filles, sommes de scores). On les maintient en O(1)
+// par ajout/retrait d'élève, au lieu de re-scanner ~30 élèves × 8 passes pour
+// CHAQUE paire candidate (~10-20 millions de re-scans par pipeline avant).
+// calculateScoreFromAgg_ est LA seule écriture de la formule ; l'ancienne
+// calculateScore_Ultimate devient un wrapper (même signature, même résultat).
 
-  // --- 0. CRITÈRE EFFECTIF (BUG #4 CORRECTION - PRIORITÉ HAUTE) ---
+/** Ajoute (sign=+1) ou retire (sign=-1) un élève des agrégats d'une classe. */
+function aggAdd_(agg, s, sign) {
+  agg.total += sign;
+  if (s.isHead) agg.nbTetes += sign;
+  if (s.isNiv1) agg.nbNiv1 += sign;
+  if (s.sexe === 'F') agg.nbF += sign;
+  agg.sumCOM += sign * (s.COM || 2);
+  agg.sumTRA += sign * (s.TRA || 2);
+  agg.sumPART += sign * (s.PART || 2);
+  agg.sumABS += sign * (s.ABS || 2);
+}
+
+/** Construit les agrégats d'une classe à partir de sa liste d'indices. */
+function buildClassAgg_(indices, allData) {
+  const agg = { total: 0, nbTetes: 0, nbNiv1: 0, nbF: 0, sumCOM: 0, sumTRA: 0, sumPART: 0, sumABS: 0 };
+  for (let k = 0; k < indices.length; k++) aggAdd_(agg, allData[indices[k]], 1);
+  return agg;
+}
+
+/**
+ * Score d'une classe depuis ses agrégats — O(1).
+ * Formule STRICTEMENT identique à l'ancienne calculateScore_Ultimate :
+ * effectif quadratique ×800, MAXIMIN têtes/fragiles proportionnel (déficit
+ * puni fort, surplus ignoré), parité vs ratio global, moyennes COM/TRA/PART/ABS.
+ */
+function calculateScoreFromAgg_(agg, globalStats, className, ctx, config) {
+  config = config || ULTIMATE_CONFIG; // fallback sécurité
+  const total = agg.total;
+  if (total === 0) return 10000;
+  let score = 0;
+
+  // --- 0. CRITÈRE EFFECTIF ---
   if (className && ctx && ctx.targets && ctx.targets[className]) {
-    const targetSize = ctx.targets[className];
-    const sizeDiff = total - targetSize;
-    // Pénalité quadratique pour les écarts d'effectif
-    score += Math.pow(sizeDiff, 2) * 800;
+    const sizeDiff = total - ctx.targets[className];
+    score += sizeDiff * sizeDiff * 800;
   }
 
   // --- 1. CRITÈRE PROFILS — MAXIMIN (relever le plancher des têtes) ---
-  // Objectif : éviter qu'une classe devienne un « ghetto » privé de têtes parce
-  // que les options ont aspiré les bons scores ailleurs. On vise une cible
-  // PROPORTIONNELLE (part globale × effectif), on punit FORT le DÉFICIT de têtes
-  // (→ le recuit pousse les têtes via des swaps PERMUT/LIBRE option-compatibles
-  // vers les classes pauvres), et on NE punit PAS le surplus (souvent verrouillé
-  // par les options). Symétrie en bas pour ne pas entasser les fragiles.
-  const nbTetes = students.filter(s => s.isHead).length;
-  const nbNiv1 = students.filter(s => s.isNiv1).length;
-
   const propOn = !(config.targets && config.targets.proportional === false);
   const targetHead = propOn
-    ? Math.floor((globalStats.headRatio || 0) * total)   // plancher FAISABLE (somme des cibles ≤ nb têtes dispo)
+    ? Math.floor((globalStats.headRatio || 0) * total)   // plancher FAISABLE
     : config.targets.headMin;
   const targetNiv1 = propOn
-    ? Math.ceil((globalStats.niv1Ratio || 0) * total)    // plafond FAISABLE (aucune classe forcée en excès)
+    ? Math.ceil((globalStats.niv1Ratio || 0) * total)    // plafond FAISABLE
     : config.targets.niv1Max;
 
   const wDef = (config.weights.headDeficit != null) ? config.weights.headDeficit : 500;
   const wSur = (config.weights.headSurplus != null) ? config.weights.headSurplus : 0;
   const wN1 = (config.weights.niv1Excess != null) ? config.weights.niv1Excess : 300;
 
-  // DÉFICIT de têtes : puni fort (quadratique) → c'est le maximin (relever le plancher)
-  if (nbTetes < targetHead) {
-    score += Math.pow(targetHead - nbTetes, 2) * wDef;
+  if (agg.nbTetes < targetHead) {
+    score += Math.pow(targetHead - agg.nbTetes, 2) * wDef;
   }
-  // SURPLUS de têtes : non puni par défaut (wSur=0) car souvent imposé par les options
-  if (wSur > 0 && nbTetes > targetHead) {
-    score += (nbTetes - targetHead) * wSur;
+  if (wSur > 0 && agg.nbTetes > targetHead) {
+    score += (agg.nbTetes - targetHead) * wSur;
   }
-  // EXCÈS d'élèves fragiles : puni fort (quadratique) → anti classe-ghetto
-  if (nbNiv1 > targetNiv1) {
-    score += Math.pow(nbNiv1 - targetNiv1, 2) * wN1;
+  if (agg.nbNiv1 > targetNiv1) {
+    score += Math.pow(agg.nbNiv1 - targetNiv1, 2) * wN1;
   }
 
   // --- 2. CRITÈRE PARITÉ (Adaptatif) ---
-  const nbFilles = students.filter(s => s.sexe === 'F').length;
-  const ratioF = nbFilles / total;
-  score += Math.abs(ratioF - globalStats.ratioF) * 1000 * config.weights.parity;
+  score += Math.abs(agg.nbF / total - globalStats.ratioF) * 1000 * config.weights.parity;
 
-  // --- 3. CRITÈRE DISTRIBUTION ACADÉMIQUE (Jules Codex) ---
-  // ✅ FIX #2 : Inclure ABS dans le scoring (était absent malgré le commentaire)
-  const avgCOM = students.reduce((acc, s) => acc + (s.COM || 2), 0) / total;
-  const avgTRA = students.reduce((acc, s) => acc + (s.TRA || 2), 0) / total;
-  const avgPART = students.reduce((acc, s) => acc + (s.PART || 2), 0) / total;
-  const avgABS = students.reduce((acc, s) => acc + (s.ABS || 2), 0) / total;
-
-  score += Math.abs(avgCOM - globalStats.avgCOM) * 100 * config.weights.distrib;
-  score += Math.abs(avgTRA - globalStats.avgTRA) * 100 * config.weights.distrib;
-  score += Math.abs(avgPART - (globalStats.avgPART || 2)) * 50 * config.weights.distrib;
-  score += Math.abs(avgABS - (globalStats.avgABS || 2)) * 50 * config.weights.distrib;
+  // --- 3. CRITÈRE DISTRIBUTION ACADÉMIQUE ---
+  score += Math.abs(agg.sumCOM / total - globalStats.avgCOM) * 100 * config.weights.distrib;
+  score += Math.abs(agg.sumTRA / total - globalStats.avgTRA) * 100 * config.weights.distrib;
+  score += Math.abs(agg.sumPART / total - (globalStats.avgPART || 2)) * 50 * config.weights.distrib;
+  score += Math.abs(agg.sumABS / total - (globalStats.avgABS || 2)) * 50 * config.weights.distrib;
 
   return score;
+}
+
+function calculateScore_Ultimate(indices, allData, globalStats, className, ctx, config) {
+  return calculateScoreFromAgg_(buildClassAgg_(indices, allData), globalStats, className, ctx, config);
 }
 
 /**
@@ -489,10 +516,6 @@ function calculateScore_Ultimate(indices, allData, globalStats, className, ctx, 
 function findBestSwapPrioritized_Ultimate(cls1Name, cls2Name, allData, byClass, headers, globalStats, ctx, rng, config) {
   const idxList1 = byClass[cls1Name];
   const idxList2 = byClass[cls2Name];
-
-  // Calculer les profils cibles
-  const avgCls1 = allData.filter((s, i) => idxList1.indexOf(i) >= 0).reduce((acc, s) => acc + s.COM, 0) / idxList1.length;
-  const avgCls2 = allData.filter((s, i) => idxList2.indexOf(i) >= 0).reduce((acc, s) => acc + s.TRA, 0) / idxList2.length;
 
   // Trier par disruption (distance au profil moyen de leur classe)
   function sortByDisruption(indices) {
@@ -519,8 +542,14 @@ function findBestSwapPrioritized_Ultimate(cls1Name, cls2Name, allData, byClass, 
   const candidates1 = sorted1.slice(0, topCount1);
   const candidates2 = sorted2.slice(0, topCount2);
 
-  const scoreBefore = calculateScore_Ultimate(idxList1, allData, globalStats, cls1Name, ctx, config) +
-                      calculateScore_Ultimate(idxList2, allData, globalStats, cls2Name, ctx, config);
+  // DELTA-SCORING : agrégats construits UNE fois par appel, puis chaque paire
+  // est simulée en O(1) (retrait/ajout dans les compteurs + score sur compteurs,
+  // puis restauration). Les scores sont des entiers/sommes d'entiers → la
+  // restauration par soustraction est exacte (pas de dérive flottante).
+  const agg1 = buildClassAgg_(idxList1, allData);
+  const agg2 = buildClassAgg_(idxList2, allData);
+  const scoreBefore = calculateScoreFromAgg_(agg1, globalStats, cls1Name, ctx, config) +
+                      calculateScoreFromAgg_(agg2, globalStats, cls2Name, ctx, config);
 
   let bestSwap = null;
   let maxGain = 0;
@@ -543,12 +572,16 @@ function findBestSwapPrioritized_Ultimate(cls1Name, cls2Name, allData, byClass, 
         continue; // Swap interdit par contraintes LV2/OPT/DISSO
       }
 
-      // Simulation du swap
-      const tempList1 = idxList1.filter(idx => idx !== i1).concat([i2]);
-      const tempList2 = idxList2.filter(idx => idx !== i2).concat([i1]);
+      // Simulation O(1) du swap : s1 quitte cls1 pour cls2, s2 fait l'inverse
+      aggAdd_(agg1, s1, -1); aggAdd_(agg1, s2, 1);
+      aggAdd_(agg2, s2, -1); aggAdd_(agg2, s1, 1);
 
-      const scoreAfter = calculateScore_Ultimate(tempList1, allData, globalStats, cls1Name, ctx, config) +
-                         calculateScore_Ultimate(tempList2, allData, globalStats, cls2Name, ctx, config);
+      const scoreAfter = calculateScoreFromAgg_(agg1, globalStats, cls1Name, ctx, config) +
+                         calculateScoreFromAgg_(agg2, globalStats, cls2Name, ctx, config);
+
+      // Restauration exacte des agrégats
+      aggAdd_(agg1, s2, -1); aggAdd_(agg1, s1, 1);
+      aggAdd_(agg2, s1, -1); aggAdd_(agg2, s2, 1);
 
       const gain = scoreBefore - scoreAfter;
 
@@ -875,15 +908,35 @@ function collectRareOptions_(students) {
 /**
  * ✅ BUG #5 CORRECTION : Vérifie si un swap respecte les contraintes LV2/OPT/DISSO
  */
+// Index des colonnes de contraintes, mémoïsés par tableau headers (perf 2028 :
+// canSwapStudents_Ultimate est appelée ~1 fois par paire candidate, soit des
+// millions de fois par pipeline — 5 indexOf × O(nbColonnes) à chaque appel
+// représentaient ~10-20 % du CPU de la boucle chaude, pour un résultat constant).
+var _constraintIdxCache = { headers: null, idx: null };
+function getConstraintIdx_(headers) {
+  if (_constraintIdxCache.headers !== headers) {
+    _constraintIdxCache.headers = headers;
+    _constraintIdxCache.idx = {
+      LV2: headers.indexOf('LV2'),
+      OPT: headers.indexOf('OPT'),
+      DISSO: headers.indexOf('DISSO'),
+      ASSO: headers.indexOf('ASSO'),
+      IMPOSEE: headers.indexOf('CLASSE_IMPOSEE')
+    };
+  }
+  return _constraintIdxCache.idx;
+}
+
 function canSwapStudents_Ultimate(idx1, idx2, cls1Name, cls2Name, idxList1, idxList2, allData, headers, ctx) {
   const s1 = allData[idx1];
   const s2 = allData[idx2];
 
-  // Extraire LV2/OPT/ASSO des élèves
-  const idxLV2 = headers.indexOf('LV2');
-  const idxOPT = headers.indexOf('OPT');
-  const idxDISSO = headers.indexOf('DISSO');
-  const idxASSO = headers.indexOf('ASSO');
+  // Index de colonnes résolus une fois par run (mémoïsés sur l'identité de headers)
+  const cIdx = getConstraintIdx_(headers);
+  const idxLV2 = cIdx.LV2;
+  const idxOPT = cIdx.OPT;
+  const idxDISSO = cIdx.DISSO;
+  const idxASSO = cIdx.ASSO;
 
   // 📌 CLASSE IMPOSÉE : un élève dont la colonne CLASSE_IMPOSEE restreint les
   //    classes autorisées (ex. "4°2|4°3") NE DOIT JAMAIS atterrir hors de cet
@@ -891,7 +944,7 @@ function canSwapStudents_Ultimate(idx1, idx2, cls1Name, cls2Name, idxList1, idxL
   //    moteur de swap le déplaçait quand même (mobilité PERMUT = « déplaçable »,
   //    et la classe cible proposait la même LV2/OPT). s1 part vers cls2, s2 vers
   //    cls1 : on refuse le swap si la destination n'est pas dans l'ensemble imposé.
-  const idxImposee = headers.indexOf('CLASSE_IMPOSEE');
+  const idxImposee = cIdx.IMPOSEE;
   if (idxImposee !== -1) {
     const imp1 = String(s1.row[idxImposee] || '').trim();
     if (imp1 && imp1.split('|').map(function (c) { return c.trim(); }).indexOf(cls2Name) === -1) {
