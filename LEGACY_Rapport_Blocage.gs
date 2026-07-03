@@ -120,8 +120,10 @@ function genererRapportBlocage_LEGACY(ctx) {
   out.push(pad(['🔒 RAPPORT DE BLOCAGE — généré le ' + now]));
   out.push(pad(['Verrouillé = option offerte dans 1 seule classe (FIXE) · Permutable = 2 classes (PERMUT) · Libre = 3+ ou sans option']));
   out.push(pad([]));
-  [{ titre: '=== COMPORTEMENT (COM) — critère prioritaire ===', d: com },
-   { titre: '=== TRAVAIL (TRA) ===', d: tra }].forEach(function (bloc) {
+  // NB : ne JAMAIS commencer un titre par « = » (Sheets l'interprète comme une
+  // formule → #ERROR!). D'où le « ■ » en tête.
+  [{ titre: '■ COMPORTEMENT (COM) — critère prioritaire', d: com },
+   { titre: '■ TRAVAIL (TRA)', d: tra }].forEach(function (bloc) {
     out.push(pad([bloc.titre]));
     out.push(HEAD.slice());
     bloc.d.rows.forEach(function (r) {
@@ -144,7 +146,7 @@ function genererRapportBlocage_LEGACY(ctx) {
   const boldRows = [];
   out.forEach(function (row, i) {
     const c0 = String(row[0]);
-    if (c0.indexOf('===') === 0 || c0 === 'Classe' || c0.indexOf('SYNTHÈSE') === 0) boldRows.push(i + 1);
+    if (c0.indexOf('■') === 0 || c0 === 'Classe' || c0.indexOf('SYNTHÈSE') === 0) boldRows.push(i + 1);
   });
   boldRows.forEach(function (r) { sheet.getRange(r, 1, 1, NB_COLS).setFontWeight('bold'); });
 
