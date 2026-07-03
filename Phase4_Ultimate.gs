@@ -303,9 +303,11 @@ function runPhase4CoreLoop_Ultimate_(allData, byClass, headers, globalStats, ctx
         if (saAccepted <= 5 || saAccepted % 10 === 0) {
           logLine('DEBUG', `  🌡️ SA: swap dégradant accepté (gain=${bestSwap.gain.toFixed(4)}, T=${temperature.toFixed(2)}, p=${acceptProbability.toFixed(4)})`);
         }
-      } else {
-        stagnationCount++;
       }
+      // Un REJET Metropolis pendant le refroidissement n'est PAS une stagnation :
+      // avant, dès que p < ~1/50 le stagnationLimit coupait la boucle bien avant
+      // Tmin → le schedule annoncé (T₀, cooling, Tmin) ne tournait jamais en
+      // entier. La boucle reste bornée par maxSwaps et par le budget temps.
     } else {
       stagnationCount++;
     }
@@ -351,6 +353,7 @@ function runPhase4CoreLoop_Ultimate_(allData, byClass, headers, globalStats, ctx
 
   // 3-WAY CYCLE SWAPS
   let swaps3Way = 0;
+  let dry3Rounds = 0;  // rondes consécutives sans triplet gagnant (l'échantillonnage est aléatoire : 1 ronde sèche peut être de la malchance)
   const classNames = Object.keys(byClass);
 
   for (let iter3 = 0; iter3 < 200; iter3++) {
@@ -399,7 +402,14 @@ function runPhase4CoreLoop_Ultimate_(allData, byClass, headers, globalStats, ctx
       }
     }
 
-    if (!best3Way) break;
+    if (!best3Way) {
+      // Tirage aléatoire : exiger 3 rondes sèches consécutives avant d'arrêter
+      // (avant, UNE ronde malchanceuse de 15 triplets suffisait à éteindre la passe)
+      dry3Rounds++;
+      if (dry3Rounds >= 3) break;
+      continue;
+    }
+    dry3Rounds = 0;
 
     const { a, b, c, c1, c2, c3 } = best3Way;
     byClass[c1] = byClass[c1].filter(x => x !== a).concat([c]);
@@ -407,6 +417,32 @@ function runPhase4CoreLoop_Ultimate_(allData, byClass, headers, globalStats, ctx
     byClass[c3] = byClass[c3].filter(x => x !== c).concat([b]);
     swaps3Way++;
     swapsApplied++;
+  }
+
+  // BALAYAGE FINAL : la boucle principale n'explore que les paires impliquant
+  // la PIRE classe → en fin de convergence, des gains résiduels entre classes
+  // « moyennes » (parité, moyennes COM/TRA) restent sur la table. À 4-7 classes
+  // il y a au plus 21 paires : on les balaie toutes, en glouton pur, jusqu'à
+  // épuisement (borné). Peu coûteux depuis le delta-scoring O(1).
+  let polishSwaps = 0;
+  for (let round = 0; round < 10; round++) {
+    if (ctx.deadlineMs && Date.now() > ctx.deadlineMs) break;  // ⏱️ budget temps
+    let improvedRound = false;
+    for (let x = 0; x < classNames.length; x++) {
+      for (let y = x + 1; y < classNames.length; y++) {
+        const sw = findBestSwapPrioritized_Ultimate(classNames[x], classNames[y], allData, byClass, headers, globalStats, ctx, rng, config);
+        if (sw && sw.gain > 0.0001) {
+          applySwap_Ultimate(allData, byClass, sw, headers);
+          swapsApplied++;
+          polishSwaps++;
+          improvedRound = true;
+        }
+      }
+    }
+    if (!improvedRound) break;
+  }
+  if (polishSwaps > 0) {
+    logLine('INFO', `  🧹 Balayage final toutes-paires : ${polishSwaps} swap(s) résiduel(s) appliqué(s)`);
   }
 
   return { swapsApplied: swapsApplied, swaps3Way: swaps3Way };
@@ -554,9 +590,17 @@ function findBestSwapPrioritized_Ultimate(cls1Name, cls2Name, allData, byClass, 
   let bestSwap = null;
   let maxGain = 0;
 
-  // SA : garder aussi le "moins pire" swap dégradant pour le recuit simulé
-  let leastBadSwap = null;
-  let leastBadGain = -Infinity;
+  // RECUIT : candidat dégradant tiré UNIFORMÉMENT (réservoir) parmi TOUS les
+  // swaps faisables dans la borne maxDegradation — et plus seulement le « moins
+  // pire ». L'ancien choix (gain le plus proche de 0, ~-5) faisait que les
+  // swaps déplaçant une tête (~-1000/-2000) n'étaient JAMAIS proposés : le SA
+  // avait la permission de les accepter (T₀=600, maxDeg=2500) mais on ne les
+  // lui présentait pas → il dégénérait en micro-marche aléatoire. Le tirage
+  // uniforme rend les franchissements de crête (maximin) réellement proposables ;
+  // Metropolis (e^(gain/T)) filtre ensuite selon la température.
+  const saMaxDeg = (config.sa && config.sa.enabled && config.sa.maxDegradation) || 0;
+  let saCandidate = null;
+  let saSeen = 0;
 
   // Tester les paires priorisées (top candidats seulement)
   for (let i = 0; i < candidates1.length; i++) {
@@ -595,23 +639,27 @@ function findBestSwapPrioritized_Ultimate(cls1Name, cls2Name, allData, byClass, 
           gain: gain,
           reason: `Swap ${s1.isHead ? 'Tête' : 'Std'}/${s1.isNiv1 ? 'Niv1' : 'Std'}`
         };
-      } else if (gain < 0 && gain > leastBadGain) {
-        // SA : meilleur candidat dégradant (gain négatif le plus proche de 0)
-        leastBadGain = gain;
-        leastBadSwap = {
-          idx1: i1,
-          idx2: i2,
-          cls1: cls1Name,
-          cls2: cls2Name,
-          gain: gain,
-          reason: `SA-Swap ${s1.isHead ? 'Tête' : 'Std'}/${s1.isNiv1 ? 'Niv1' : 'Std'}`
-        };
+      } else if (saMaxDeg > 0 && gain < 0 && gain > -saMaxDeg) {
+        // Échantillonnage réservoir : chaque candidat dégradant faisable a la
+        // même probabilité d'être proposé (1/saSeen au moment de sa lecture).
+        saSeen++;
+        if (rng.next() < 1 / saSeen) {
+          saCandidate = {
+            idx1: i1,
+            idx2: i2,
+            cls1: cls1Name,
+            cls2: cls2Name,
+            gain: gain,
+            reason: `SA-Swap ${s1.isHead ? 'Tête' : 'Std'}/${s1.isNiv1 ? 'Niv1' : 'Std'}`
+          };
+        }
       }
     }
   }
 
-  // Si aucun swap améliorant trouvé, renvoyer le moins dégradant pour le recuit simulé
-  return bestSwap || leastBadSwap;
+  // Si aucun swap améliorant trouvé, renvoyer un candidat dégradant tiré au
+  // hasard pour le recuit simulé (null si SA inactif ou aucun candidat faisable)
+  return bestSwap || saCandidate;
 }
 
 /**
