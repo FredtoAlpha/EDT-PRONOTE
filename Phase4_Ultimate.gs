@@ -1172,7 +1172,7 @@ function canSwapStudents_Ultimate(idx1, idx2, cls1Name, cls2Name, idxList1, idxL
       if (idx === idx2) continue; // s2 sera swappé donc ne compte pas
       const otherStudent = allData[idx];
       const otherDisso = String(otherStudent.row[idxDISSO] || '').trim().toUpperCase();
-      if (otherDisso && otherDisso === disso_s1) {
+      if (partageCodeDisso_(otherDisso, disso_s1)) {  // multi-codes (« D6 D7 »)
         return false; // Conflit DISSO
       }
     }
@@ -1185,7 +1185,7 @@ function canSwapStudents_Ultimate(idx1, idx2, cls1Name, cls2Name, idxList1, idxL
       if (idx === idx1) continue; // s1 sera swappé donc ne compte pas
       const otherStudent = allData[idx];
       const otherDisso = String(otherStudent.row[idxDISSO] || '').trim().toUpperCase();
-      if (otherDisso && otherDisso === disso_s2) {
+      if (partageCodeDisso_(otherDisso, disso_s2)) {  // multi-codes (« D6 D7 »)
         return false; // Conflit DISSO
       }
     }
@@ -1314,20 +1314,16 @@ function validateDISSOConstraints_Ultimate(allData, byClass, headers) {
     for (let i = 0; i < indices.length; i++) {
       const idx = indices[i];
       const student = allData[idx];
-      const disso = String(student.row[idxDISSO] || '').trim().toUpperCase();
-      if (!disso) continue;
-
-      if (!dissoCounts[disso]) {
-        dissoCounts[disso] = {
-          code: disso,
-          count: 0,
-          noms: []
-        };
-      }
-
-      dissoCounts[disso].count++;
+      // multi-codes : « D6 D7 » = l'élève compte dans le groupe D6 ET le groupe D7
+      const codesEleve = dissoCodesOf_(String(student.row[idxDISSO] || ''));
+      if (!codesEleve.length) continue;
       const nom = idxNom >= 0 ? String(student.row[idxNom] || '') : `Élève ${idx}`;
-      dissoCounts[disso].noms.push(nom);
+      for (let cdi = 0; cdi < codesEleve.length; cdi++) {
+        const cd = codesEleve[cdi];
+        if (!dissoCounts[cd]) dissoCounts[cd] = { code: cd, count: 0, noms: [] };
+        dissoCounts[cd].count++;
+        dissoCounts[cd].noms.push(nom);
+      }
     }
 
     // Détecter duplications

@@ -243,7 +243,7 @@ function calculerMobiliteEleve_LEGACY(row, headers, allData, ctx) {
         const otherClasse = String(otherRow[idxAssigned] || '').trim();
         const otherDisso = String(otherRow[idxDISSO] || '').trim().toUpperCase();
         
-        if (otherClasse === classe && otherDisso === disso && otherRow !== row) {
+        if (otherClasse === classe && partageCodeDisso_(otherDisso, disso) && otherRow !== row) {  // multi-codes
           return false; // Classe exclue (contient déjà ce code DISSO)
         }
       }
@@ -337,9 +337,13 @@ function calculerMobiliteGroupe_LEGACY(codeASSO, indicesGroupe, allData, headers
   const idxDISSO = headers.indexOf('DISSO');
   const idxAssigned = headers.indexOf('_CLASS_ASSIGNED');
   
-  const codesDISSO = indicesGroupe.map(function(idx) {
-    return String(allData[idx].row[idxDISSO] || '').trim().toUpperCase();
-  }).filter(function(d) { return d; });
+  // multi-codes : aplatir tous les codes portés par les membres du groupe
+  const codesDISSO = [];
+  indicesGroupe.forEach(function(idx) {
+    dissoCodesOf_(String(allData[idx].row[idxDISSO] || '')).forEach(function(c) {
+      if (codesDISSO.indexOf(c) === -1) codesDISSO.push(c);
+    });
+  });
   
   for (let c = 0; c < codesDISSO.length; c++) {
     const code = codesDISSO[c];
@@ -353,7 +357,7 @@ function calculerMobiliteGroupe_LEGACY(codeASSO, indicesGroupe, allData, headers
         const otherClasse = String(otherRow[idxAssigned] || '').trim();
         const otherDisso = String(otherRow[idxDISSO] || '').trim().toUpperCase();
         
-        if (otherClasse === classe && otherDisso === code) {
+        if (otherClasse === classe && partageCodeDisso_(otherDisso, code)) {  // multi-codes
           return false; // Classe exclue
         }
       }

@@ -246,7 +246,7 @@ function Phase3I_completeAndParity_LEGACY(ctx) {
           const otherAssigned = String(allData[j].row[idxAssigned] || '').trim();
           if (otherAssigned !== cls) continue;
           const otherDisso = String(allData[j].row[idxDISSO] || '').trim().toUpperCase();
-          if (otherDisso === disso) {
+          if (partageCodeDisso_(otherDisso, disso)) {  // multi-codes
             compatible = false;
             break;
           }
