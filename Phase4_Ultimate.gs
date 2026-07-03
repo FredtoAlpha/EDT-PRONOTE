@@ -200,6 +200,7 @@ function Phase4_Ultimate_Run(ctx) {
     logLine('ERROR', '❌ AUCUN restart valide (tous rejetés par DISSO). Fallback sur l\'état pré-Phase4.');
     return {
       ok: false,
+      message: 'Tous les restarts rejetés par la validation DISSO (voir conflits dans le journal)',
       swapsApplied: 0,
       swaps3Way: 0,
       seed: 0,
@@ -1320,14 +1321,30 @@ function validateDISSOConstraints_Ultimate(allData, byClass, headers) {
       const nom = idxNom >= 0 ? String(student.row[idxNom] || '') : `Élève ${idx}`;
       for (let cdi = 0; cdi < codesEleve.length; cdi++) {
         const cd = codesEleve[cdi];
-        if (!dissoCounts[cd]) dissoCounts[cd] = { code: cd, count: 0, noms: [] };
+        if (!dissoCounts[cd]) dissoCounts[cd] = { code: cd, count: 0, noms: [], idxs: [] };
         dissoCounts[cd].count++;
         dissoCounts[cd].noms.push(nom);
+        dissoCounts[cd].idxs.push(idx);
       }
     }
 
-    // Détecter duplications
+    // Détecter duplications — en EXEMPTANT les contradictions de données :
+    // si TOUS les membres du conflit partagent un même code ASSO (« à garder
+    // ensemble »), la séparation est IMPOSSIBLE par construction (ex. jumeaux
+    // saisis A8 + D8). On la signale mais on ne rejette pas la répartition —
+    // l'intention réelle est « le groupe soudé, séparé des AUTRES porteurs ».
+    const idxASSOv = headers.indexOf('ASSO');
     for (const code in dissoCounts) {
+      if (dissoCounts[code].count > 1 && idxASSOv >= 0 && dissoCounts[code].idxs) {
+        const assos = dissoCounts[code].idxs.map(function (ix) {
+          return String(allData[ix].row[idxASSOv] || '').trim().toUpperCase();
+        });
+        if (assos[0] && assos.every(function (a) { return a === assos[0]; })) {
+          logLine('WARN', '  ⚠️ Conflit ' + code + ' IGNORÉ : ' + dissoCounts[code].noms.join(', ') +
+            ' sont soudés par ASSO ' + assos[0] + ' (données contradictoires : à séparer ET à regrouper). Corrigez la saisie si ce n\'est pas voulu.');
+          continue;
+        }
+      }
       if (dissoCounts[code].count > 1) {
         duplicates.push({
           classe: cls,

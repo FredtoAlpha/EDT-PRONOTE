@@ -261,7 +261,12 @@ function v3_runGeneration() {
     RunAudit_log(runId, 'INFO', '_STRUCTURE convertie au format LEGACY');
 
     // 2. LANCEMENT du pipeline LEGACY
-    legacy_runFullPipeline();
+    // PROPAGATION du résultat : avant, un échec de phase était annoncé
+    // « Génération terminée » (succès) à la Console.
+    const pipelineResult = legacy_runFullPipeline();
+    if (pipelineResult && pipelineResult.success === false) {
+      throw new Error('Pipeline en échec : ' + (pipelineResult.error || "voir le journal d'exécution"));
+    }
 
     var durationMs = RunAudit_stopTimer(timer);
     var runReport = RunAudit_buildReport({

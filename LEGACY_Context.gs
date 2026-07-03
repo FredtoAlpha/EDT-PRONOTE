@@ -315,6 +315,16 @@ function readQuotasFromUI_LEGACY() {
  * Lit les quotas depuis la feuille _STRUCTURE
  * Parse la colonne OPTIONS au format "ITA=6,CHAV=10,ESP=5"
  */
+function normaliserCleQuota_LEGACY(nom) {
+  // Normalise une clé de quota _STRUCTURE vers les codes élèves de l'import
+  // (ITALIEN=12 et ITA=12 équivalents — sinon le quota ne matche pas la LV2
+  // 'ITA' des élèves : Phase 1 ne place personne, italiens éparpillés).
+  var n = String(nom || '').trim().toUpperCase();
+  var map = { 'ITALIEN': 'ITA', 'ESPAGNOL': 'ESP', 'ALLEMAND': 'ALL',
+    'CHANT': 'CHAV', 'CHORALE': 'CHAV', 'CHANT CHORAL': 'CHAV' };
+  return map[n] || n;
+}
+
 function readQuotasFromStructure_LEGACY(sheet) {
   const quotas = {};
 
@@ -388,7 +398,7 @@ function readQuotasFromStructure_LEGACY(sheet) {
             optionsStr.split(',').forEach(function(pair) {
               const parts = pair.split('=');
               if (parts.length === 2) {
-                const optName = parts[0].trim().toUpperCase();
+                const optName = normaliserCleQuota_LEGACY(parts[0]);
                 const optValue = parseInt(parts[1].trim()) || 0;
                 quotas[nom][optName] = optValue;
               }
@@ -422,7 +432,7 @@ function readQuotasFromStructure_LEGACY(sheet) {
           optionsStr.split(',').forEach(function(pair) {
             const parts = pair.split('=');
             if (parts.length === 2) {
-              const optName = parts[0].trim().toUpperCase();
+              const optName = normaliserCleQuota_LEGACY(parts[0]);
               const optValue = parseInt(parts[1].trim()) || 0;
               quotas[classe][optName] = optValue;
             }
