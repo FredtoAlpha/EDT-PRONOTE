@@ -33,9 +33,17 @@ const ULTIMATE_CONFIG_DEFAULTS = {
     // MAXIMIN (branche 2028) : « relever le plancher » des têtes plutôt que
     // tout égaliser. Le surplus (souvent imposé par les options, verrouillé)
     // n'est PAS combattu ; on pousse les têtes vers les classes pauvres.
-    headDeficit: 500.0,   // déficit de têtes vs cible → puni FORT (quadratique)
+    headDeficit: 500.0,   // déficit de têtes (bande COM≥4 ou TRA≥4) → puni FORT (quadratique)
     headSurplus: 0.0,     // surplus de têtes → NON puni par défaut (options figées)
-    niv1Excess: 300.0     // excès d'élèves fragiles → puni FORT (anti classe-ghetto)
+    niv1Excess: 300.0,    // excès d'élèves fragiles (bande COM≤1 ou TRA≤1) → puni FORT
+    // EXTRÊMES PURS, priorité COM puis TRA (spéc. prof : « chaque classe doit
+    // avoir ses vraies têtes (5), aucune ne doit déborder de 1 ») — termes
+    // SECONDAIRES sous la bande, pour répartir les 5 et les 1 de CHAQUE critère
+    // à l'intérieur des bandes déjà équilibrées.
+    com5Deficit: 250.0,   // déficit de COM=5 vs part juste → quadratique
+    com1Excess: 200.0,    // excès de COM=1 vs part juste → quadratique
+    tra5Deficit: 125.0,   // idem TRA, poids moitié (COM prioritaire)
+    tra1Excess: 100.0
   },
   targets: {
     headMin: 2,
@@ -481,11 +489,17 @@ function aggAdd_(agg, s, sign) {
   agg.sumTRA += sign * (s.TRA || 2);
   agg.sumPART += sign * (s.PART || 2);
   agg.sumABS += sign * (s.ABS || 2);
+  // Extrêmes PURS par critère (spéc. prof : têtes ET fonds équilibrés, COM puis TRA)
+  if (s.COM >= 5) agg.nbCOM5 += sign;
+  if (s.COM <= 1) agg.nbCOM1 += sign;
+  if (s.TRA >= 5) agg.nbTRA5 += sign;
+  if (s.TRA <= 1) agg.nbTRA1 += sign;
 }
 
 /** Construit les agrégats d'une classe à partir de sa liste d'indices. */
 function buildClassAgg_(indices, allData) {
-  const agg = { total: 0, nbTetes: 0, nbNiv1: 0, nbF: 0, sumCOM: 0, sumTRA: 0, sumPART: 0, sumABS: 0 };
+  const agg = { total: 0, nbTetes: 0, nbNiv1: 0, nbF: 0, sumCOM: 0, sumTRA: 0, sumPART: 0, sumABS: 0,
+    nbCOM5: 0, nbCOM1: 0, nbTRA5: 0, nbTRA1: 0 };
   for (let k = 0; k < indices.length; k++) aggAdd_(agg, allData[indices[k]], 1);
   return agg;
 }
@@ -529,6 +543,29 @@ function calculateScoreFromAgg_(agg, globalStats, className, ctx, config) {
   }
   if (agg.nbNiv1 > targetNiv1) {
     score += Math.pow(agg.nbNiv1 - targetNiv1, 2) * wN1;
+  }
+
+  // --- 1bis. EXTRÊMES PURS par critère, COM prioritaire puis TRA ---
+  // La bande (COM≥4 ou TRA≥4) met les 4 et les 5 dans le même panier : une
+  // classe pouvait finir avec 8 « 4 » et presque aucun « 5 » (bande équilibrée,
+  // vraies têtes absentes — le prof hurle). Termes secondaires asymétriques,
+  // même logique maximin : déficit de 5 puni, excès de 1 puni, surplus toléré
+  // (souvent verrouillé par les options). Cibles proportionnelles faisables.
+  if (propOn) {
+    const wC5 = (config.weights.com5Deficit != null) ? config.weights.com5Deficit : 250;
+    const wC1 = (config.weights.com1Excess != null) ? config.weights.com1Excess : 200;
+    const wT5 = (config.weights.tra5Deficit != null) ? config.weights.tra5Deficit : 125;
+    const wT1 = (config.weights.tra1Excess != null) ? config.weights.tra1Excess : 100;
+
+    const tC5 = Math.floor((globalStats.com5Ratio || 0) * total);
+    const tC1 = Math.ceil((globalStats.com1Ratio || 0) * total);
+    const tT5 = Math.floor((globalStats.tra5Ratio || 0) * total);
+    const tT1 = Math.ceil((globalStats.tra1Ratio || 0) * total);
+
+    if (agg.nbCOM5 < tC5) score += Math.pow(tC5 - agg.nbCOM5, 2) * wC5;
+    if (agg.nbCOM1 > tC1) score += Math.pow(agg.nbCOM1 - tC1, 2) * wC1;
+    if (agg.nbTRA5 < tT5) score += Math.pow(tT5 - agg.nbTRA5, 2) * wT5;
+    if (agg.nbTRA1 > tT1) score += Math.pow(agg.nbTRA1 - tT1, 2) * wT1;
   }
 
   // --- 2. CRITÈRE PARITÉ (Adaptatif) ---
@@ -776,6 +813,7 @@ function calculateGlobalStats_Ultimate(allData) {
   // MAXIMIN : part globale de têtes et d'élèves fragiles → sert de cible
   // proportionnelle par classe (part × effectif de la classe).
   let nbHeads = 0, nbNiv1 = 0;
+  let nbCom5 = 0, nbCom1 = 0, nbTra5 = 0, nbTra1 = 0;  // extrêmes PURS (COM prioritaire, puis TRA)
   for (let k = 0; k < total; k++) {
     const st = allData[k];
     const cH = safe(st.COM, DEFAULT_VAL), tH = safe(st.TRA, DEFAULT_VAL), pH = safe(st.PART, DEFAULT_VAL);
@@ -783,6 +821,10 @@ function calculateGlobalStats_Ultimate(allData) {
     const isN = (typeof isNiv1Student === 'function') ? isNiv1Student(cH, tH) : (cH <= 1 || tH <= 1);
     if (isH) nbHeads++;
     if (isN) nbNiv1++;
+    if (cH >= 5) nbCom5++;
+    if (cH <= 1) nbCom1++;
+    if (tH >= 5) nbTra5++;
+    if (tH <= 1) nbTra1++;
   }
   const sumCOM = allData.reduce((sum, s) => sum + safe(s.COM, DEFAULT_VAL), 0);
   const sumTRA = allData.reduce((sum, s) => sum + safe(s.TRA, DEFAULT_VAL), 0);
@@ -801,7 +843,11 @@ function calculateGlobalStats_Ultimate(allData) {
     avgPART: avg(sumPART),
     avgABS: avg(sumABS),
     headRatio: total > 0 ? nbHeads / total : 0,
-    niv1Ratio: total > 0 ? nbNiv1 / total : 0
+    niv1Ratio: total > 0 ? nbNiv1 / total : 0,
+    com5Ratio: total > 0 ? nbCom5 / total : 0,
+    com1Ratio: total > 0 ? nbCom1 / total : 0,
+    tra5Ratio: total > 0 ? nbTra5 / total : 0,
+    tra1Ratio: total > 0 ? nbTra1 / total : 0
   };
 }
 
