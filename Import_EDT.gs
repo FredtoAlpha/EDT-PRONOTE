@@ -432,30 +432,31 @@ function importerEDT_(csvText, niveauActif, typeImport) {
       onglets.push(classe);
     }
 
-    // MODE PRIMAIRE — HYGIÈNE DES SOURCES. La consolidation ramasse TOUS les
-    // onglets X°N : des résidus d'imports précédents (ECOLE°1…, ancien
-    // regroupement 7°8…) seraient MÉLANGÉS aux 7°N — et le premier onglet
-    // trouvé impose son en-tête à CONSOLIDATION (colonnes désorganisées).
+    // MODE PRIMAIRE — RECYCLAGE AUTOMATIQUE. La consolidation ramasse TOUS les
+    // onglets X°N : des artéfacts d'imports précédents (ECOLE°1…, ancien
+    // regroupement 7°8…) seraient mélangés aux 7°N, et le PREMIER onglet trouvé
+    // impose son en-tête à CONSOLIDATION (d'où colonnes désorganisées et
+    // « 16 colonnes de données vs plage de 20 »). L'outil fait le ménage
+    // LUI-MÊME : tout onglet source qui n'est ni un 7°N fraîchement écrit, ni
+    // une vraie classe collège ([3-6]°N — jamais touchée), est supprimé. Le
+    // classeur converge vers l'état propre en UN clic, sans purge manuelle.
     if (typeImport === 'primaire') {
-      var etrangers = [];
+      var proteges = [];
       ss.getSheets().forEach(function (sh) {
         var nm = sh.getName();
         if (!/.+°\d+$/.test(nm) || onglets.indexOf(nm) >= 0) return;
-        if (/^7°\d+$/.test(nm)) {
-          ss.deleteSheet(sh);   // résidu 7°N d'un import 6e précédent → purgé
-          res.warnings.push('Onglet 7° périmé supprimé : ' + nm + '.');
-        } else {
-          etrangers.push(nm);   // ECOLE°1, 6°1… : pas à nous, on ne détruit pas
-        }
+        if (/^[3-6]°\d+$/.test(nm)) { proteges.push(nm); return; }
+        ss.deleteSheet(sh);
+        res.warnings.push('♻️ Onglet d\'import périmé recyclé : ' + nm + ' (remplacé par ' + onglets.join(', ') + ').');
       });
-      if (etrangers.length) {
+      if (proteges.length) {
+        // De vraies classes collège coexistent dans ce classeur : on ne détruit
+        // rien et on ne consolide pas un mélange — décision humaine requise.
         SpreadsheetApp.flush();
-        res.warnings.push('⛔ ONGLETS SOURCES ÉTRANGERS détectés : ' + etrangers.join(', ') +
-          ' — la consolidation les mélangerait aux onglets 7°N (colonnes désorganisées, effectifs faux). ' +
-          'CONSOLIDATION NON LANCÉE. Purgez l\'import (bouton « TOUT PURGER ») ou supprimez ces onglets, puis relancez cet import.');
+        res.warnings.push('⛔ Onglets de classes collège détectés (' + proteges.join(', ') + ') : consolidation suspendue pour ne pas mélanger. Ce classeur 6e ne devrait contenir que les sources 7°N.');
         return {
           ok: true,
-          resume: 'Onglets 7°N écrits (' + onglets.join(', ') + ') mais consolidation SUSPENDUE : onglets étrangers à purger.\n⚠ ' + res.warnings.join('\n⚠ '),
+          resume: 'Onglets 7°N écrits (' + onglets.join(', ') + ') mais consolidation SUSPENDUE.\n⚠ ' + res.warnings.join('\n⚠ '),
           stats: res.stats, warnings: res.warnings, onglets: onglets
         };
       }
