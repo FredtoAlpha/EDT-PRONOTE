@@ -274,8 +274,33 @@ function Phase3I_completeAndParity_LEGACY(ctx) {
     }
 
     if (!targetClass) {
-      targetClass = findLeastPopulatedClass_Phase3(allData, headersRef, ctx);
-      logLine('WARN', '    ⚠️ ' + nom + ' : Aucune classe compatible trouvée, placement forcé dans ' + targetClass);
+      // PLACEMENT FORCÉ — mais JAMAIS au mépris d'une option/LV2 rare. Si la (ou
+      // les) classe(s) qui OFFRENT l'option de l'élève sont pleines, on l'y place
+      // QUAND MÊME (dépassement d'effectif toléré : une option est une contrainte
+      // horaire intouchable, un effectif se rééquilibre en Phase 4). On ne tombe
+      // sur « la moins peuplée » que pour les élèves SANS option rare — sinon un
+      // ITA finissait en classe CHAV (cause du bug « ITA en 6°3 »).
+      var aOptionRare = (lv2 && isKnownLV2(lv2) && lv2Universelles.indexOf(lv2) === -1) ||
+                        (opt && isKnownOPT(opt));
+      if (aOptionRare) {
+        var classesOffrant = [];
+        for (var clsF in (ctx.targets || {})) {
+          var qF = (ctx.quotas && ctx.quotas[clsF]) || {};
+          var okLV2 = (lv2 && isKnownLV2(lv2) && lv2Universelles.indexOf(lv2) === -1) ? (qF[lv2] > 0) : true;
+          var okOPT = (opt && isKnownOPT(opt)) ? (qF[opt] > 0) : true;
+          if (okLV2 && okOPT) classesOffrant.push(clsF);
+        }
+        if (classesOffrant.length) {
+          classesOffrant.sort(function (a, b) { return (classCounts[a] || 0) - (classCounts[b] || 0); });
+          targetClass = classesOffrant[0];
+          logLine('WARN', '    ⚠️ ' + nom + ' : classe(s) d\'option pleine(s) → placé dans ' + targetClass +
+            ' (option ' + (lv2 || opt) + ' PRÉSERVÉE, dépassement d\'effectif toléré, corrigé en Phase 4).');
+        }
+      }
+      if (!targetClass) {
+        targetClass = findLeastPopulatedClass_Phase3(allData, headersRef, ctx);
+        logLine('WARN', '    ⚠️ ' + nom + ' : aucune classe compatible → placement forcé dans ' + targetClass);
+      }
     }
 
     item.row[idxAssigned] = targetClass;
@@ -403,6 +428,12 @@ function Phase3I_completeAndParity_LEGACY(ctx) {
 
   logLine('INFO', '  ✅ ' + swaps + ' swaps parité appliqués');
 
+  // ========== RÉPARATION DES OPTIONS RARES (filet final) ==========
+  // Quelle que soit la phase qui l'a déplacé (Phase 2 ASSO/DISSO, repli Phase 3…),
+  // tout élève à LV2/OPT rare doit finir dans une classe qui l'offre. On le ramène
+  // (échange avec un ESP sans contrainte si possible, sinon déplacement).
+  reparerOptionsRares_Phase3(allData, headersRef, ctx);
+
   // ========== RÉÉCRIRE PAR CLASSE ASSIGNÉE ==========
   // ✅ CORRECTION : Regrouper par _CLASS_ASSIGNED pour que les swaps soient effectifs
   const byClass = {};
@@ -451,6 +482,72 @@ function Phase3I_completeAndParity_LEGACY(ctx) {
   }
 
   return { ok: true, message: 'Phase 3 terminée', placed: placed, swaps: swaps, validation: validationResult };
+}
+
+/**
+ * FILET FINAL OPTIONS RARES : garantit l'invariant « un élève à LV2/OPT rare est
+ * dans une classe qui l'offre ». Corrige toute fuite (ITA en classe CHAV…) laissée
+ * par une phase amont. Échange avec un ESP libre (sans option, sans ASSO) pour
+ * préserver les effectifs ; à défaut, déplace (l'effectif est repris en Phase 4).
+ */
+function reparerOptionsRares_Phase3(allData, headersRef, ctx) {
+  var idxAssigned = headersRef.indexOf('_CLASS_ASSIGNED');
+  var idxLV2 = headersRef.indexOf('LV2'), idxOPT = headersRef.indexOf('OPT');
+  var idxASSO = headersRef.indexOf('ASSO'), idxNom = headersRef.indexOf('NOM');
+  if (idxAssigned === -1) return 0;
+  var univ = ctx.lv2Universelles || [];
+
+  // ESP = LV2 par défaut de l'établissement : jamais une contrainte, même sans
+  // quota déclaré dans _STRUCTURE (sinon les ESP sont vus comme « rares » et ne
+  // peuvent plus servir de partenaire d'échange).
+  function lv2Contraignante(lv2) {
+    return lv2 && lv2 !== 'ESP' && isKnownLV2(lv2) && univ.indexOf(lv2) === -1;
+  }
+  function estRare(lv2, opt) {
+    return lv2Contraignante(lv2) || (opt && isKnownOPT(opt));
+  }
+  function classeOffre(cls, lv2, opt) {
+    var q = (ctx.quotas && ctx.quotas[cls]) || {};
+    if (lv2Contraignante(lv2) && !(q[lv2] > 0)) return false;
+    if (opt && isKnownOPT(opt) && !(q[opt] > 0)) return false;
+    return true;
+  }
+
+  var repares = 0;
+  for (var i = 0; i < allData.length; i++) {
+    var row = allData[i].row;
+    var lv2 = String(row[idxLV2] || '').trim().toUpperCase();
+    var opt = String(row[idxOPT] || '').trim().toUpperCase();
+    if (!estRare(lv2, opt)) continue;
+    var cls = String(row[idxAssigned] || '').trim();
+    if (cls && classeOffre(cls, lv2, opt)) continue; // déjà bien placé
+
+    var cible = null;
+    for (var c in (ctx.quotas || {})) { if (classeOffre(c, lv2, opt)) { cible = c; break; } }
+    if (!cible || cible === cls) continue; // aucune classe n'offre → contradiction structure
+
+    // Chercher un ESP « échangeable » dans la classe cible (sans option, sans ASSO)
+    var part = -1;
+    for (var j = 0; j < allData.length; j++) {
+      if (String(allData[j].row[idxAssigned] || '').trim() !== cible) continue;
+      var jl = String(allData[j].row[idxLV2] || '').trim().toUpperCase();
+      var jo = String(allData[j].row[idxOPT] || '').trim().toUpperCase();
+      if (estRare(jl, jo)) continue;                                   // ne pas déloger un autre optionné
+      if (idxASSO >= 0 && String(allData[j].row[idxASSO] || '').trim()) continue; // pas d'ASSO
+      part = j; break;
+    }
+    if (part >= 0) {
+      allData[part].row[idxAssigned] = cls || cible;
+      row[idxAssigned] = cible;
+      logLine('WARN', '  🔧 Option réparée (échange) : ' + String(row[idxNom] || '') + ' [' + (lv2 || opt) + '] ' + (cls || '∅') + '→' + cible);
+    } else {
+      row[idxAssigned] = cible;
+      logLine('WARN', '  🔧 Option réparée (déplacement) : ' + String(row[idxNom] || '') + ' [' + (lv2 || opt) + '] ' + (cls || '∅') + '→' + cible + ' (effectif ajusté en Phase 4)');
+    }
+    repares++;
+  }
+  if (repares) logLine('INFO', '  🔧 ' + repares + ' élève(s) à option rare replacé(s) dans leur classe.');
+  return repares;
 }
 
 function findLeastPopulatedClass_Phase3(allData, headers, ctx) {
