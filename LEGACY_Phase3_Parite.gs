@@ -434,6 +434,40 @@ function Phase3I_completeAndParity_LEGACY(ctx) {
   // (échange avec un ESP sans contrainte si possible, sinon déplacement).
   reparerOptionsRares_Phase3(allData, headersRef, ctx);
 
+  // ========== VERDICT OPTIONS (auto-diagnostic visible) ==========
+  // MARQUEUR DE VERSION : « PRIMAIRE-OPT-GUARD-v2 » — si cette ligne n'apparaît
+  // PAS dans le journal, c'est que l'Apps Script exécute un ANCIEN fichier.
+  logLine('INFO', '🔎 [PRIMAIRE-OPT-GUARD-v2] Vérification finale des options par classe :');
+  (function () {
+    var univV = ctx.lv2Universelles || [];
+    var idxLV2v = headersRef.indexOf('LV2'), idxOPTv = headersRef.indexOf('OPT');
+    var idxAssignedV = headersRef.indexOf('_CLASS_ASSIGNED');
+    var repartition = {};   // option -> { classe: count }
+    for (var i = 0; i < allData.length; i++) {
+      var r = allData[i].row;
+      var lv2 = String(r[idxLV2v] || '').trim().toUpperCase();
+      var opt = String(r[idxOPTv] || '').trim().toUpperCase();
+      var cls = String(r[idxAssignedV] || '').trim();
+      var code = (lv2 && lv2 !== 'ESP' && isKnownLV2(lv2) && univV.indexOf(lv2) === -1) ? lv2
+        : (opt && isKnownOPT(opt)) ? opt : null;
+      if (!code) continue;
+      if (!repartition[code]) repartition[code] = {};
+      repartition[code][cls] = (repartition[code][cls] || 0) + 1;
+    }
+    for (var code in repartition) {
+      var parClasse = repartition[code];
+      var classesOffrant = [];
+      for (var c in (ctx.quotas || {})) { if ((ctx.quotas[c] || {})[code] > 0) classesOffrant.push(c); }
+      var hors = 0, detail = [];
+      for (var cl in parClasse) {
+        detail.push(cl + '×' + parClasse[cl]);
+        if (classesOffrant.indexOf(cl) === -1) hors += parClasse[cl];
+      }
+      var verdict = hors === 0 ? '✅ OK' : ('❌ ' + hors + ' HORS de la/les classe(s) ' + (classesOffrant.join(',') || '(aucune!)'));
+      logLine(hors === 0 ? 'INFO' : 'ERROR', '   • ' + code + ' : ' + detail.join(', ') + '  → ' + verdict);
+    }
+  })();
+
   // ========== RÉÉCRIRE PAR CLASSE ASSIGNÉE ==========
   // ✅ CORRECTION : Regrouper par _CLASS_ASSIGNED pour que les swaps soient effectifs
   const byClass = {};
