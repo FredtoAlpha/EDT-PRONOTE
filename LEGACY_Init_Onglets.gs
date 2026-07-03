@@ -54,8 +54,11 @@ function initEmptyTestTabs_LEGACY(ctx) {
       const hdr = sh.getRange(1, 1, 1, sh.getLastColumn()).getValues()[0]
         .map(function (h) { return String(h || '').trim().toUpperCase(); });
       // Colonnes ajoutées au fil du temps : si l'une manque, l'en-tête est plus
-      // étroit que les données → on reconstruit. (CLASSE_IMPOSEE puis DEFENSE.)
-      if (hdr.indexOf('CLASSE_IMPOSEE') === -1 || hdr.indexOf('DEFENSE') === -1) {
+      // étroit que les données → on reconstruit. (CLASSE_IMPOSEE, DEFENSE, puis
+      // NOM_PRENOM/SOURCE — un TEST créé avec l'ancien schéma 16 colonnes doit
+      // être réaligné sur le schéma standard 20 colonnes.)
+      if (hdr.indexOf('CLASSE_IMPOSEE') === -1 || hdr.indexOf('DEFENSE') === -1 ||
+          hdr.indexOf('NOM_PRENOM') === -1 || hdr.indexOf('SOURCE') === -1) {
         sh.clear();
         writeTestHeaders_LEGACY(ctx, sh, name);
         logLine('INFO', '  🔁 ' + name + ' : en-tête périmé (colonne manquante) → reconstruit depuis la source');
@@ -200,11 +203,17 @@ function ensureClassAssignedColumn_LEGACY(sheet, headers) {
  * @param {Sheet} sheet - Onglet TEST
  */
 function createDefaultHeaders_LEGACY(sheet) {
-  // ✅ En-têtes par défaut pour un onglet TEST
+  // ✅ SCHÉMA STANDARD DU CLASSEUR (20 colonnes) — identique aux onglets
+  //    sources écrits par l'import (EDT_SOURCE_HEADERS) + les 3 colonnes de
+  //    travail du moteur. L'ancienne liste (16 colonnes, SANS NOM_PRENOM /
+  //    SOURCE / CLASSE_IMPOSEE / DEFENSE) créait des onglets TEST plus étroits
+  //    que les données de CONSOLIDATION → « 16 colonnes de données ≠ plage de
+  //    20 » et colonnes désorganisées (sexe sous LV2, NOM_PRENOM sous SEXE).
   const defaultHeaders = [
     'ID_ELEVE',
     'NOM',
     'PRENOM',
+    'NOM_PRENOM',
     'SEXE',
     'LV2',
     'OPT',
@@ -212,9 +221,12 @@ function createDefaultHeaders_LEGACY(sheet) {
     'TRA',
     'PART',
     'ABS',
-    'DISPO',       // ✅ FIX: Colonne manquante qui causait le décalage des indices
+    'DISPO',
     'ASSO',
     'DISSO',
+    'SOURCE',
+    'CLASSE_IMPOSEE',
+    'DEFENSE',
     '_CLASS_ASSIGNED',
     'MOBILITE',
     'FIXE'
@@ -330,6 +342,10 @@ function adjustColumnWidths_LEGACY(sheet) {
     'DISPO': 80,         // ✅ FIX: Ajout colonne DISPO
     'ASSO': 80,
     'DISSO': 80,
+    'NOM_PRENOM': 200,
+    'SOURCE': 80,
+    'CLASSE_IMPOSEE': 110,
+    'DEFENSE': 80,
     '_CLASS_ASSIGNED': 120,
     'MOBILITE': 100,
     'FIXE': 80

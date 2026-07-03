@@ -234,10 +234,17 @@ function edtImportCore_(text, niveauActif, typeImport) {
     if (nom === '' && prenom === '') continue; // ligne vide
     lu++;
 
-    // PRIMAIRE : noms fusionnés (« ABTAOUI Ranya ») → scinder si Prénom vide
-    if (typeImport === 'primaire' && !prenom && nom) {
+    // PRIMAIRE : la colonne « Nom » de l'export contient le nom ET le prénom
+    // fusionnés (« ABTAOUI Ranya »), que la colonne Prénom soit remplie ou non.
+    // On nettoie TOUJOURS : le nom = les tokens en capitales, le prénom = le
+    // reste (colonne Prénom prioritaire si déjà fournie). Sans ce nettoyage,
+    // NOM restait fusionné et NOM_PRENOM devenait « ABTAOUI Ranya Ranya ».
+    if (typeImport === 'primaire' && nom) {
       var sp = edtSplitNomPrenom_(nom);
-      nom = sp.nom; prenom = sp.prenom;
+      if (sp.prenom) {
+        nom = sp.nom;
+        if (!prenom) prenom = sp.prenom;
+      }
     }
 
     // Filtrage par niveau (colonne MEF du type choisi ; repli sur l'autre)
