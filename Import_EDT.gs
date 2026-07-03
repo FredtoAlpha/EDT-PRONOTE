@@ -30,6 +30,46 @@ function edtLetterToScore_(v) {
   return map.hasOwnProperty(k) ? map[k] : '';
 }
 
+// =============================================================================
+// MODE PRIMAIRE (entrants 6e) — branche PRIMAIRE
+// L'export prévisionnel des futurs 6e n'a que 3 lettres (A/B/C), des noms
+// fusionnés (« ABTAOUI Ranya »), et « Ancienne classe » = ÉCOLE PRIMAIRE.
+// =============================================================================
+
+var EDT_PRIMAIRE_CONFIG = {
+  prefixe: '7°',                 // pseudo-niveau « école primaire » (7°1, 7°2, …)
+  minParEcole: 4,                // écoles plus petites → regroupées dans le dernier onglet
+  lv2Map: { 'ITALIEN': 'ITA', 'ITA': 'ITA' },
+  optMap: { 'CHAV': 'CHAV' },
+  dispositifs: ['ULIS', 'UPE2A', 'AESH'],
+  classeImposeeParDispo: { 'ULIS': '6°1|6°4' }   // structure 26-27 : 2 ULIS en 6°1 + 2 en 6°4
+};
+
+/** Échelle 6e : A=5 (tête), B=3, C=1 (fragile). Vide/inconnu = 3 (profil neutre)
+ *  — 3 lettres seulement en primaire : il faut des extrêmes francs pour que le
+ *  maximin têtes/fonds ait de la matière. */
+function edtLetterToScorePrimaire_(v) {
+  var k = String(v === null || v === undefined ? '' : v).trim().toUpperCase();
+  var map = { A: 5, B: 3, C: 1 };
+  return map.hasOwnProperty(k) ? map[k] : 3;
+}
+
+/** Sépare « NOM EN CAPITALES Prénom » (tolère la casse mixte type « ISSERTEs »). */
+function edtSplitNomPrenom_(full) {
+  var toks = String(full || '').trim().split(/\s+/);
+  var nomToks = toks.filter(function (t) { return t.length >= 2 && t.slice(0, 2) === t.slice(0, 2).toUpperCase() && /[A-ZÀ-Ý]/.test(t.charAt(0)); });
+  var preToks = toks.filter(function (t) { return nomToks.indexOf(t) === -1; });
+  return { nom: (nomToks.length ? nomToks : [toks[0] || '']).join(' '), prenom: preToks.join(' ') };
+}
+
+/** École normalisée pour le regroupement (tolère un « 7°X » déjà transformé). */
+function edtEcoleNormalisee_(v) {
+  var e = String(v || '').trim().toUpperCase();
+  var p = EDT_PRIMAIRE_CONFIG.prefixe;
+  if (e.indexOf(p) === 0) e = e.slice(p.length);
+  return e;
+}
+
 /** Detecte le separateur le plus probable d'une ligne (',' ';' ou tab). */
 function edtDetectSep_(ligne) {
   var c = { ',': 0, ';': 0, '\t': 0 };
@@ -137,12 +177,13 @@ function edtNormClasseFallback_(c) {
  * @returns {{eleves:Array, parClasse:Object, stats:Object, warnings:string[], sep:string, cols:Object, typeImport:string}}
  */
 function edtImportCore_(text, niveauActif, typeImport) {
-  typeImport = (typeImport === 'base') ? 'base' : 'prev';
+  typeImport = (typeImport === 'base') ? 'base' : (typeImport === 'primaire' ? 'primaire' : 'prev');
   // Selon le type : quelle colonne porte la classe et le niveau (MEF).
-  var colClasse = (typeImport === 'base') ? 'ANCIENNE_CLASSE' : 'CLASSE_PREV';
-  var colClasseReplis = (typeImport === 'base') ? 'CLASSE_PREV' : 'ANCIENNE_CLASSE';
-  var colMef = (typeImport === 'base') ? 'ANCIEN_MEF' : 'MEF_PREV';
-  var colMefReplis = (typeImport === 'base') ? 'MEF_PREV' : 'ANCIEN_MEF';
+  // 'primaire' : « Ancienne classe » = ÉCOLE d'origine (pas une classe X°N).
+  var colClasse = (typeImport === 'prev') ? 'CLASSE_PREV' : 'ANCIENNE_CLASSE';
+  var colClasseReplis = (typeImport === 'prev') ? 'ANCIENNE_CLASSE' : 'CLASSE_PREV';
+  var colMef = (typeImport === 'prev') ? 'MEF_PREV' : 'ANCIEN_MEF';
+  var colMefReplis = (typeImport === 'prev') ? 'ANCIEN_MEF' : 'MEF_PREV';
 
   var lignes = String(text).replace(/^﻿/, '').split(/\r?\n/);
   var premiere = '';
@@ -175,6 +216,9 @@ function edtImportCore_(text, niveauActif, typeImport) {
   if (typeImport === 'base' && nivCible) {
     nivDigit = String(parseInt(nivCible, 10) + 1); // 3 -> 4, 5 -> 6, etc.
   }
+  if (typeImport === 'primaire') {
+    nivDigit = null; // pas de filtrage MEF : les CM2 n'ont pas de niveau 3-6
+  }
   // Le niveau des onglets/entrants suit le niveau REEL des classes de l'import.
   var nivEntrants = nivDigit;
   function cell(row, key) { return (key in cols && row[cols[key]] != null) ? String(row[cols[key]]).trim() : ''; }
@@ -190,12 +234,28 @@ function edtImportCore_(text, niveauActif, typeImport) {
     if (nom === '' && prenom === '') continue; // ligne vide
     lu++;
 
+    // PRIMAIRE : noms fusionnés (« ABTAOUI Ranya ») → scinder si Prénom vide
+    if (typeImport === 'primaire' && !prenom && nom) {
+      var sp = edtSplitNomPrenom_(nom);
+      nom = sp.nom; prenom = sp.prenom;
+    }
+
     // Filtrage par niveau (colonne MEF du type choisi ; repli sur l'autre)
     var mefDigit = edtNiveauDigit_(cell(row, colMef)) || edtNiveauDigit_(cell(row, colMefReplis));
     if (nivDigit && mefDigit && mefDigit !== nivDigit) { filtres++; continue; }
 
     var optStr = cell(row, 'OPT_PREV') || cell(row, 'OPT_PREC');
     var lo = parseOpt(optStr) || { lv2: '', opt: '' };
+    var dispoPrimaire = '';
+    if (typeImport === 'primaire') {
+      // 6e : une seule valeur brute (ITALIEN / CHAV / ULIS / UPE2A / AESH)
+      var optU = String(optStr || '').trim().toUpperCase();
+      lo = {
+        lv2: EDT_PRIMAIRE_CONFIG.lv2Map[optU] || '',
+        opt: EDT_PRIMAIRE_CONFIG.optMap[optU] || ''
+      };
+      if (EDT_PRIMAIRE_CONFIG.dispositifs.indexOf(optU) >= 0) dispoPrimaire = optU;
+    }
     // DEFENSE : cohorte (drapeau d'affichage). Détectée dans la liste d'options
     // mais NON stockée dans OPT (qui reste l'option réelle : LATIN…) → canaux
     // séparés, un élève peut cumuler LATIN (OPT) + DEFENSE (drapeau). Le
@@ -211,11 +271,16 @@ function edtImportCore_(text, niveauActif, typeImport) {
     var dispoVal = dispoRaw
       ? (((typeof parseDispo_ === 'function') ? parseDispo_(dispoRaw) : '') || dispoRaw.trim())
       : '';
+    if (typeImport === 'primaire' && dispoPrimaire) dispoVal = dispoVal || dispoPrimaire;
     // Classe (du type d'import choisi). Les entrants (autre etablissement, classe
     // vide ou non standard type "403"/"4C") sont regroupes dans un onglet dedie.
     var clNorm = normClasse(cell(row, colClasseEffective));
     var classeStd = /^\d\s*°\s*\d+$/.test(clNorm);
     var classe = classeStd ? clNorm.replace(/\s/g, '') : null; // null = entrant (resolu apres)
+    if (typeImport === 'primaire') {
+      // La « classe » d'origine est l'ÉCOLE : regroupée puis renumérotée 7°N après la boucle
+      classe = edtEcoleNormalisee_(cell(row, colClasseEffective)) || 'AUTRE';
+    }
     // Memoriser le niveau reel vu dans les classes standard (pour les entrants)
     if (classeStd && !nivEntrants) {
       var dm = clNorm.match(/(\d)\s*°/);
@@ -228,6 +293,10 @@ function edtImportCore_(text, niveauActif, typeImport) {
     // moteur décide. En mode 'prev', CLASSE_PREV EST déjà la classe d'origine
     // → pas d'imposition séparée.
     var classeImposee = '';
+    if (typeImport === 'primaire') {
+      // 6e : classe(s) imposée(s) par dispositif (ex. ULIS → 6°1|6°4, cf. structure)
+      classeImposee = (dispoPrimaire && EDT_PRIMAIRE_CONFIG.classeImposeeParDispo[dispoPrimaire]) || '';
+    }
     if (typeImport === 'base') {
       classeImposee = String(cell(row, 'CLASSE_PREV') || '')
         .split('|')
@@ -240,10 +309,12 @@ function edtImportCore_(text, niveauActif, typeImport) {
       nom: nom, prenom: prenom, sexe: sexe,
       lv1: 'ANGLAIS', // LV1 = ANGLAIS par defaut (etablissement)
       lv2: lo.lv2 || '', opt: lo.opt || '',
-      com: edtLetterToScore_(cell(row, 'COM')),
-      tra: edtLetterToScore_(cell(row, 'TRA')),
-      part: edtLetterToScore_(cell(row, 'PART')),
-      abs: edtLetterToScore_(cell(row, 'ABS')),
+      // primaire : 3 lettres seulement → A=5/B=3/C=1, vide=3 (extrêmes francs
+      // pour le maximin). Sinon : échelle EDT A-E classique.
+      com: (typeImport === 'primaire') ? edtLetterToScorePrimaire_(cell(row, 'COM')) : edtLetterToScore_(cell(row, 'COM')),
+      tra: (typeImport === 'primaire') ? edtLetterToScorePrimaire_(cell(row, 'TRA')) : edtLetterToScore_(cell(row, 'TRA')),
+      part: (typeImport === 'primaire') ? edtLetterToScorePrimaire_(cell(row, 'PART')) : edtLetterToScore_(cell(row, 'PART')),
+      abs: (typeImport === 'primaire') ? edtLetterToScorePrimaire_(cell(row, 'ABS')) : edtLetterToScore_(cell(row, 'ABS')),
       dispo: dispoVal,
       asso: cell(row, 'ASSO'), disso: cell(row, 'DISSO'),
       classeImposee: classeImposee,
@@ -254,6 +325,34 @@ function edtImportCore_(text, niveauActif, typeImport) {
     if (classe) { (parClasse[classe] = parClasse[classe] || []).push(el); }
     else { entrantsRaw.push(el); }
     gardes++;
+  }
+
+  // PRIMAIRE : renuméroter les écoles en onglets 7°1..7°N (effectif décroissant),
+  // les écoles < minParEcole regroupées dans le dernier onglet. La légende
+  // école → onglet part dans les warnings (affichée par l'UI d'import).
+  if (typeImport === 'primaire') {
+    var cfgP = EDT_PRIMAIRE_CONFIG;
+    var noms = Object.keys(parClasse);
+    var grandes = noms.filter(function (k) { return parClasse[k].length >= cfgP.minParEcole; })
+      .sort(function (a, b) { return parClasse[b].length - parClasse[a].length; });
+    var petites = noms.filter(function (k) { return parClasse[k].length < cfgP.minParEcole; }).sort();
+    var renum = {}, legende = [];
+    grandes.forEach(function (k, i) {
+      var o = cfgP.prefixe + (i + 1);
+      renum[o] = parClasse[k];
+      legende.push(o + ' = ' + k + ' (' + parClasse[k].length + ')');
+    });
+    if (petites.length) {
+      var oFusion = cfgP.prefixe + (grandes.length + 1);
+      renum[oFusion] = [];
+      petites.forEach(function (k) { renum[oFusion] = renum[oFusion].concat(parClasse[k]); });
+      legende.push(oFusion + ' = ' + petites.join(' + ') + ' (' + renum[oFusion].length + ')');
+    }
+    for (var oN in renum) { renum[oN].forEach(function (e) { e.classe = oN; }); }
+    parClasse = renum;
+    warnings.push('Écoles d\'origine → onglets sources : ' + legende.join(' · '));
+    var sansSexe = eleves.filter(function (e) { return e.sexe !== 'F' && e.sexe !== 'M'; }).length;
+    if (sansSexe) warnings.push('⚠ ' + sansSexe + ' élève(s) SANS SEXE — la parité sera faussée, complétez avant génération.');
   }
 
   // Affecter les entrants a un onglet au MEME niveau que les classes (ex. 3°99).
@@ -331,6 +430,36 @@ function importerEDT_(csvText, niveauActif, typeImport) {
         sheet.setConditionalFormatRules(cfRules);
       }
       onglets.push(classe);
+    }
+
+    // MODE PRIMAIRE — RECYCLAGE AUTOMATIQUE. La consolidation ramasse TOUS les
+    // onglets X°N : des artéfacts d'imports précédents (ECOLE°1…, ancien
+    // regroupement 7°8…) seraient mélangés aux 7°N, et le PREMIER onglet trouvé
+    // impose son en-tête à CONSOLIDATION (d'où colonnes désorganisées et
+    // « 16 colonnes de données vs plage de 20 »). L'outil fait le ménage
+    // LUI-MÊME : tout onglet source qui n'est ni un 7°N fraîchement écrit, ni
+    // une vraie classe collège ([3-6]°N — jamais touchée), est supprimé. Le
+    // classeur converge vers l'état propre en UN clic, sans purge manuelle.
+    if (typeImport === 'primaire') {
+      var proteges = [];
+      ss.getSheets().forEach(function (sh) {
+        var nm = sh.getName();
+        if (!/.+°\d+$/.test(nm) || onglets.indexOf(nm) >= 0) return;
+        if (/^[3-6]°\d+$/.test(nm)) { proteges.push(nm); return; }
+        ss.deleteSheet(sh);
+        res.warnings.push('♻️ Onglet d\'import périmé recyclé : ' + nm + ' (remplacé par ' + onglets.join(', ') + ').');
+      });
+      if (proteges.length) {
+        // De vraies classes collège coexistent dans ce classeur : on ne détruit
+        // rien et on ne consolide pas un mélange — décision humaine requise.
+        SpreadsheetApp.flush();
+        res.warnings.push('⛔ Onglets de classes collège détectés (' + proteges.join(', ') + ') : consolidation suspendue pour ne pas mélanger. Ce classeur 6e ne devrait contenir que les sources 7°N.');
+        return {
+          ok: true,
+          resume: 'Onglets 7°N écrits (' + onglets.join(', ') + ') mais consolidation SUSPENDUE.\n⚠ ' + res.warnings.join('\n⚠ '),
+          stats: res.stats, warnings: res.warnings, onglets: onglets
+        };
+      }
     }
 
     SpreadsheetApp.flush();

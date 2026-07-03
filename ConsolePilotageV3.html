@@ -652,12 +652,19 @@
                                 <span style="font-size:12px; color:#94a3b8;">Classes réelles d'aujourd'hui évaluées (ex. des 4°). Utilise l'« ancienne classe ».</span>
                             </span>
                         </label>
+                        <label class="edt-type-opt" style="flex:1; min-width:240px; display:flex; gap:10px; align-items:flex-start; padding:12px 14px; border:2px solid #334155; border-radius:10px; cursor:pointer; background:#0f172a;">
+                            <input type="radio" name="edt-type" value="primaire" onchange="edtTypeChange()" style="margin-top:3px;">
+                            <span>
+                                <span style="font-weight:800; color:#e2e8f0;">🎒 Entrants 6e (primaire)</span><br>
+                                <span style="font-size:12px; color:#94a3b8;">Export prévisionnel des futurs 6e. « Ancienne classe » = école d'origine → onglets 7°1, 7°2… (petites écoles regroupées). Noms fusionnés scindés, A/B/C → 5/3/1, ITALIEN→LV2, CHAV→option, ULIS/UPE2A/AESH→dispositif.</span>
+                            </span>
+                        </label>
                     </div>
                 </div>
 
-                <p style="color:#cbd5e1; margin:8px 0 12px;">Glisse ton fichier (ou colle son contenu). Séparateur détecté automatiquement (virgule / point-virgule / tabulation). Seuls les élèves du niveau actif sont conservés ; A→5, B→4, C→3, D→2, E→1.</p>
+                <p style="color:#cbd5e1; margin:8px 0 12px;">Glisse ton fichier (ou colle son contenu). Séparateur détecté automatiquement (virgule / point-virgule / tabulation). Seuls les élèves du niveau actif sont conservés ; A→5, B→4, C→3, D→2, E→1 (mode 6e : A→5, B→3, C→1, pas de filtrage de niveau).</p>
                 <div id="edt-drop" style="border:2px dashed #475569; border-radius:10px; padding:18px; text-align:center; color:#94a3b8; cursor:pointer;">📄 Glisser-déposer le fichier ici (ou cliquer)
-                    <input type="file" id="edt-file" accept=".csv,.txt" style="display:none">
+                    <input type="file" id="edt-file" accept=".csv,.txt,.xlsx" style="display:none">
                 </div>
                 <textarea id="edt-csv" placeholder="…ou coller ici le contenu (avec les 2 lignes d'en-tête)" style="width:100%; height:70px; margin-top:8px; background:#0f172a; color:#e2e8f0; border:1px solid #334155; border-radius:6px; padding:6px; font-family:monospace; font-size:11px;"></textarea>
                 <div style="display:flex; gap:10px; margin-top:10px;">
@@ -1550,7 +1557,37 @@
         function edtSetup() {
             var f = document.getElementById('edt-file'), z = document.getElementById('edt-drop'), ta = document.getElementById('edt-csv');
             if (!z || z._wired) return; z._wired = true;
-            function lire(file) { var r = new FileReader(); r.onload = function (e) { edtContenu = e.target.result; if (ta) ta.value = edtContenu.slice(0, 3000); edtOut('Fichier chargé : ' + file.name + ' (' + edtContenu.length + ' caractères). Clique sur Analyser.'); }; r.readAsText(file, 'UTF-8'); }
+            function lire(file) {
+                // .xlsx : converti en CSV côté navigateur (ZIP natif, aucune librairie)
+                if (/\.xlsx$/i.test(file.name)) {
+                    var rb = new FileReader();
+                    rb.onload = function (e) {
+                        edtOut('Conversion du fichier Excel…');
+                        edtXlsxToCsv(e.target.result).then(function (csv) {
+                            edtContenu = csv;
+                            if (ta) ta.value = csv.slice(0, 3000);
+                            edtOut('✅ Fichier Excel converti : ' + file.name + ' (' + csv.split('\n').length + ' lignes). Clique sur Analyser.');
+                        }).catch(function (err) {
+                            edtContenu = '';
+                            edtOut('❌ Impossible de lire ce .xlsx (' + (err && err.message || err) + '). Exporte-le en CSV (Fichier → Télécharger → CSV) et recommence.');
+                        });
+                    };
+                    rb.readAsArrayBuffer(file);
+                    return;
+                }
+                var r = new FileReader();
+                r.onload = function (e) {
+                    edtContenu = e.target.result;
+                    if (edtContenu.slice(0, 2) === 'PK') {
+                        edtContenu = '';
+                        edtOut('❌ Ce fichier est un classeur Excel/ZIP, pas du texte. Renomme-le en .xlsx ou exporte-le en CSV.');
+                        return;
+                    }
+                    if (ta) ta.value = edtContenu.slice(0, 3000);
+                    edtOut('Fichier chargé : ' + file.name + ' (' + edtContenu.length + ' caractères). Clique sur Analyser.');
+                };
+                r.readAsText(file, 'UTF-8');
+            }
             z.onclick = function () { f.click(); };
             f.onchange = function () { if (f.files[0]) lire(f.files[0]); };
             ['dragover', 'dragenter'].forEach(function (ev) { z.addEventListener(ev, function (e) { e.preventDefault(); z.style.borderColor = '#6366f1'; }); });
@@ -1559,6 +1596,88 @@
             if (ta) ta.addEventListener('input', function () { edtContenu = ta.value; });
         }
         window.addEventListener('load', edtSetup);
+
+        // --- Lecture .xlsx SANS librairie : répertoire central ZIP + DecompressionStream ---
+        // (navigateur moderne requis ; lève une erreur claire sinon → message CSV)
+        function edtXmlDecode_(s) {
+            return String(s || '')
+                .replace(/&#x([0-9a-fA-F]+);/g, function (_, h) { return String.fromCharCode(parseInt(h, 16)); })
+                .replace(/&#(\d+);/g, function (_, d) { return String.fromCharCode(parseInt(d, 10)); })
+                .replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&quot;/g, '"')
+                .replace(/&apos;/g, "'").replace(/&amp;/g, '&');
+        }
+        async function edtXlsxToCsv(buf) {
+            if (typeof DecompressionStream === 'undefined') throw new Error('navigateur trop ancien');
+            var u8 = new Uint8Array(buf), dv = new DataView(buf);
+            var eocd = -1;
+            for (var i = u8.length - 22; i >= Math.max(0, u8.length - 22 - 65557); i--) {
+                if (dv.getUint32(i, true) === 0x06054b50) { eocd = i; break; }
+            }
+            if (eocd < 0) throw new Error('ZIP invalide');
+            var count = dv.getUint16(eocd + 10, true), cdOff = dv.getUint32(eocd + 16, true);
+            var entries = {}, p = cdOff;
+            for (var n = 0; n < count; n++) {
+                if (dv.getUint32(p, true) !== 0x02014b50) break;
+                var method = dv.getUint16(p + 10, true);
+                var csize = dv.getUint32(p + 20, true);
+                var nameLen = dv.getUint16(p + 28, true), extraLen = dv.getUint16(p + 30, true), cmtLen = dv.getUint16(p + 32, true);
+                var lho = dv.getUint32(p + 42, true);
+                var name = new TextDecoder().decode(u8.subarray(p + 46, p + 46 + nameLen));
+                entries[name] = { method: method, csize: csize, lho: lho };
+                p += 46 + nameLen + extraLen + cmtLen;
+            }
+            async function extraire(name) {
+                var e = entries[name]; if (!e) return null;
+                var q = e.lho;
+                if (dv.getUint32(q, true) !== 0x04034b50) throw new Error('entrée ZIP corrompue');
+                var nl = dv.getUint16(q + 26, true), el = dv.getUint16(q + 28, true);
+                var deb = q + 30 + nl + el;
+                var data = u8.subarray(deb, deb + e.csize);
+                if (e.method === 0) return new TextDecoder().decode(data);
+                var flux = new Blob([data]).stream().pipeThrough(new DecompressionStream('deflate-raw'));
+                return new TextDecoder().decode(await new Response(flux).arrayBuffer());
+            }
+            var sstXml = (await extraire('xl/sharedStrings.xml')) || '';
+            var sst = [];
+            (sstXml.match(/<si[ >][\s\S]*?<\/si>/g) || []).forEach(function (si) {
+                var txt = (si.match(/<t[^>]*>[\s\S]*?<\/t>/g) || [])
+                    .map(function (t) { return t.replace(/^<t[^>]*>/, '').replace(/<\/t>$/, ''); }).join('');
+                sst.push(edtXmlDecode_(txt));
+            });
+            var feuille = Object.keys(entries).filter(function (k) { return /^xl\/worksheets\/sheet\d+\.xml$/.test(k); }).sort()[0];
+            if (!feuille) throw new Error('aucune feuille trouvée');
+            var xml = await extraire(feuille);
+            var lignes = [];
+            (xml.match(/<row[^>]*>[\s\S]*?<\/row>/g) || []).forEach(function (rowXml) {
+                var cells = [];
+                var re = /<c ([^>]*?)\/>|<c ([^>]*?)>([\s\S]*?)<\/c>/g, m;
+                while ((m = re.exec(rowXml)) !== null) {
+                    var attrs = m[1] || m[2] || '', corps = m[3] || '';
+                    var ref = (attrs.match(/r="([A-Z]+)\d+"/) || [])[1] || '';
+                    var col = 0;
+                    for (var ci = 0; ci < ref.length; ci++) col = col * 26 + (ref.charCodeAt(ci) - 64);
+                    col = col ? col - 1 : cells.length;
+                    var t = (attrs.match(/t="([^"]+)"/) || [])[1] || '';
+                    var v = '';
+                    if (t === 'inlineStr') {
+                        v = edtXmlDecode_((corps.match(/<t[^>]*>([\s\S]*?)<\/t>/) || ['', ''])[1]);
+                    } else {
+                        v = (corps.match(/<v[^>]*>([\s\S]*?)<\/v>/) || ['', ''])[1];
+                        v = (t === 's') ? (sst[parseInt(v, 10)] || '') : edtXmlDecode_(v);
+                    }
+                    while (cells.length < col) cells.push('');
+                    cells[col] = v;
+                }
+                lignes.push(cells);
+            });
+            return lignes.map(function (cells) {
+                return cells.map(function (c) {
+                    c = String(c == null ? '' : c);
+                    return /[",\n;]/.test(c) ? '"' + c.replace(/"/g, '""') + '"' : c;
+                }).join(',');
+            }).join('\n');
+        }
+
         // Type d'import sélectionné (prev = previsionnel, base = base actuelle)
         function edtTypeSelected() {
             var el = document.querySelector('input[name="edt-type"]:checked');
@@ -1574,7 +1693,7 @@
             if (!edtContenu.trim()) { edtOut('Charge ou colle d\'abord un fichier.'); return; }
             edtOut('Analyse…');
             google.script.run.withSuccessHandler(function (r) {
-                var typeLbl = (r.typeImport === 'base') ? 'Base actuelle' : 'Classes prévisionnelles';
+                var typeLbl = (r.typeImport === 'base') ? 'Base actuelle' : (r.typeImport === 'primaire' ? 'Entrants 6e (primaire)' : 'Classes prévisionnelles');
                 edtOut('Type : ' + typeLbl + '\nSéparateur : ' + r.sep + '\nNiveau ' + r.niveau + ' : ' + r.stats.lu + ' lus, ' + r.stats.gardes + ' gardés, ' + r.stats.filtres + ' filtrés.' +
                     (r.warnings.length ? ('\n⚠ ' + r.warnings.join('\n⚠ ')) : '') + '\n\nAperçu :\n - ' + (r.apercu.join('\n - ') || '(aucun)'));
             }).withFailureHandler(function (e) { edtOut('Erreur : ' + e.message); }).apiApercuEDT(edtContenu, null, edtTypeSelected());
