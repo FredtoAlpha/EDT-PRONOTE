@@ -206,6 +206,18 @@ function legacy_runFullPipeline_PRIME() {
       logLine('WARN', `⚠️ Recalcul mobilité final non appliqué: ${eMob.message}`);
     }
 
+    // 7ter. RAPPORT DE BLOCAGE (onglet _BLOCAGE) : pour chaque classe, combien
+    // de têtes (5) et de fonds (1) sont verrouillés/permutables/libres vs la
+    // part juste → dit si le plafond structurel imposé par les options est
+    // atteint, ou s'il reste une marge d'amélioration chiffrée.
+    try {
+      if (typeof genererRapportBlocage_LEGACY === 'function') {
+        genererRapportBlocage_LEGACY(ctx);
+      }
+    } catch (eBloc) {
+      logLine('WARN', `⚠️ Rapport de blocage non généré: ${eBloc.message}`);
+    }
+
     // 8. HABILLAGE DES ONGLETS TEST : mise en forme cellule par cellule (lignes
     //    alternées blanc/gris, SEXE/LV2/OPT colorés, SCORES colorés 1-5) +
     //    ligne MOYENNES, via finalizeTestSheets_ (formatFinSheet_LEGACY).
