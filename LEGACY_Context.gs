@@ -325,6 +325,19 @@ function normaliserCleQuota_LEGACY(nom) {
   return map[n] || n;
 }
 
+/** Parse une chaîne d'options de _STRUCTURE dans dest.
+ *  Tolérant : "ITA=12", "ITA:12", "ITA 12" ou "ITA" seule (→ 99 = offerte
+ *  sans limite chiffrée). Séparateurs , ou ;. Clés normalisées (ITALIEN→ITA). */
+function parseQuotaString_LEGACY(optionsStr, dest) {
+  String(optionsStr || '').split(/[,;]+/).forEach(function (pair) {
+    pair = pair.trim();
+    if (!pair) return;
+    var m = pair.match(/^(.+?)\s*[=:]\s*(\d+)$/) || pair.match(/^(.+?)\s+(\d+)$/);
+    if (m) { dest[normaliserCleQuota_LEGACY(m[1])] = parseInt(m[2], 10) || 0; return; }
+    if (/^[^=:\d]+$/.test(pair)) dest[normaliserCleQuota_LEGACY(pair)] = 99;
+  });
+}
+
 function readQuotasFromStructure_LEGACY(sheet) {
   const quotas = {};
 
@@ -394,16 +407,7 @@ function readQuotasFromStructure_LEGACY(sheet) {
           quotas[nom] = {};
 
           // Parser le format "ITA=6,CHAV=10,ESP=5"
-          if (optionsStr) {
-            optionsStr.split(',').forEach(function(pair) {
-              const parts = pair.split('=');
-              if (parts.length === 2) {
-                const optName = normaliserCleQuota_LEGACY(parts[0]);
-                const optValue = parseInt(parts[1].trim()) || 0;
-                quotas[nom][optName] = optValue;
-              }
-            });
-          }
+          if (optionsStr) parseQuotaString_LEGACY(optionsStr, quotas[nom]);
         }
       }
 
@@ -428,16 +432,7 @@ function readQuotasFromStructure_LEGACY(sheet) {
         quotas[classe] = {};
 
         // ✅ Parser le format "ITA=6,CHAV=10,ESP=5"
-        if (optionsStr) {
-          optionsStr.split(',').forEach(function(pair) {
-            const parts = pair.split('=');
-            if (parts.length === 2) {
-              const optName = normaliserCleQuota_LEGACY(parts[0]);
-              const optValue = parseInt(parts[1].trim()) || 0;
-              quotas[classe][optName] = optValue;
-            }
-          });
-        }
+        if (optionsStr) parseQuotaString_LEGACY(optionsStr, quotas[classe]);
       }
     }
 

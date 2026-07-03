@@ -112,6 +112,27 @@ function Phase1I_dispatchOptionsLV2_LEGACY(ctx) {
     allData[i].assigned = ''; // Nouvelle propriété pour stocker l'affectation
   }
 
+  // 🧾 CONTRÔLE AMONT : options/LV2 portées par des élèves mais offertes dans
+  // AUCUNE classe de _STRUCTURE → sans quota, Phase 1 ne place personne et ces
+  // élèves seront éparpillés (ITA chez les CHAV…). On le DIT explicitement.
+  (function () {
+    var portees = {};
+    for (var iC = 0; iC < allData.length; iC++) {
+      var rowC = allData[iC].row;
+      var lvC = String(rowC[idxLV2] || '').trim().toUpperCase();
+      var opC = String(rowC[idxOPT] || '').trim().toUpperCase();
+      if (lvC && isKnownLV2(lvC)) portees[lvC] = (portees[lvC] || 0) + 1;
+      if (opC && isKnownOPT(opC)) portees[opC] = (portees[opC] || 0) + 1;
+    }
+    for (var optP in portees) {
+      var offerte = false;
+      for (var clsP in (ctx.quotas || {})) { if ((ctx.quotas[clsP] || {})[optP] > 0) { offerte = true; break; } }
+      if (!offerte && optP !== 'ESP') {
+        logLine('ERROR', '⛔ ' + optP + ' : ' + portees[optP] + ' élève(s) la portent mais AUCUNE classe ne l\'offre dans _STRUCTURE → ils seront éparpillés. Ajoutez « ' + optP + '=N » dans la colonne OPTIONS de la classe cible.');
+      }
+    }
+  })();
+
   // ========== ÉTAPE 3 : DÉTECTION LV2 UNIVERSELLES ==========
   // 🌟 APPROCHE UNIVERSELLE : Détecter les LV2 présentes dans TOUTES les classes
   const allClasses = Object.keys(ctx.quotas || {});

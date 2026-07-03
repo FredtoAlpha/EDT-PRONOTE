@@ -78,6 +78,11 @@ function legacy_runFullPipeline_PRIME() {
     //    crée le mapping source→dest, charge quotas/effectifs/parité/autorisations
     logLine('INFO', '🔧 Construction du contexte LEGACY complet depuis _STRUCTURE...');
     const ctx = makeCtxFromSourceSheets_LEGACY();
+    // 🧾 TRAÇABILITÉ : ce que le moteur CROIT lire dans _STRUCTURE. Si une
+    // option n'apparaît pas ici, elle ne sera PAS respectée — le journal doit
+    // le montrer au lieu de laisser deviner.
+    logLine('INFO', '🧾 Quotas lus depuis _STRUCTURE : ' + JSON.stringify(ctx.quotas || {}));
+    logLine('INFO', '🧾 Cibles d\'effectif : ' + JSON.stringify(ctx.targets || {}));
     
     // ✅ Charger les élèves depuis les onglets sources
     logLine('INFO', '📚 Chargement des élèves depuis les onglets sources...');
