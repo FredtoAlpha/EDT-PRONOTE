@@ -129,6 +129,20 @@ function legacy_runFullPipeline_PRIME() {
     }
     logLine('SUCCESS', `✅ Phase 3 terminée: ${p3Result.placed || 0} élèves placés, parité équilibrée`);
 
+    // 6bis. MOBILITÉ AVANT PHASE 4 : la mobilité n'était calculée qu'en Phase 1
+    // (élèves à options) — les fillers placés en Phase 3 arrivaient en Phase 4
+    // avec MOBILITE/FIXE vides. On recalcule ici, sur le placement complet, pour
+    // que le moteur de swaps connaisse le vrai statut (FIXE/PERMUT/LIBRE) de
+    // TOUS les élèves. Idempotent ; le recalcul final (7bis) reste inchangé.
+    try {
+      if (typeof calculerEtRemplirMobilite_LEGACY === 'function') {
+        logLine('INFO', '🔁 Recalcul de la mobilité avant Phase 4 (placement complet)...');
+        calculerEtRemplirMobilite_LEGACY(ctx);
+      }
+    } catch (eMobPre) {
+      logLine('WARN', `⚠️ Recalcul mobilité pré-Phase 4 non appliqué: ${eMobPre.message}`);
+    }
+
     // 7. CROSS-PHASE LOOP : Phase 3 → Phase 4 avec feedback
     const crossPhaseLoops = MULTI_RESTART_CONFIG.crossPhaseLoops;
     let p4Result = null;
@@ -190,6 +204,18 @@ function legacy_runFullPipeline_PRIME() {
       }
     } catch (eMob) {
       logLine('WARN', `⚠️ Recalcul mobilité final non appliqué: ${eMob.message}`);
+    }
+
+    // 7ter. RAPPORT DE BLOCAGE (onglet _BLOCAGE) : pour chaque classe, combien
+    // de têtes (5) et de fonds (1) sont verrouillés/permutables/libres vs la
+    // part juste → dit si le plafond structurel imposé par les options est
+    // atteint, ou s'il reste une marge d'amélioration chiffrée.
+    try {
+      if (typeof genererRapportBlocage_LEGACY === 'function') {
+        genererRapportBlocage_LEGACY(ctx);
+      }
+    } catch (eBloc) {
+      logLine('WARN', `⚠️ Rapport de blocage non généré: ${eBloc.message}`);
     }
 
     // 8. HABILLAGE DES ONGLETS TEST : mise en forme cellule par cellule (lignes
