@@ -432,6 +432,35 @@ function importerEDT_(csvText, niveauActif, typeImport) {
       onglets.push(classe);
     }
 
+    // MODE PRIMAIRE — HYGIÈNE DES SOURCES. La consolidation ramasse TOUS les
+    // onglets X°N : des résidus d'imports précédents (ECOLE°1…, ancien
+    // regroupement 7°8…) seraient MÉLANGÉS aux 7°N — et le premier onglet
+    // trouvé impose son en-tête à CONSOLIDATION (colonnes désorganisées).
+    if (typeImport === 'primaire') {
+      var etrangers = [];
+      ss.getSheets().forEach(function (sh) {
+        var nm = sh.getName();
+        if (!/.+°\d+$/.test(nm) || onglets.indexOf(nm) >= 0) return;
+        if (/^7°\d+$/.test(nm)) {
+          ss.deleteSheet(sh);   // résidu 7°N d'un import 6e précédent → purgé
+          res.warnings.push('Onglet 7° périmé supprimé : ' + nm + '.');
+        } else {
+          etrangers.push(nm);   // ECOLE°1, 6°1… : pas à nous, on ne détruit pas
+        }
+      });
+      if (etrangers.length) {
+        SpreadsheetApp.flush();
+        res.warnings.push('⛔ ONGLETS SOURCES ÉTRANGERS détectés : ' + etrangers.join(', ') +
+          ' — la consolidation les mélangerait aux onglets 7°N (colonnes désorganisées, effectifs faux). ' +
+          'CONSOLIDATION NON LANCÉE. Purgez l\'import (bouton « TOUT PURGER ») ou supprimez ces onglets, puis relancez cet import.');
+        return {
+          ok: true,
+          resume: 'Onglets 7°N écrits (' + onglets.join(', ') + ') mais consolidation SUSPENDUE : onglets étrangers à purger.\n⚠ ' + res.warnings.join('\n⚠ '),
+          stats: res.stats, warnings: res.warnings, onglets: onglets
+        };
+      }
+    }
+
     SpreadsheetApp.flush();
     try { if (typeof genererNomPrenomEtID === 'function') genererNomPrenomEtID(); } catch (e) { Logger.log('genererNomPrenomEtID: ' + e); }
     try { if (typeof consoliderDonnees === 'function') consoliderDonnees(); } catch (e) { Logger.log('consoliderDonnees: ' + e); }
