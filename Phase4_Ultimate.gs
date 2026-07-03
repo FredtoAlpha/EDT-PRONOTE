@@ -927,17 +927,19 @@ function deriveMobilite_(row, idx) {
 
 /**
  * Vérifie si un élève est "fixe" (non déplaçable par le moteur de swaps).
- * Seuls PERMUT et LIBRE sont déplaçables ; tout le reste (FIXE, GROUPE_FIXE,
- * ERREUR/GROUPE_ERREUR = 0 classe compatible, SPEC, CONDI, statut inconnu) est
- * immobile — prudence : ne jamais déplacer un élève au statut ambigu. Ne teste
- * PLUS includes('NON') (qui inversait la sémantique et gelait le vivier mobile).
+ * Immobiles = statuts EXPLICITEMENT immobiles : FIXE, GROUPE_FIXE, ERREUR,
+ * GROUPE_ERREUR (0 classe compatible). TOUT LE RESTE est déplaçable, Y COMPRIS
+ * le statut VIDE : la mobilité n'est calculée qu'en Phase 1 (élèves à options),
+ * les « fillers » placés en Phase 3 (ESP sans option, souvent ~90 % du vivier)
+ * arrivent en Phase 4 avec MOBILITE/FIXE vides — les traiter comme FIXE gelait
+ * tout le moteur (zéro swap, sortie identique à chaque run). Sans risque : les
+ * contraintes réelles (options/LV2, CLASSE_IMPOSEE, DISSO, ASSO) sont toutes
+ * validées par canSwapStudents_Ultimate à chaque swap, indépendamment du statut.
+ * Ne teste PLUS includes('NON') (qui inversait la sémantique OUI/NON de FIXE).
  */
 function isFixed(student) {
   var mob = String(student.mobilite || '').toUpperCase().trim();
-  // Déplaçables = tout ce qui CONTIENT 'PERMUT' ou 'LIBRE' : PERMUT, LIBRE,
-  // GROUPE_PERMUT, GROUPE_LIBRE (tous fixe=NON dans LEGACY_Mobility_Calculator).
-  // Immobiles = FIXE, GROUPE_FIXE, ERREUR, GROUPE_ERREUR, ou statut vide/inconnu.
-  return !(mob.indexOf('PERMUT') >= 0 || mob.indexOf('LIBRE') >= 0);
+  return mob.indexOf('FIXE') >= 0 || mob.indexOf('ERREUR') >= 0;
 }
 
 /**
