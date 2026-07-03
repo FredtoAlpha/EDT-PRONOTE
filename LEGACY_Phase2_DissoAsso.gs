@@ -63,9 +63,20 @@ function Phase2I_applyDissoAsso_LEGACY(ctx) {
   const idxPrenom = headersRef.indexOf('PRENOM');
   const idxFIXE = headersRef.indexOf('FIXE');
   const idxMOBILITE = headersRef.indexOf('MOBILITE');
+  const idxImposee = headersRef.indexOf('CLASSE_IMPOSEE');
 
   if (idxAssigned === -1) {
     throw new Error('Colonne _CLASS_ASSIGNED manquante');
+  }
+
+  // 📌 Un élève à classe imposée ("4°2|4°3") ne peut être déplacé vers `cible`
+  //    que si elle figure dans son ensemble imposé. Sinon on le laisse en place
+  //    (comme un FIXE) pour ne pas défaire l'imposition lors des ASSO/DISSO.
+  function imposeeBloque_(item, cible) {
+    if (idxImposee === -1) return false;
+    const raw = String(item.row[idxImposee] || '').trim();
+    if (!raw) return false;
+    return raw.split('|').map(function (c) { return c.trim(); }).indexOf(cible) === -1;
   }
 
   let assoMoved = 0;
@@ -132,7 +143,14 @@ function Phase2I_applyDissoAsso_LEGACY(ctx) {
         logLine('WARN', '      ⚠️ ' + nom + ' est FIXE, ne peut être déplacé pour ASSO');
         return; // Skip cet élève
       }
-      
+
+      // 📌 Classe imposée : ne pas déplacer hors de l'ensemble autorisé
+      if (imposeeBloque_(item, targetClass)) {
+        logLine('WARN', '      ⚠️ ' + String(item.row[idxNom] || '') +
+          ' a une classe imposée incompatible avec ' + targetClass + ' → non déplacé (ASSO)');
+        return;
+      }
+
       if (currentClass !== targetClass) {
         item.row[idxAssigned] = targetClass;
         assoMoved++;
@@ -203,6 +221,13 @@ function Phase2I_applyDissoAsso_LEGACY(ctx) {
 
           // 🔒 Trouver classe sans ce code D
           const targetClass = findClassWithoutCodeD_LEGACY(allData, headersRef, code, groupsD[code], i, ctx);
+
+          // 📌 Classe imposée : ne pas déplacer hors de l'ensemble autorisé
+          if (targetClass && imposeeBloque_(item, targetClass)) {
+            logLine('WARN', '      ⚠️ ' + nom + ' a une classe imposée incompatible avec ' +
+              targetClass + ' → non déplacé (DISSO, conflit accepté)');
+            continue;
+          }
 
           if (targetClass) {
             item.row[idxAssigned] = targetClass;

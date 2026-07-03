@@ -669,15 +669,16 @@
         <!-- Séparateur visuel -->
         <div class="w-px h-6 bg-slate-300 dark:bg-slate-600"></div>
 
-        <!-- Mode Reunion -->
-        <button id="btnModeReunion" data-tour="reunion-btn" class="header-btn flex items-center gap-1.5 rounded-lg
+        <!-- Mode Présentation (plein écran vidéoprojecteur) — remplace l'ancien Mode Réunion -->
+        <button id="btnPresentation" data-tour="presentation-btn"
+          onclick="window.togglePresentationMode && window.togglePresentationMode()"
+          class="header-btn flex items-center gap-1.5 rounded-lg
                      tracking-[-0.03em]
-                     bg-slate-200 text-slate-800 hover:bg-slate-300
-                     dark:bg-white/10 dark:text-slate-100 dark:hover:bg-white/15
+                     bg-indigo-600 text-white hover:bg-indigo-500
                      shadow-[0_4px_10px_rgba(0,0,0,0.15)]"
-          title="Mode reunion : affichage optimise pour videoprojecteur (raccourci R)">
-          <i class="fas fa-tv text-sm opacity-80"></i>
-          <span>Reunion</span>
+          title="Mode Présentation plein écran pour vidéoprojecteur (raccourci R)">
+          <i class="fas fa-chalkboard text-sm opacity-90"></i>
+          <span>Présentation</span>
         </button>
 
         <!-- Aide (isolée) -->
@@ -1104,7 +1105,7 @@
       <div class="shortcut-item"><span>Annuler</span><span class="shortcut-key">Ctrl+Z</span></div>
       <div class="shortcut-item"><span>Refaire</span><span class="shortcut-key">Ctrl+Y</span></div>
       <div class="shortcut-item"><span>Mode echange</span><span class="shortcut-key">S</span></div>
-      <div class="shortcut-item"><span>Mode reunion</span><span class="shortcut-key">R</span></div>
+      <div class="shortcut-item"><span>Mode Présentation</span><span class="shortcut-key">R</span></div>
       <div class="shortcut-item"><span>Statistiques</span><span class="shortcut-key">T</span></div>
       <div class="shortcut-item"><span>Mode sombre</span><span class="shortcut-key">D</span></div>
       <div class="shortcut-item"><span>Vue simple</span><span class="shortcut-key">V</span></div>
@@ -1145,6 +1146,9 @@
 
   <!-- 5. MODULE UX HARMONIE - Experience enseignant en reunion -->
   <?!= include('InterfaceV2_UX_Harmonie'); ?>
+
+  <!-- Mode Présentation plein écran pour vidéoprojecteur (branche 2027) -->
+  <?!= include('InterfaceV2_PresentationMode'); ?>
 
   <!-- Menu Paramètres SUPPRIMÉ - Tout le contenu est maintenant dans le Menu Admin -->
 

@@ -1,0 +1,893 @@
+<!--
+  ===================================================================
+  INTERFACEV2_PRESENTATIONMODE.HTML  —  Mode Présentation (branche 2027)
+  ===================================================================
+  Objectif : un mode SCÉNIQUE pour vidéoprojecteur en conseil de classe.
+   - Plein écran navigateur (requestFullscreen) + masquage TOTAL de la barre
+     d'en-tête  →  le plateau prend 100vh : plus de débordement « en haut ».
+   - « fit-to-screen » : TOUTES les colonnes de classes + TOUS les noms tiennent
+     à l'écran, taille des cartes calculée automatiquement.
+   - Marge de sécurité réglable (overscan) pour les projecteurs qui rognent.
+   - Cartes épurées : NOM (gros) + uniquement ce qui BLOQUE un placement
+     (LV2, option, FIXE, DÉFENSE). Scores / dispositif / DISSO / ASSO masqués.
+   - Outils en PALETTES FLOTTANTES détachables (glisser / réduire / fermer),
+     reprenant ce que portaient les en-têtes : Tri (Nom/LV2/OPT/COM), Effectifs
+     & Parité, Recherche/Filtre, Affichage (zoom + marge), Échanger.
+  100 % additif et réversible : aucune logique du mode travail n'est modifiée.
+  ===================================================================
+-->
+<style>
+  /* ====================== ÉTAT PRÉSENTATION ====================== */
+  body.presentation-mode { overflow: hidden !important; background: #0b1220 !important; }
+
+  /* On masque toute la « chrome » qui mange l'écran / fait déborder l'image */
+  body.presentation-mode #mainHeader,
+  body.presentation-mode #feedbackPanel,
+  body.presentation-mode #statsPanel,
+  body.presentation-mode #swapContextBar,
+  body.presentation-mode .save-progress { display: none !important; }
+  /* La modale de confirmation Finaliser doit passer AU-DESSUS du dock (z 90000) */
+  body.presentation-mode #finalizeConfirmModal { z-index: 90003 !important; }
+
+  body.presentation-mode main {
+    margin: 0 !important;
+    /* marge de sécurité (overscan) + réserve en bas réglable (pour passer
+       au-dessus de la barre / rail à feutres du tableau qui mange le bas) */
+    padding: var(--pres-safe, 24px) !important;
+    padding-bottom: calc(var(--pres-safe, 24px) + var(--pres-reserve-bottom, 0px)) !important;
+    width: 100vw !important;
+    height: 100vh !important;
+    overflow: hidden !important;
+    box-sizing: border-box !important;
+    background: #0b1220 !important;
+  }
+  /* Le wrapper visuel du plateau ne doit plus rien contraindre */
+  body.presentation-mode main > div { padding: 0 !important; background: transparent !important; box-shadow: none !important; height: 100% !important; }
+
+  /* ---- Plateau : toutes les colonnes côte à côte, partagées équitablement ---- */
+  body.presentation-mode #board {
+    display: flex !important;
+    flex-wrap: nowrap !important;
+    gap: 8px !important;
+    width: 100% !important;
+    height: 100% !important;
+    min-width: 0 !important;
+    align-items: stretch !important;
+    /* déplacement manuel (pan) pour caler le plateau dans le cadre projeté */
+    transform: translate(var(--pres-pan-x, 0px), var(--pres-pan-y, 0px)) !important;
+  }
+  body.presentation-mode.pres-panning #board { cursor: grabbing !important; }
+  body.presentation-mode.pres-panmode #board { cursor: grab; }
+  body.presentation-mode .class-column {
+    flex: 1 1 0 !important;
+    min-width: 0 !important;
+    max-width: none !important;
+    display: flex !important;
+    flex-direction: column !important;
+    height: 100% !important;
+    background: #111827 !important;
+    border: 1px solid #243044 !important;
+    border-radius: 10px !important;
+    overflow: hidden !important;
+    margin: 0 !important;
+  }
+
+  /* ---- En-tête de colonne allégé : NOM de classe + décompte + parité ---- */
+  /*      (les boutons de tri partent dans la palette flottante « Tri »)     */
+  body.presentation-mode .sort-buttons { display: none !important; }
+  body.presentation-mode .class-header {
+    padding: 6px 10px !important;
+    background: #0f172a !important;
+    border-bottom: 2px solid #3b82f6 !important;
+    border-radius: 0 !important;
+  }
+  body.presentation-mode .classe-name {
+    font-size: clamp(15px, 1.7vw, 24px) !important;
+    color: #ffffff !important;
+    font-weight: 900 !important;
+    letter-spacing: 0.02em !important;
+    margin: 0 !important;
+  }
+  body.presentation-mode .class-counts {
+    font-size: clamp(11px, 1.1vw, 15px) !important;
+    color: #cbd5e1 !important;
+    font-weight: 700 !important;
+  }
+
+  /* ---- Zone des cartes : remplit la hauteur, sans débordement (auto en secours) ---- */
+  body.presentation-mode .droppable-zone {
+    flex: 1 1 auto !important;
+    overflow-y: auto !important;
+    overflow-x: hidden !important;
+    padding: 3px 5px !important;
+    display: flex !important;
+    flex-direction: column !important;
+    gap: 2px !important;
+  }
+  body.presentation-mode .droppable-zone::-webkit-scrollbar { width: 6px; }
+  body.presentation-mode .droppable-zone::-webkit-scrollbar-thumb { background: #334155; border-radius: 3px; }
+
+  /* ---- Carte : NOM en gros, sur une seule ligne avec les badges bloquants ---- */
+  body.presentation-mode .student-card {
+    display: flex !important;
+    flex-direction: row !important;
+    align-items: center !important;
+    gap: 8px !important;
+    min-height: var(--pres-row, 24px) !important;
+    padding: 2px 9px !important;
+    margin: 0 !important;
+    opacity: 1 !important;
+    border-radius: 5px !important;
+    border-width: 1px !important;
+  }
+  body.presentation-mode .student-card .card-line,
+  body.presentation-mode .student-card .card-line-1,
+  body.presentation-mode .student-card .card-line-2 {
+    margin: 0 !important;
+    height: auto !important;
+    display: inline-flex !important;
+    align-items: center !important;
+  }
+  body.presentation-mode .student-fullname {
+    font-size: var(--pres-font, 15px) !important;
+    font-weight: 800 !important;
+    line-height: 1.08 !important;
+    white-space: nowrap !important;
+    overflow: hidden !important;
+    text-overflow: ellipsis !important;
+  }
+
+  /* On retire ce qui NE contraint PAS le placement : scores, dispositif, source.
+     On GARDE les codes de séparation/regroupement D1/A1 (DISSO/ASSO) : ce sont
+     des contraintes que le prof doit voir en conseil. La pastille F/P/L (carré
+     à gauche) porte déjà la mobilité → on masque le badge-mobilité redondant. */
+  body.presentation-mode .student-card .source-class,
+  body.presentation-mode .student-card .scores,
+  body.presentation-mode .student-card .score-pill,
+  body.presentation-mode .student-card .badge-dispo,
+  body.presentation-mode .student-card .badge-mobilite,
+  body.presentation-mode .student-card .card-line-3 { display: none !important; }
+
+  /* La pastille F/P/L mesure 19px : on garde la place à gauche même en présentation */
+  body.presentation-mode .student-card.has-mob { padding-left: 24px !important; }
+
+  /* On GARDE et on met à l'échelle : LV2 / option / FIXE / DÉFENSE */
+  body.presentation-mode .student-card .mini-badge {
+    height: calc(var(--pres-font, 15px) * 1.3) !important;
+    font-size: calc(var(--pres-font, 15px) * 0.72) !important;
+    padding: 0 6px !important;
+    border: 1px solid rgba(0, 0, 0, 0.25) !important;
+  }
+
+  /* Recherche / filtre : on estompe les non-correspondants, on cible les hits */
+  body.presentation-mode .student-card.pres-dim { opacity: 0.16 !important; filter: grayscale(1); }
+  body.presentation-mode .student-card.pres-hit { outline: 3px solid #f59e0b !important; outline-offset: -1px; }
+
+  /* ====================== MODE FOCUS (comparaison de 2 classes) ====================== */
+  /* Deux classes côte à côte pour les comparer et échanger des élèves entre
+     elles. Navigation ◀ ▶ (paire glissante). Les autres classes sont masquées
+     via une CLASSE plus spécifique que « .class-column { display:flex !important } »
+     — sinon le display:none inline (sans !important) était écrasé. */
+  body.presentation-mode .class-column.pres-hidden { display: none !important; }
+  body.presentation-mode.pres-focus #board { gap: 14px !important; }
+  /* Carte alignée à GAUCHE en Focus : nom + badges groupés, plus de « gros vide »
+     (la carte .card-content-line est en space-between par défaut). */
+  body.presentation-mode.pres-focus .card-content-line {
+    justify-content: flex-start !important;
+    gap: 10px !important;
+  }
+  body.presentation-mode.pres-focus .student-card { padding-right: 14px !important; }
+  /* Barre de navigation Focus (haut, centrée) */
+  #presFocusBar {
+    position: fixed; top: 12px; left: 50%; transform: translateX(-50%); z-index: 90002;
+    display: none; align-items: center; gap: 8px; flex-wrap: wrap; justify-content: center;
+    max-width: 94vw;
+    background: rgba(15, 23, 42, 0.94); color: #fff; padding: 8px 12px; border-radius: 12px;
+    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.5); font-family: 'Inter', system-ui, sans-serif;
+  }
+  body.presentation-mode.pres-focus #presFocusBar { display: flex; }
+  #presFocusBar .pf-cap { font-weight: 800; font-size: 13px; opacity: 0.85; }
+  #presFocusBar .pf-chips { display: flex; flex-wrap: wrap; gap: 6px; }
+  /* Pastilles de choix de classe */
+  #presFocusBar .pf-chip {
+    border: 2px solid #334155; cursor: pointer; background: #1e293b; color: #cbd5e1;
+    height: 34px; padding: 0 12px; border-radius: 9px; font-size: 14px; font-weight: 800;
+  }
+  #presFocusBar .pf-chip:hover { background: #334155; }
+  #presFocusBar .pf-chip.active { background: #2563eb; color: #fff; border-color: #60a5fa; }
+  /* Boutons d'action (Échanger / Vue d'ensemble) */
+  #presFocusBar .pf-exit {
+    border: none; cursor: pointer; background: #2563eb; color: #fff;
+    height: 34px; padding: 0 12px; border-radius: 9px; font-size: 13px; font-weight: 800;
+  }
+  #presFocusBar .pf-exit:hover { filter: brightness(1.1); }
+  #presFocusBar .pf-exit.active { background: #dc2626 !important; }
+
+  /* ====================== OUTILS FLOTTANTS ====================== */
+  /* Cachés hors mode présentation */
+  body:not(.presentation-mode) .pres-dock,
+  body:not(.presentation-mode) .pres-palette,
+  body:not(.presentation-mode) #presExitBtn { display: none !important; }
+
+  /* Dock vertical d'icônes (bord droit) */
+  .pres-dock {
+    position: fixed; top: 50%; right: 10px; transform: translateY(-50%);
+    z-index: 90000; display: flex; flex-direction: column; gap: 8px;
+    background: rgba(15, 23, 42, 0.85); padding: 8px; border-radius: 14px;
+    box-shadow: 0 10px 30px rgba(0, 0, 0, 0.5); backdrop-filter: blur(4px);
+  }
+  .pres-dock button {
+    width: 46px; height: 46px; border-radius: 11px; border: none; cursor: pointer;
+    background: #1e293b; color: #e2e8f0; font-size: 18px;
+    display: flex; align-items: center; justify-content: center;
+    transition: background 0.15s, transform 0.1s;
+  }
+  .pres-dock button:hover { background: #334155; transform: scale(1.06); }
+  .pres-dock button.active { background: #2563eb; color: #fff; box-shadow: 0 0 14px rgba(37, 99, 235, 0.6); }
+  .pres-dock .pres-dock-label { font-size: 8.5px; line-height: 1; margin-top: 2px; font-weight: 700; letter-spacing: 0.02em; }
+  .pres-dock button { flex-direction: column; gap: 1px; }
+
+  /* Bouton Quitter (toujours visible) */
+  #presExitBtn {
+    position: fixed; top: 12px; right: 12px; z-index: 90002;
+    background: #dc2626; color: #fff; border: none; cursor: pointer;
+    padding: 9px 14px; border-radius: 10px; font-weight: 800; font-size: 14px;
+    box-shadow: 0 6px 18px rgba(220, 38, 38, 0.5);
+    display: flex; align-items: center; gap: 7px;
+  }
+  #presExitBtn:hover { background: #b91c1c; }
+
+  /* Palettes flottantes (fenêtres déplaçables) */
+  .pres-palette {
+    position: fixed; z-index: 90001; min-width: 220px; max-width: 360px;
+    background: #ffffff; border-radius: 12px; overflow: hidden;
+    box-shadow: 0 16px 44px rgba(0, 0, 0, 0.55); border: 1px solid #cbd5e1;
+    font-family: 'Inter', system-ui, sans-serif; color: #0f172a;
+  }
+  .pres-palette.minimized .pres-palette-body { display: none; }
+  .pres-palette-head {
+    background: linear-gradient(135deg, #1e3a8a, #2563eb); color: #fff;
+    padding: 9px 12px; font-weight: 800; font-size: 14px; cursor: grab;
+    display: flex; align-items: center; justify-content: space-between; user-select: none;
+  }
+  .pres-palette-btns { display: flex; gap: 4px; }
+  .pres-ico {
+    width: 22px; height: 22px; border: none; border-radius: 6px; cursor: pointer;
+    background: rgba(255, 255, 255, 0.2); color: #fff; font-size: 15px; line-height: 1;
+    display: flex; align-items: center; justify-content: center;
+  }
+  .pres-ico:hover { background: rgba(255, 255, 255, 0.38); }
+  .pres-palette-body { padding: 12px; max-height: 64vh; overflow-y: auto; }
+
+  /* Boutons internes des palettes */
+  .pres-palette-body .pres-row { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 8px; }
+  .pres-btn {
+    border: 1px solid #cbd5e1; background: #f1f5f9; color: #1e293b;
+    padding: 7px 11px; border-radius: 8px; cursor: pointer; font-weight: 700; font-size: 13px;
+  }
+  .pres-btn:hover { background: #e2e8f0; }
+  .pres-btn.active { background: #2563eb; color: #fff; border-color: #1d4ed8; }
+  .pres-btn.com-active { background: #dc2626 !important; color: #fff !important; border-color: #b91c1c !important; }
+  .pres-input {
+    width: 100%; box-sizing: border-box; padding: 8px 10px; border: 1px solid #cbd5e1;
+    border-radius: 8px; font-size: 14px; margin-bottom: 8px;
+  }
+  .pres-hint { font-size: 11.5px; color: #64748b; margin-top: 4px; }
+
+  /* Tableau Effectifs & Parité */
+  .pres-stats-table { width: 100%; border-collapse: collapse; font-size: 13px; }
+  .pres-stats-table th, .pres-stats-table td { padding: 4px 6px; text-align: center; border-bottom: 1px solid #e2e8f0; }
+  .pres-stats-table th { background: #f1f5f9; font-weight: 800; color: #334155; }
+  .pres-stats-table td.pn { text-align: left; font-weight: 800; }
+  .pres-stats-table td.cf { color: #db2777; font-weight: 800; }
+  .pres-stats-table td.cm { color: #2563eb; font-weight: 800; }
+  .pres-parbar { display: inline-flex; width: 64px; height: 12px; border-radius: 6px; overflow: hidden; border: 1px solid #cbd5e1; }
+  .pres-parbar i { display: block; height: 100%; }
+  .pres-parbar .pf { background: #ec4899; }
+  .pres-parbar .pm { background: #3b82f6; }
+
+  .pres-zoomval { font-weight: 800; min-width: 48px; text-align: center; display: inline-block; }
+  .pres-slider { width: 100%; }
+
+  /* Tableau de bord d'équilibre : couleurs d'écart à la « part juste » */
+  .bal-table td { font-weight: 800; }
+  .bal-table .bal-ok   { background: #dcfce7; color: #166534; }   /* équilibré */
+  .bal-table .bal-warn { background: #fef9c3; color: #854d0e; }   /* léger écart */
+  .bal-table .bal-bad  { background: #fee2e2; color: #991b1b; }   /* déséquilibre */
+  .bal-table tr.bal-fair td { background: #f1f5f9; color: #475569; font-style: italic; font-weight: 700; }
+  .bal-key { display: inline-block; padding: 0 5px; border-radius: 4px; font-weight: 800; margin: 0 1px; }
+</style>
+
+<script>
+(function () {
+  'use strict';
+
+  // -------------------- petits utilitaires --------------------
+  function qs(sel, root) { return (root || document).querySelector(sel); }
+  function qsa(sel, root) { return Array.prototype.slice.call((root || document).querySelectorAll(sel)); }
+  function ce(tag, cls, html) { var e = document.createElement(tag); if (cls) e.className = cls; if (html != null) e.innerHTML = html; return e; }
+  function esc(s) { return String(s == null ? '' : s).replace(/[&<>"]/g, function (c) { return ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' })[c]; }); }
+  function student(card) { return (window.STATE && STATE.students && STATE.students[card.dataset.id]) || {}; }
+  function notify(msg) { if (typeof window.toast === 'function') { try { toast(msg, 'info'); return; } catch (e) {} } }
+
+  var built = false;
+  var zoom = 1;
+  var safePct = 2;            // marge de sécurité (overscan) en % de la plus petite dimension écran
+  var panX = 0, panY = 0;     // déplacement manuel du plateau (px) pour caler dans le cadre projeté
+  var reserveBottom = 0;      // espace réservé en bas (px) pour passer au-dessus de la barre du tableau
+  var lastSort = { type: null, dir: 'asc' };
+  var balanceCrit = 'COM';   // critère affiché dans le tableau d'équilibre (COM | TRA)
+  var focusOn = false;       // Mode Focus : classes choisies, côte à côte
+  var focusSel = [];         // noms des classes affichées en Focus (choix du prof)
+  var resizeRAF = null;
+  var palettes = {};         // id -> element
+  var dockButtons = {};      // id -> bouton du dock
+
+  function isOn() { return document.body.classList.contains('presentation-mode'); }
+
+  // -------------------- MODE FOCUS (sélection libre de classes) --------------------
+  // Le prof choisit QUELLES classes afficher côte à côte (2, 3, autant qu'il
+  // veut) via des pastilles. Les autres sont masquées. Échanges possibles entre
+  // toutes les classes affichées.
+  function focusColumns() { return qsa('#board .class-column'); }
+  function classeOf(col) {
+    var z = qs('.droppable-zone', col);
+    if (z && z.dataset.classe) return z.dataset.classe;
+    var n = qs('.classe-name', col); return n ? n.textContent.trim() : '';
+  }
+  function enterFocus() {
+    focusOn = true; document.body.classList.add('pres-focus');
+    var cols = focusColumns();
+    if (!focusSel.length) focusSel = cols.slice(0, 2).map(classeOf).filter(Boolean); // défaut : 2 premières
+    buildFocusChips();
+    applyFocus();
+  }
+  function exitFocus() {
+    focusOn = false; document.body.classList.remove('pres-focus');
+    focusColumns().forEach(function (c) { c.classList.remove('pres-hidden'); });
+    syncDock(); fit();
+  }
+  function toggleFocus() { focusOn ? exitFocus() : enterFocus(); }
+  function toggleFocusClasse(name) {
+    var i = focusSel.indexOf(name);
+    if (i >= 0) focusSel.splice(i, 1); else focusSel.push(name);
+    buildFocusChips(); applyFocus();
+  }
+  function selectedFocus(cols) { return focusSel.length ? focusSel : cols.map(classeOf); }
+  function applyFocus() {
+    var cols = focusColumns(); if (!cols.length) return;
+    var sel = selectedFocus(cols); // si rien de coché, on montre tout (pas d'écran vide)
+    cols.forEach(function (c) { c.classList.toggle('pres-hidden', sel.indexOf(classeOf(c)) === -1); });
+    syncDock(); fit();
+  }
+  function buildFocusChips() {
+    var cont = qs('#presFocusChips'); if (!cont) return;
+    cont.innerHTML = '';
+    focusColumns().forEach(function (c) {
+      var name = classeOf(c); if (!name) return;
+      var chip = ce('button', 'pf-chip' + (focusSel.indexOf(name) >= 0 ? ' active' : ''), esc(name));
+      chip.addEventListener('click', function () { toggleFocusClasse(name); });
+      cont.appendChild(chip);
+    });
+  }
+
+  // -------------------- déplacement (pan) + réserve en bas --------------------
+  function applyPan() {
+    var r = document.documentElement.style;
+    r.setProperty('--pres-pan-x', panX + 'px');
+    r.setProperty('--pres-pan-y', panY + 'px');
+  }
+  function applyReserve() {
+    document.documentElement.style.setProperty('--pres-reserve-bottom', reserveBottom + 'px');
+    fit();
+  }
+  function recenter() { panX = 0; panY = 0; reserveBottom = 0; applyPan(); applyReserve(); }
+
+  // -------------------- ENTRÉE / SORTIE --------------------
+  function enter() {
+    document.body.classList.add('presentation-mode');
+    build();
+    try { if (document.documentElement.requestFullscreen && !document.fullscreenElement) document.documentElement.requestFullscreen(); } catch (e) {}
+    fit();
+    window.addEventListener('resize', onResize);
+    notify('Mode Présentation — Échap pour quitter');
+  }
+  function exit() {
+    document.body.classList.remove('presentation-mode');
+    window.removeEventListener('resize', onResize);
+    try { if (document.fullscreenElement) document.exitFullscreen(); } catch (e) {}
+    // sortir du Focus proprement (ré-affiche toutes les classes)
+    if (focusOn) { focusOn = false; document.body.classList.remove('pres-focus'); focusColumns().forEach(function (c) { c.classList.remove('pres-hidden'); }); }
+    document.body.classList.remove('pres-panning', 'pres-panmode');
+    var r = document.documentElement.style;
+    r.removeProperty('--pres-row'); r.removeProperty('--pres-font'); r.removeProperty('--pres-safe');
+    r.removeProperty('--pres-pan-x'); r.removeProperty('--pres-pan-y'); r.removeProperty('--pres-reserve-bottom');
+    r.removeProperty('--focus-cols');
+    // on enlève les estompages de recherche éventuels
+    qsa('.student-card.pres-dim, .student-card.pres-hit').forEach(function (c) { c.classList.remove('pres-dim', 'pres-hit'); });
+  }
+  function toggle() { isOn() ? exit() : enter(); }
+  window.togglePresentationMode = toggle;
+
+  function onResize() { if (resizeRAF) cancelAnimationFrame(resizeRAF); resizeRAF = requestAnimationFrame(fit); }
+
+  // -------------------- FIT-TO-SCREEN --------------------
+  // Tout doit tenir : colonnes partagées en flex (largeur), cartes mises à
+  // l'échelle (hauteur) d'après la colonne la plus peuplée.
+  function fit() {
+    if (!isOn()) return;
+    var board = qs('#board'); if (!board) return;
+    var maxCards = 1;
+    qsa('.class-column', board).forEach(function (c) {
+      var n = qsa('.student-card', c).length; if (n > maxCards) maxCards = n;
+    });
+    var safe = Math.round(Math.min(window.innerWidth, window.innerHeight) * safePct / 100);
+    document.documentElement.style.setProperty('--pres-safe', safe + 'px');
+    var root = document.documentElement.style;
+
+    if (focusOn) {
+      // Classes choisies côte à côte : cartes dimensionnées d'après la plus
+      // peuplée des classes AFFICHÉES (tout visible, sans scroll).
+      var cols = focusColumns();
+      var sel = selectedFocus(cols);
+      var maxV = 1;
+      cols.forEach(function (c) {
+        if (sel.indexOf(classeOf(c)) >= 0) { var n = qsa('.student-card', c).length; if (n > maxV) maxV = n; }
+      });
+      var availF = window.innerHeight - safe * 2 - reserveBottom - 60 - 12;
+      var perF = Math.max(16, Math.min(44, (availF / maxV) * zoom));
+      var fontF = Math.max(12, Math.min(28, perF * 0.6));
+      root.setProperty('--pres-row', perF + 'px');
+      root.setProperty('--pres-font', fontF + 'px');
+      return;
+    }
+
+    var headerReserve = 56;  // en-tête de colonne (nom + décompte)
+    var avail = window.innerHeight - safe * 2 - reserveBottom - headerReserve - 10;
+    var perCard = (avail / maxCards) * zoom;
+    perCard = Math.max(13, Math.min(48, perCard));
+    var font = Math.max(9, Math.min(28, perCard * 0.58));
+    root.setProperty('--pres-row', perCard + 'px');
+    root.setProperty('--pres-font', font + 'px');
+  }
+
+  // -------------------- panneau flottant générique --------------------
+  function makeFloatable(panel, handle) {
+    var dragging = false, sx, sy, sl, st;
+    handle.addEventListener('mousedown', function (e) {
+      if (e.target.closest('button')) return;
+      dragging = true;
+      var r = panel.getBoundingClientRect();
+      sx = e.clientX; sy = e.clientY; sl = r.left; st = r.top;
+      panel.style.left = sl + 'px'; panel.style.top = st + 'px'; panel.style.right = 'auto';
+      handle.style.cursor = 'grabbing'; e.preventDefault();
+    });
+    document.addEventListener('mousemove', function (e) {
+      if (!dragging) return;
+      panel.style.left = Math.max(0, Math.min(window.innerWidth - 60, sl + e.clientX - sx)) + 'px';
+      panel.style.top = Math.max(0, Math.min(window.innerHeight - 30, st + e.clientY - sy)) + 'px';
+    });
+    document.addEventListener('mouseup', function () { if (dragging) { dragging = false; handle.style.cursor = 'grab'; } });
+  }
+
+  function makePalette(id, title, x, y, bodyBuilder) {
+    var p = ce('div', 'pres-palette'); p.id = id; p.style.display = 'none';
+    p.style.left = x + 'px'; p.style.top = y + 'px';
+    var head = ce('div', 'pres-palette-head', '<span>' + title + '</span>');
+    var btns = ce('div', 'pres-palette-btns');
+    var mini = ce('button', 'pres-ico', '&minus;'); mini.title = 'Réduire';
+    var close = ce('button', 'pres-ico', '&times;'); close.title = 'Fermer';
+    mini.addEventListener('click', function () { p.classList.toggle('minimized'); });
+    close.addEventListener('click', function () { p.style.display = 'none'; syncDock(); });
+    btns.appendChild(mini); btns.appendChild(close); head.appendChild(btns);
+    var body = ce('div', 'pres-palette-body');
+    bodyBuilder(body);
+    p.appendChild(head); p.appendChild(body);
+    document.body.appendChild(p);
+    makeFloatable(p, head);
+    palettes[id] = p;
+    return p;
+  }
+
+  function togglePalette(id) {
+    var p = palettes[id]; if (!p) return;
+    p.style.display = (p.style.display === 'none') ? 'block' : 'none';
+    if (id === 'palStats' && p.style.display === 'block') buildStats(qs('.pres-palette-body', p));
+    if (id === 'palBalance' && p.style.display === 'block') buildBalance(qs('.pres-palette-body', p), balanceCrit);
+    syncDock();
+  }
+  function syncDock() {
+    Object.keys(dockButtons).forEach(function (id) {
+      if (id === '__focus') { dockButtons[id].classList.toggle('active', focusOn); return; }
+      var p = palettes[id];
+      dockButtons[id].classList.toggle('active', !!p && p.style.display !== 'none');
+    });
+  }
+
+  // -------------------- TRI global (reprend les en-têtes) --------------------
+  function sortAll(type) {
+    var dir = (lastSort.type === type && lastSort.dir === 'asc') ? 'desc' : 'asc';
+    lastSort = { type: type, dir: dir };
+    var f = dir === 'asc' ? 1 : -1;
+    qsa('.droppable-zone').forEach(function (zone) {
+      var cards = qsa('.student-card', zone);
+      cards.sort(function (ca, cb) {
+        var a = student(ca), b = student(cb);
+        switch (type) {
+          case 'name': return f * String(a.nom || '').localeCompare(String(b.nom || ''));
+          case 'lv2': {
+            var o = ['ESP', 'ITA', 'ALL', 'LATIN', 'GRECO'];
+            var ia = o.indexOf(String(a.lv2 || '').toUpperCase()), ib = o.indexOf(String(b.lv2 || '').toUpperCase());
+            return f * ((ia < 0 ? 99 : ia) - (ib < 0 ? 99 : ib));
+          }
+          case 'option': {
+            if (!a.opt && !b.opt) return 0; if (!a.opt) return f; if (!b.opt) return -f;
+            return f * String(a.opt).localeCompare(String(b.opt));
+          }
+          case 'score': {
+            var sa = (a.scores && a.scores.COM) || 0, sb = (b.scores && b.scores.COM) || 0;
+            return -f * (sb - sa);   // meilleurs en haut au 1er clic
+          }
+        }
+        return 0;
+      });
+      // appendChild RÉORDONNE sans détacher → conserve les refs SortableJS
+      cards.forEach(function (c) { zone.appendChild(c); });
+      try {
+        if (window.Sortable && Sortable.get) {
+          var s = Sortable.get(zone);
+          if (s && s.sort) s.sort(cards.map(function (c) { return c.dataset.id; }), false);
+        }
+      } catch (e) {}
+    });
+    // état visuel des boutons (COM en ROUGE quand actif, rappel des en-têtes)
+    qsa('#palTri .pres-btn').forEach(function (b) {
+      var on = b.dataset.sort === type;
+      b.classList.toggle('active', on && type !== 'score');
+      b.classList.toggle('com-active', on && type === 'score');
+      if (on) b.textContent = b.dataset.label + (dir === 'asc' ? ' ↑' : ' ↓');
+      else b.textContent = b.dataset.label;
+    });
+  }
+
+  // -------------------- Effectifs & Parité --------------------
+  function buildStats(body) {
+    var rows = '';
+    qsa('.class-column').forEach(function (col) {
+      var zone = qs('.droppable-zone', col); if (!zone) return;
+      var nameEl = qs('.classe-name', col);
+      var classe = (zone.dataset.classe) || (nameEl ? nameEl.textContent : '') || '?';
+      var cards = qsa('.student-card', zone);
+      var f = 0, m = 0;
+      cards.forEach(function (c) {
+        var sx = String(student(c).sexe || '').toUpperCase().charAt(0);
+        if (sx === 'F') f++; else if (sx === 'M' || sx === 'G' || sx === 'H') m++;
+      });
+      var t = cards.length;
+      var fp = t ? Math.round(f / t * 100) : 0, mp = 100 - fp;
+      rows += '<tr><td class="pn">' + esc(classe) + '</td><td>' + t + '</td>' +
+        '<td class="cf">' + f + '</td><td class="cm">' + m + '</td>' +
+        '<td><span class="pres-parbar"><i class="pf" style="width:' + fp + '%"></i><i class="pm" style="width:' + mp + '%"></i></span></td></tr>';
+    });
+    body.innerHTML = '<table class="pres-stats-table"><thead><tr><th>Classe</th><th>Tot</th>' +
+      '<th>F</th><th>M</th><th>Parité</th></tr></thead><tbody>' + rows + '</tbody></table>' +
+      '<div class="pres-row" style="margin-top:8px"><button class="pres-btn" id="presStatsRefresh">↻ Rafraîchir</button></div>';
+    var rb = qs('#presStatsRefresh', body);
+    if (rb) rb.addEventListener('click', function () { buildStats(body); });
+  }
+
+  // -------------------- Tableau de bord d'ÉQUILIBRE --------------------
+  // Équilibre = EFFECTIF par catégorie (pas la moyenne !). Pour le critère
+  // choisi (COM ou TRA), on compte par classe le nombre d'élèves à chaque
+  // niveau 5→1 (5 = meilleur). La « part juste » d'un niveau = total de ce
+  // niveau ÷ nb de classes. Une case s'écarte = drapeau (trop / pas assez).
+  function buildBalance(body, crit) {
+    crit = (crit === 'TRA') ? 'TRA' : 'COM';
+    balanceCrit = crit;
+    var levels = [5, 4, 3, 2, 1];
+    var classes = [];
+    qsa('.class-column').forEach(function (col) {
+      var zone = qs('.droppable-zone', col); if (!zone) return;
+      var nameEl = qs('.classe-name', col);
+      var name = (zone.dataset.classe) || (nameEl ? nameEl.textContent : '') || '?';
+      var counts = { 1: 0, 2: 0, 3: 0, 4: 0, 5: 0 }, tot = 0;
+      qsa('.student-card', zone).forEach(function (c) {
+        var s = student(c);
+        var v = parseInt(s.scores && s.scores[crit], 10);
+        if (v >= 1 && v <= 5) { counts[v]++; tot++; }
+      });
+      classes.push({ name: name, counts: counts, tot: tot });
+    });
+    var n = classes.length || 1;
+    var fair = {};
+    levels.forEach(function (k) {
+      var total = 0; classes.forEach(function (cl) { total += cl.counts[k]; });
+      fair[k] = total / n;
+    });
+    // classe de couleur selon l'écart à la part juste
+    function cellClass(count, k) {
+      var d = Math.abs(count - fair[k]);
+      if (d < 1.5) return 'bal-ok';
+      if (d < 2.5) return 'bal-warn';
+      return 'bal-bad';
+    }
+    var head = '<tr><th>Classe</th>' + levels.map(function (k) {
+      var lbl = k === 5 ? '5★' : (k === 1 ? '1⚠' : String(k));
+      return '<th title="niveau ' + k + '">' + lbl + '</th>';
+    }).join('') + '<th>Tot</th></tr>';
+    var rows = classes.map(function (cl) {
+      return '<tr><td class="pn">' + esc(cl.name) + '</td>' + levels.map(function (k) {
+        return '<td class="' + cellClass(cl.counts[k], k) + '">' + cl.counts[k] + '</td>';
+      }).join('') + '<td>' + cl.tot + '</td></tr>';
+    }).join('');
+    var fairRow = '<tr class="bal-fair"><td class="pn">Idéal/classe</td>' + levels.map(function (k) {
+      return '<td>' + (Math.round(fair[k] * 10) / 10) + '</td>';
+    }).join('') + '<td></td></tr>';
+
+    body.innerHTML =
+      '<div class="pres-row" id="balCritRow">' +
+        '<button class="pres-btn ' + (crit === 'COM' ? 'active' : '') + '" data-crit="COM">COM</button>' +
+        '<button class="pres-btn ' + (crit === 'TRA' ? 'active' : '') + '" data-crit="TRA">TRA</button>' +
+        '<button class="pres-btn" id="balRefresh">↻</button>' +
+      '</div>' +
+      '<table class="pres-stats-table bal-table"><thead>' + head + '</thead>' +
+      '<tbody>' + rows + fairRow + '</tbody></table>' +
+      '<div class="pres-hint"><b>Effectif par catégorie</b> (pas la moyenne). 5 = meilleur. ' +
+      '<span class="bal-ok bal-key">ok</span> <span class="bal-warn bal-key">léger</span> ' +
+      '<span class="bal-bad bal-key">déséquilibre</span> vs « idéal/classe ».</div>';
+
+    qsa('#balCritRow .pres-btn[data-crit]', body).forEach(function (b) {
+      b.addEventListener('click', function () { buildBalance(body, b.dataset.crit); });
+    });
+    var rfr = qs('#balRefresh', body);
+    if (rfr) rfr.addEventListener('click', function () { buildBalance(body, balanceCrit); });
+  }
+
+  // -------------------- Recherche / filtre --------------------
+  function applySearch(text, filter) {
+    var q = String(text || '').trim().toLowerCase();
+    qsa('.student-card').forEach(function (c) {
+      var s = student(c);
+      var name = String(s.nom || '').toLowerCase() + ' ' + String(s.prenom || '').toLowerCase();
+      var okText = !q || name.indexOf(q) !== -1;
+      var okFilter = true;
+      if (filter) {
+        var lv2 = String(s.lv2 || '').toUpperCase(), opt = String(s.opt || '').toUpperCase();
+        var def = String(s.defense || '').toUpperCase();
+        okFilter = (filter === lv2) || (filter === opt) || (filter === 'DEFENSE' && def && def !== 'NON') ||
+          (filter === 'FIXE' && String(s.mobilite || '').toUpperCase() === 'FIXE');
+      }
+      c.classList.toggle('pres-dim', !(okText && okFilter));
+      c.classList.toggle('pres-hit', !!q && okText && okFilter);
+    });
+  }
+
+  // -------------------- construction des outils (une seule fois) --------------------
+  function build() {
+    if (built) return; built = true;
+
+    // Bouton Quitter
+    var exitBtn = ce('button', null, '<span style="font-size:16px">⤢</span> Quitter');
+    exitBtn.id = 'presExitBtn'; exitBtn.title = 'Quitter le mode Présentation (Échap)';
+    exitBtn.addEventListener('click', exit);
+    document.body.appendChild(exitBtn);
+
+    // Glisser le FOND du plateau (zone vide, hors carte) pour le déplacer et le
+    // caler dans le cadre projeté. Les cartes gardent leur drag/échange propre.
+    var boardEl = qs('#board');
+    if (boardEl) {
+      var panning = false, psx, psy, p0x, p0y;
+      boardEl.addEventListener('mousedown', function (e) {
+        if (e.button !== 0) return;
+        if (e.target.closest('.student-card, button, .pres-palette, .pres-dock')) return;
+        panning = true; psx = e.clientX; psy = e.clientY; p0x = panX; p0y = panY;
+        document.body.classList.add('pres-panning'); e.preventDefault();
+      });
+      document.addEventListener('mousemove', function (e) {
+        if (!panning) return;
+        panX = p0x + (e.clientX - psx); panY = p0y + (e.clientY - psy); applyPan();
+      });
+      document.addEventListener('mouseup', function () {
+        if (panning) { panning = false; document.body.classList.remove('pres-panning'); }
+      });
+    }
+
+    // ---- Palette TRI ----
+    makePalette('palTri', '🔤 Tri (toutes les classes)', 80, 90, function (body) {
+      var row = ce('div', 'pres-row');
+      [['name', 'Nom'], ['lv2', 'LV2'], ['option', 'OPT'], ['score', 'COM']].forEach(function (d) {
+        var b = ce('button', 'pres-btn', d[1]); b.dataset.sort = d[0]; b.dataset.label = d[1];
+        b.addEventListener('click', function () { sortAll(d[0]); });
+        row.appendChild(b);
+      });
+      body.appendChild(row);
+      body.appendChild(ce('div', 'pres-hint', 'Re-cliquer inverse l\'ordre. COM passe en rouge (pires en haut ↓).'));
+    });
+
+    // ---- Palette ÉQUILIBRE (tableau de bord par effectif de catégorie) ----
+    makePalette('palBalance', '⚖️ Équilibre (effectifs par catégorie)', 360, 90, function (body) { buildBalance(body, balanceCrit); });
+
+    // ---- Palette EFFECTIFS & PARITÉ ----
+    makePalette('palStats', '📊 Effectifs & Parité', 80, 300, function (body) { buildStats(body); });
+
+    // ---- Palette RECHERCHE / FILTRE ----
+    makePalette('palSearch', '🔎 Recherche & filtre', 80, 520, function (body) {
+      var inp = ce('input', 'pres-input'); inp.type = 'search'; inp.placeholder = 'Nom d\'élève…';
+      var current = { filter: null };
+      inp.addEventListener('input', function () { applySearch(inp.value, current.filter); });
+      body.appendChild(inp);
+      var row = ce('div', 'pres-row');
+      [['ESP', 'ESP'], ['ITA', 'ITA'], ['ALL', 'ALL'], ['LATIN', 'LATIN'], ['GREC', 'GREC'], ['CHAV', 'CHAV'], ['DEFENSE', 'DÉFENSE'], ['FIXE', 'FIXE']].forEach(function (d) {
+        var b = ce('button', 'pres-btn', d[1]);
+        b.addEventListener('click', function () {
+          if (current.filter === d[0]) { current.filter = null; b.classList.remove('active'); }
+          else {
+            current.filter = d[0];
+            qsa('.pres-btn', row).forEach(function (x) { x.classList.remove('active'); });
+            b.classList.add('active');
+          }
+          applySearch(inp.value, current.filter);
+        });
+        row.appendChild(b);
+      });
+      body.appendChild(row);
+      var clr = ce('button', 'pres-btn', '✕ Tout afficher');
+      clr.addEventListener('click', function () {
+        inp.value = ''; current.filter = null;
+        qsa('.pres-btn', row).forEach(function (x) { x.classList.remove('active'); });
+        applySearch('', null);
+      });
+      body.appendChild(clr);
+    });
+
+    // ---- Palette AFFICHAGE (zoom + marge de sécurité) ----
+    makePalette('palView', '⚙️ Affichage', 80, 730, function (body) {
+      var zr = ce('div', 'pres-row');
+      var zoomOut = ce('button', 'pres-btn', '−'); var zval = ce('span', 'pres-zoomval', '100%'); var zoomIn = ce('button', 'pres-btn', '+');
+      function applyZoom(nz) { zoom = Math.max(0.5, Math.min(2.5, nz)); zval.textContent = Math.round(zoom * 100) + '%'; fit(); }
+      zoomOut.addEventListener('click', function () { applyZoom(zoom / 1.1); });
+      zoomIn.addEventListener('click', function () { applyZoom(zoom * 1.1); });
+      zr.appendChild(ce('span', null, 'Zoom :&nbsp;')); zr.appendChild(zoomOut); zr.appendChild(zval); zr.appendChild(zoomIn);
+      body.appendChild(zr);
+
+      var allBtn = ce('button', 'pres-btn', '⤢ Tout voir (réinitialiser)');
+      allBtn.addEventListener('click', function () { applyZoom(1); });
+      body.appendChild(allBtn);
+
+      var sl = ce('div'); sl.style.marginTop = '10px';
+      sl.appendChild(ce('div', 'pres-hint', 'Marge de sécurité (projecteur qui rogne les bords) :'));
+      var slider = ce('input', 'pres-slider'); slider.type = 'range'; slider.min = '0'; slider.max = '6'; slider.step = '0.5'; slider.value = String(safePct);
+      var sval = ce('span', 'pres-hint', safePct + ' %');
+      slider.addEventListener('input', function () { safePct = parseFloat(slider.value); sval.textContent = safePct + ' %'; fit(); });
+      sl.appendChild(slider); sl.appendChild(sval);
+      body.appendChild(sl);
+
+      // ---- Déplacement manuel (caler le plateau dans le cadre projeté) ----
+      body.appendChild(ce('div', 'pres-hint', '<b>Position du plateau</b> (caler dans l\'écran) :'));
+      var pad = ce('div'); pad.style.cssText = 'display:grid;grid-template-columns:repeat(3,34px);gap:4px;justify-content:center;margin:6px 0;';
+      var STEP = 24;
+      function nudge(dx, dy) { panX += dx; panY += dy; applyPan(); }
+      [['', null], ['▲', [0, -1]], ['', null],
+       ['◀', [-1, 0]], ['◉', 'c'], ['▶', [1, 0]],
+       ['', null], ['▼', [0, 1]], ['', null]].forEach(function (cell) {
+        if (cell[1] === null) { pad.appendChild(ce('span')); return; }
+        var b = ce('button', 'pres-btn', cell[0]); b.style.padding = '6px 0';
+        if (cell[1] === 'c') { b.title = 'Recentrer'; b.addEventListener('click', function () { recenter(); slider.value = String(safePct); sval.textContent = safePct + ' %'; rsl.value = '0'; rval.textContent = '0 %'; }); }
+        else b.addEventListener('click', function () { nudge(cell[1][0] * STEP, cell[1][1] * STEP); });
+        pad.appendChild(b);
+      });
+      body.appendChild(pad);
+      body.appendChild(ce('div', 'pres-hint', 'Astuce : on peut aussi <b>glisser le fond</b> du plateau à la souris.'));
+
+      // ---- Réserve en bas (passer au-dessus de la barre du tableau) ----
+      var rs = ce('div'); rs.style.marginTop = '10px';
+      rs.appendChild(ce('div', 'pres-hint', 'Réserve en bas (barre / rail du tableau) :'));
+      var rsl = ce('input', 'pres-slider'); rsl.type = 'range'; rsl.min = '0'; rsl.max = '25'; rsl.step = '1'; rsl.value = '0';
+      var rval = ce('span', 'pres-hint', '0 %');
+      rsl.addEventListener('input', function () {
+        var pct = parseFloat(rsl.value); rval.textContent = pct + ' %';
+        reserveBottom = Math.round(window.innerHeight * pct / 100); applyReserve();
+      });
+      rs.appendChild(rsl); rs.appendChild(rval);
+      body.appendChild(rs);
+    });
+
+    // ---- Palette ÉCHANGER ----
+    makePalette('palSwap', '🔁 Échanger', 80, 900, function (body) {
+      var st = ce('div', 'pres-hint', '');
+      var b = ce('button', 'pres-btn', 'Activer / désactiver le mode Échange');
+      function refresh() {
+        var on = !!(window.STATE && STATE.swapMode);
+        b.classList.toggle('active', on);
+        st.textContent = on ? 'Mode Échange ACTIF : cliquez 2 élèves pour les permuter.' : 'Mode Échange inactif.';
+      }
+      b.addEventListener('click', function () {
+        if (typeof window.toggleSwapMode === 'function') window.toggleSwapMode();
+        setTimeout(refresh, 30);
+      });
+      body.appendChild(b); body.appendChild(st); refresh();
+    });
+
+    // ---- DOCK d'icônes ----
+    var dock = ce('div', 'pres-dock'); dock.id = 'presDock';
+    var items = [
+      ['palBalance', '⚖️', 'Équil.'],
+      ['palTri', '🔤', 'Tri'],
+      ['palStats', '📊', 'Stats'],
+      ['palSearch', '🔎', 'Cherch.'],
+      ['palView', '⚙️', 'Vue'],
+      ['palSwap', '🔁', 'Échang.']
+    ];
+    items.forEach(function (it) {
+      var btn = ce('button', null, '<span>' + it[1] + '</span><span class="pres-dock-label">' + it[2] + '</span>');
+      btn.title = it[2];
+      btn.addEventListener('click', function () { togglePalette(it[0]); });
+      dock.appendChild(btn);
+      dockButtons[it[0]] = btn;
+    });
+    // Bouton Focus (action, pas une palette)
+    var focusBtn = ce('button', null, '<span>🔍</span><span class="pres-dock-label">Focus</span>');
+    focusBtn.title = 'Mode Focus : choisir des classes à comparer côte à côte';
+    focusBtn.addEventListener('click', toggleFocus);
+    dock.appendChild(focusBtn);
+    dockButtons.__focus = focusBtn;
+
+    // Bouton Brouillon (le header — donc Brouillon — est masqué en présentation).
+    // Appelle EXACTEMENT la même sauvegarde que le bouton du header (onglets CACHE).
+    var saveBtn = ce('button', null, '<span>💾</span><span class="pres-dock-label">Brouillon</span>');
+    saveBtn.title = 'Sauvegarder le brouillon (onglets CACHE) sans quitter la présentation';
+    saveBtn.addEventListener('click', function () {
+      if (typeof window.sauvegardeBrouillonManuelle === 'function') window.sauvegardeBrouillonManuelle(saveBtn);
+      else if (typeof window.toast === 'function') window.toast('Sauvegarde indisponible.', 'error');
+    });
+    dock.appendChild(saveBtn);
+
+    // Bouton Finaliser — discret comme les autres. Réutilise le bouton du header
+    // (masqué) : un .click() rouvre la MÊME modale de confirmation + le même
+    // processus (onglets FIN). Aucune logique dupliquée.
+    var finBtn = ce('button', null, '<span>✅</span><span class="pres-dock-label">Final.</span>');
+    finBtn.title = 'Finaliser la répartition (onglets FIN) — avec confirmation';
+    finBtn.addEventListener('click', function () {
+      var hb = document.getElementById('btnFinalize');
+      if (hb) hb.click();
+      else if (typeof window.toast === 'function') window.toast('Finalisation indisponible.', 'error');
+    });
+    dock.appendChild(finBtn);
+
+    document.body.appendChild(dock);
+
+    // Barre de navigation Focus (◀ classe ▶ + sortie)
+    var fb = ce('div'); fb.id = 'presFocusBar';
+    var caption = ce('span', 'pf-cap', 'Afficher :');
+    var chips = ce('div', 'pf-chips'); chips.id = 'presFocusChips';
+    var swp = ce('button', 'pf-exit', '🔁 Échanger'); swp.title = 'Activer l\'échange entre les classes affichées';
+    var ex = ce('button', 'pf-exit', '⊞ Vue d\'ensemble');
+    swp.addEventListener('click', function () {
+      if (typeof window.toggleSwapMode === 'function') window.toggleSwapMode();
+      setTimeout(function () { swp.classList.toggle('active', !!(window.STATE && STATE.swapMode)); }, 30);
+    });
+    ex.addEventListener('click', exitFocus);
+    fb.appendChild(caption); fb.appendChild(chips); fb.appendChild(swp); fb.appendChild(ex);
+    document.body.appendChild(fb);
+
+    // ouvre Équilibre + Tri par défaut (le dashboard est l'outil central)
+    togglePalette('palBalance'); togglePalette('palTri');
+  }
+
+  // -------------------- raccordements globaux --------------------
+  document.addEventListener('keydown', function (e) {
+    if (!isOn()) return;
+    // Échap quitte tout le mode (le navigateur sort de toute façon du plein écran).
+    // Pour seulement quitter le Focus : bouton « ⊞ Vue d'ensemble » ou icône Focus.
+    if (e.key === 'Escape') { exit(); return; }
+  });
+  // Si on sort du plein écran navigateur (Échap natif), on quitte aussi le mode.
+  document.addEventListener('fullscreenchange', function () {
+    if (!document.fullscreenElement && isOn()) exit();
+  });
+
+  // Le bouton « Présentation » est en dur dans le header (#btnPresentation, avec
+  // onclick="window.togglePresentationMode()"). Rien à câbler ici : window.
+  // togglePresentationMode est exposé plus haut. Raccourci clavier : touche R.
+})();
+</script>

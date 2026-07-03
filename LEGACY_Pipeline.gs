@@ -134,6 +134,12 @@ function legacy_runFullPipeline_PRIME() {
     let p4Result = null;
     let prevSwaps = 0;
 
+    // ⏱️ Budget temps propagé au moteur : Phase 4 s'arrête PROPREMENT (meilleur
+    // état conservé + sauvegardé) avant le quota GAS, au lieu d'être tuée en
+    // plein restart. 70 % du budget pour l'optimisation, le reste pour la
+    // sauvegarde, le recalcul de mobilité et l'habillage des onglets.
+    ctx.deadlineMs = startTime.getTime() + (LEGACY_PIPELINE_CONFIG.maxRuntime || 360) * 0.70 * 1000;
+
     for (let cpLoop = 0; cpLoop <= crossPhaseLoops; cpLoop++) {
       // ✅ FIX #5 : Garde-fou maxRuntime — arrêter avant le timeout GAS (6 min)
       const elapsedSec = (new Date() - startTime) / 1000;

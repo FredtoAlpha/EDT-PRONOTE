@@ -13,8 +13,11 @@
  * Le pipeline OPTI (SCORE INTERFACE → Prof) utilise
  * Phase4_balanceScoresSwaps_BASEOPTI_V3 (Phases_BASEOPTI_V3_COMPLETE.js).
  *
- * AUTEUR : Gemini (Expert Apps Script)
- * DATE : 19/11/2025
+ * Dernière modification : 2026-07-03 — branche 2028
+ * (objectif MAXIMIN proportionnel têtes/fragiles, recuit T₀=600 avec
+ *  proposition par réservoir, delta-scoring O(1) via calculateScoreFromAgg_,
+ *  budget temps ctx.deadlineMs, balayage final toutes-paires.
+ *  Vérification rapide de version : Ctrl+F « initialTemp: 600 »)
  * ===================================================================
  */
 
@@ -25,24 +28,37 @@ const ULTIMATE_CONFIG_DEFAULTS = {
   weights: {
     distrib: 5.0,
     parity: 4.0,
-    profiles: 10.0,
-    friends: 1000.0
+    friends: 1000.0,
+    // 'profiles' retiré (2028) : remplacé par headDeficit/headSurplus/niv1Excess ci-dessous
+    // MAXIMIN (branche 2028) : « relever le plancher » des têtes plutôt que
+    // tout égaliser. Le surplus (souvent imposé par les options, verrouillé)
+    // n'est PAS combattu ; on pousse les têtes vers les classes pauvres.
+    headDeficit: 500.0,   // déficit de têtes vs cible → puni FORT (quadratique)
+    headSurplus: 0.0,     // surplus de têtes → NON puni par défaut (options figées)
+    niv1Excess: 300.0     // excès d'élèves fragiles → puni FORT (anti classe-ghetto)
   },
   targets: {
     headMin: 2,
     headMax: 5,
     niv1Max: 4,
-    niv1Min: 0
+    niv1Min: 0,
+    // true : cibles têtes/fragiles = part globale × effectif de la classe
+    // (proportion adaptative à l'offre réelle). false : anciens seuils fixes.
+    proportional: true
   },
   // Recuit Simulé (Simulated Annealing) — permet de sortir des optima locaux
   // en acceptant ponctuellement des swaps légèrement dégradants avec une
   // probabilité décroissante (température qui refroidit).
   sa: {
     enabled: true,          // Activer le recuit simulé
-    initialTemp: 50.0,      // Température initiale T₀ (échelle du score)
+    // Échelle MAXIMIN (2028) : les pénalités de déficit de têtes sont quadratiques
+    // ×500 → un swap qui DÉPLACE une tête peut dégrader le score de ~1000-2000.
+    // Avec T₀=50/maxDeg=200 (échelle 1-4 d'origine), ces swaps étaient toujours
+    // refusés → le recuit ne pouvait pas franchir les crêtes que le maximin exige.
+    initialTemp: 600.0,     // Température initiale T₀, à l'échelle des pénalités maximin
     coolingRate: 0.995,      // Facteur de refroidissement géométrique par itération
     minTemp: 0.1,           // Température plancher (en dessous = glouton pur)
-    maxDegradation: 200.0   // Gain négatif max toléré (sécurité anti-dégradation)
+    maxDegradation: 2500.0  // Gain négatif max toléré : autorise les swaps déplaçant une tête/fragile
   }
 };
 
@@ -126,6 +142,12 @@ function Phase4_Ultimate_Run(ctx) {
   let bestSeed = 0;
 
   for (let restart = 0; restart < maxRestarts; restart++) {
+    // ⏱️ Budget temps : si la deadline du pipeline approche, on s'arrête ici —
+    // le meilleur restart déjà validé sera sauvegardé (rien n'est perdu).
+    if (ctx.deadlineMs && Date.now() > ctx.deadlineMs) {
+      logLine('WARN', `  ⏱️ Budget temps épuisé — arrêt après ${restart}/${maxRestarts} restart(s), meilleur état conservé.`);
+      break;
+    }
     const seed = ctx.seed ? ctx.seed + restart * mrConfig.seedSpacing : restart * mrConfig.seedSpacing;
     const rng = createRNG(seed);
 
@@ -232,6 +254,11 @@ function runPhase4CoreLoop_Ultimate_(allData, byClass, headers, globalStats, ctx
   let saAccepted = 0; // Compteur de swaps dégradants acceptés par SA
 
   for (let iter = 0; iter < config.maxSwaps; iter++) {
+    // ⏱️ Budget temps : contrôle périodique (peu coûteux : 1 Date.now / 50 itér.)
+    if (ctx.deadlineMs && (iter % 50 === 0) && Date.now() > ctx.deadlineMs) {
+      logLine('WARN', `  ⏱️ Budget temps épuisé à l'itération ${iter} — sortie propre du core loop.`);
+      break;
+    }
     const worstClassKey = findWorstClass_Ultimate(byClass, allData, globalStats, ctx, config);
     if (!worstClassKey) break;
 
@@ -247,8 +274,12 @@ function runPhase4CoreLoop_Ultimate_(allData, byClass, headers, globalStats, ctx
 
     const bestSwap = findBestSwapPrioritized_Ultimate(worstClassKey, partnerClassKey, allData, byClass, headers, globalStats, ctx, rng, config);
 
-    // TWO-PIPELINE : Appliquer la pénalité swap history sur le gain
-    if (bestSwap) {
+    // Pénalité anti-cycle : UNIQUEMENT sur les gains POSITIFS (départage des
+    // swaps améliorants pour éviter A↔B↔A). NE JAMAIS l'appliquer à un gain
+    // négatif : diviser un gain négatif le rapproche de 0 et GONFLE la proba
+    // d'acceptation SA (Metropolis) — l'inverse de l'effet voulu. Le gain passé
+    // à Math.exp doit rester le vrai delta de score.
+    if (bestSwap && bestSwap.gain > 0) {
       const h1 = swapHistory.get(bestSwap.idx1) || 0;
       const h2 = swapHistory.get(bestSwap.idx2) || 0;
       bestSwap.gain = bestSwap.gain / (1 + h1 + h2);
@@ -275,9 +306,11 @@ function runPhase4CoreLoop_Ultimate_(allData, byClass, headers, globalStats, ctx
         if (saAccepted <= 5 || saAccepted % 10 === 0) {
           logLine('DEBUG', `  🌡️ SA: swap dégradant accepté (gain=${bestSwap.gain.toFixed(4)}, T=${temperature.toFixed(2)}, p=${acceptProbability.toFixed(4)})`);
         }
-      } else {
-        stagnationCount++;
       }
+      // Un REJET Metropolis pendant le refroidissement n'est PAS une stagnation :
+      // avant, dès que p < ~1/50 le stagnationLimit coupait la boucle bien avant
+      // Tmin → le schedule annoncé (T₀, cooling, Tmin) ne tournait jamais en
+      // entier. La boucle reste bornée par maxSwaps et par le budget temps.
     } else {
       stagnationCount++;
     }
@@ -300,6 +333,7 @@ function runPhase4CoreLoop_Ultimate_(allData, byClass, headers, globalStats, ctx
     let postSASwaps = 0;
     let postStagnation = 0;
     for (let iter2 = 0; iter2 < Math.floor(config.maxSwaps * 0.3); iter2++) {
+      if (ctx.deadlineMs && (iter2 % 50 === 0) && Date.now() > ctx.deadlineMs) break;  // ⏱️ budget temps
       const worstKey = findWorstClass_Ultimate(byClass, allData, globalStats, ctx, config);
       if (!worstKey) break;
       const partnerKey = findPartnerClass_Ultimate(worstKey, byClass, allData, globalStats, rng, config);
@@ -322,9 +356,11 @@ function runPhase4CoreLoop_Ultimate_(allData, byClass, headers, globalStats, ctx
 
   // 3-WAY CYCLE SWAPS
   let swaps3Way = 0;
+  let dry3Rounds = 0;  // rondes consécutives sans triplet gagnant (l'échantillonnage est aléatoire : 1 ronde sèche peut être de la malchance)
   const classNames = Object.keys(byClass);
 
   for (let iter3 = 0; iter3 < 200; iter3++) {
+    if (ctx.deadlineMs && Date.now() > ctx.deadlineMs) break;  // ⏱️ budget temps
     let bestGain3 = 0.001;
     let best3Way = null;
 
@@ -369,7 +405,14 @@ function runPhase4CoreLoop_Ultimate_(allData, byClass, headers, globalStats, ctx
       }
     }
 
-    if (!best3Way) break;
+    if (!best3Way) {
+      // Tirage aléatoire : exiger 3 rondes sèches consécutives avant d'arrêter
+      // (avant, UNE ronde malchanceuse de 15 triplets suffisait à éteindre la passe)
+      dry3Rounds++;
+      if (dry3Rounds >= 3) break;
+      continue;
+    }
+    dry3Rounds = 0;
 
     const { a, b, c, c1, c2, c3 } = best3Way;
     byClass[c1] = byClass[c1].filter(x => x !== a).concat([c]);
@@ -377,6 +420,32 @@ function runPhase4CoreLoop_Ultimate_(allData, byClass, headers, globalStats, ctx
     byClass[c3] = byClass[c3].filter(x => x !== c).concat([b]);
     swaps3Way++;
     swapsApplied++;
+  }
+
+  // BALAYAGE FINAL : la boucle principale n'explore que les paires impliquant
+  // la PIRE classe → en fin de convergence, des gains résiduels entre classes
+  // « moyennes » (parité, moyennes COM/TRA) restent sur la table. À 4-7 classes
+  // il y a au plus 21 paires : on les balaie toutes, en glouton pur, jusqu'à
+  // épuisement (borné). Peu coûteux depuis le delta-scoring O(1).
+  let polishSwaps = 0;
+  for (let round = 0; round < 10; round++) {
+    if (ctx.deadlineMs && Date.now() > ctx.deadlineMs) break;  // ⏱️ budget temps
+    let improvedRound = false;
+    for (let x = 0; x < classNames.length; x++) {
+      for (let y = x + 1; y < classNames.length; y++) {
+        const sw = findBestSwapPrioritized_Ultimate(classNames[x], classNames[y], allData, byClass, headers, globalStats, ctx, rng, config);
+        if (sw && sw.gain > 0.0001) {
+          applySwap_Ultimate(allData, byClass, sw, headers);
+          swapsApplied++;
+          polishSwaps++;
+          improvedRound = true;
+        }
+      }
+    }
+    if (!improvedRound) break;
+  }
+  if (polishSwaps > 0) {
+    logLine('INFO', `  🧹 Balayage final toutes-paires : ${polishSwaps} swap(s) résiduel(s) appliqué(s)`);
   }
 
   return { swapsApplied: swapsApplied, swaps3Way: swaps3Way };
@@ -394,55 +463,88 @@ function runPhase4CoreLoop_Ultimate_(allData, byClass, headers, globalStats, ctx
  * - Pénalité très forte (au cube) si excès de Niv1
  * ✅ BUG #4 CORRECTION : Ajout critère d'effectif
  */
-function calculateScore_Ultimate(indices, allData, globalStats, className, ctx, config) {
+// ---- DELTA-SCORING (perf 2028) -------------------------------------------
+// Tous les termes du score se calculent depuis des AGRÉGATS de classe
+// (effectif, têtes, niv1, filles, sommes de scores). On les maintient en O(1)
+// par ajout/retrait d'élève, au lieu de re-scanner ~30 élèves × 8 passes pour
+// CHAQUE paire candidate (~10-20 millions de re-scans par pipeline avant).
+// calculateScoreFromAgg_ est LA seule écriture de la formule ; l'ancienne
+// calculateScore_Ultimate devient un wrapper (même signature, même résultat).
+
+/** Ajoute (sign=+1) ou retire (sign=-1) un élève des agrégats d'une classe. */
+function aggAdd_(agg, s, sign) {
+  agg.total += sign;
+  if (s.isHead) agg.nbTetes += sign;
+  if (s.isNiv1) agg.nbNiv1 += sign;
+  if (s.sexe === 'F') agg.nbF += sign;
+  agg.sumCOM += sign * (s.COM || 2);
+  agg.sumTRA += sign * (s.TRA || 2);
+  agg.sumPART += sign * (s.PART || 2);
+  agg.sumABS += sign * (s.ABS || 2);
+}
+
+/** Construit les agrégats d'une classe à partir de sa liste d'indices. */
+function buildClassAgg_(indices, allData) {
+  const agg = { total: 0, nbTetes: 0, nbNiv1: 0, nbF: 0, sumCOM: 0, sumTRA: 0, sumPART: 0, sumABS: 0 };
+  for (let k = 0; k < indices.length; k++) aggAdd_(agg, allData[indices[k]], 1);
+  return agg;
+}
+
+/**
+ * Score d'une classe depuis ses agrégats — O(1).
+ * Formule STRICTEMENT identique à l'ancienne calculateScore_Ultimate :
+ * effectif quadratique ×800, MAXIMIN têtes/fragiles proportionnel (déficit
+ * puni fort, surplus ignoré), parité vs ratio global, moyennes COM/TRA/PART/ABS.
+ */
+function calculateScoreFromAgg_(agg, globalStats, className, ctx, config) {
   config = config || ULTIMATE_CONFIG; // fallback sécurité
-  let score = 0;
-  const students = indices.map(i => allData[i]);
-  const total = students.length;
+  const total = agg.total;
   if (total === 0) return 10000;
+  let score = 0;
 
-  // --- 0. CRITÈRE EFFECTIF (BUG #4 CORRECTION - PRIORITÉ HAUTE) ---
+  // --- 0. CRITÈRE EFFECTIF ---
   if (className && ctx && ctx.targets && ctx.targets[className]) {
-    const targetSize = ctx.targets[className];
-    const sizeDiff = total - targetSize;
-    // Pénalité quadratique pour les écarts d'effectif
-    score += Math.pow(sizeDiff, 2) * 800;
+    const sizeDiff = total - ctx.targets[className];
+    score += sizeDiff * sizeDiff * 800;
   }
 
-  // --- 1. CRITÈRE PROFILS (Héritage LEGACY - Priorité Absolue) ---
-  const nbTetes = students.filter(s => s.isHead).length;
-  const nbNiv1 = students.filter(s => s.isNiv1).length;
+  // --- 1. CRITÈRE PROFILS — MAXIMIN (relever le plancher des têtes) ---
+  const propOn = !(config.targets && config.targets.proportional === false);
+  const targetHead = propOn
+    ? Math.floor((globalStats.headRatio || 0) * total)   // plancher FAISABLE
+    : config.targets.headMin;
+  const targetNiv1 = propOn
+    ? Math.ceil((globalStats.niv1Ratio || 0) * total)    // plafond FAISABLE
+    : config.targets.niv1Max;
 
-  // PONDÉRATION ASYMÉTRIQUE DES EXTRÊMES
-  if (nbTetes < config.targets.headMin) {
-    score += Math.pow(config.targets.headMin - nbTetes, 2) * 500;
-  }
-  if (nbTetes > config.targets.headMax) {
-    score += (nbTetes - config.targets.headMax) * 200;
-  }
+  const wDef = (config.weights.headDeficit != null) ? config.weights.headDeficit : 500;
+  const wSur = (config.weights.headSurplus != null) ? config.weights.headSurplus : 0;
+  const wN1 = (config.weights.niv1Excess != null) ? config.weights.niv1Excess : 300;
 
-  if (nbNiv1 > config.targets.niv1Max) {
-    score += Math.pow(nbNiv1 - config.targets.niv1Max, 3) * 100;
+  if (agg.nbTetes < targetHead) {
+    score += Math.pow(targetHead - agg.nbTetes, 2) * wDef;
+  }
+  if (wSur > 0 && agg.nbTetes > targetHead) {
+    score += (agg.nbTetes - targetHead) * wSur;
+  }
+  if (agg.nbNiv1 > targetNiv1) {
+    score += Math.pow(agg.nbNiv1 - targetNiv1, 2) * wN1;
   }
 
   // --- 2. CRITÈRE PARITÉ (Adaptatif) ---
-  const nbFilles = students.filter(s => s.sexe === 'F').length;
-  const ratioF = nbFilles / total;
-  score += Math.abs(ratioF - globalStats.ratioF) * 1000 * config.weights.parity;
+  score += Math.abs(agg.nbF / total - globalStats.ratioF) * 1000 * config.weights.parity;
 
-  // --- 3. CRITÈRE DISTRIBUTION ACADÉMIQUE (Jules Codex) ---
-  // ✅ FIX #2 : Inclure ABS dans le scoring (était absent malgré le commentaire)
-  const avgCOM = students.reduce((acc, s) => acc + (s.COM || 2), 0) / total;
-  const avgTRA = students.reduce((acc, s) => acc + (s.TRA || 2), 0) / total;
-  const avgPART = students.reduce((acc, s) => acc + (s.PART || 2), 0) / total;
-  const avgABS = students.reduce((acc, s) => acc + (s.ABS || 2), 0) / total;
-
-  score += Math.abs(avgCOM - globalStats.avgCOM) * 100 * config.weights.distrib;
-  score += Math.abs(avgTRA - globalStats.avgTRA) * 100 * config.weights.distrib;
-  score += Math.abs(avgPART - (globalStats.avgPART || 2)) * 50 * config.weights.distrib;
-  score += Math.abs(avgABS - (globalStats.avgABS || 2)) * 50 * config.weights.distrib;
+  // --- 3. CRITÈRE DISTRIBUTION ACADÉMIQUE ---
+  score += Math.abs(agg.sumCOM / total - globalStats.avgCOM) * 100 * config.weights.distrib;
+  score += Math.abs(agg.sumTRA / total - globalStats.avgTRA) * 100 * config.weights.distrib;
+  score += Math.abs(agg.sumPART / total - (globalStats.avgPART || 2)) * 50 * config.weights.distrib;
+  score += Math.abs(agg.sumABS / total - (globalStats.avgABS || 2)) * 50 * config.weights.distrib;
 
   return score;
+}
+
+function calculateScore_Ultimate(indices, allData, globalStats, className, ctx, config) {
+  return calculateScoreFromAgg_(buildClassAgg_(indices, allData), globalStats, className, ctx, config);
 }
 
 /**
@@ -453,10 +555,6 @@ function calculateScore_Ultimate(indices, allData, globalStats, className, ctx, 
 function findBestSwapPrioritized_Ultimate(cls1Name, cls2Name, allData, byClass, headers, globalStats, ctx, rng, config) {
   const idxList1 = byClass[cls1Name];
   const idxList2 = byClass[cls2Name];
-
-  // Calculer les profils cibles
-  const avgCls1 = allData.filter((s, i) => idxList1.indexOf(i) >= 0).reduce((acc, s) => acc + s.COM, 0) / idxList1.length;
-  const avgCls2 = allData.filter((s, i) => idxList2.indexOf(i) >= 0).reduce((acc, s) => acc + s.TRA, 0) / idxList2.length;
 
   // Trier par disruption (distance au profil moyen de leur classe)
   function sortByDisruption(indices) {
@@ -483,15 +581,29 @@ function findBestSwapPrioritized_Ultimate(cls1Name, cls2Name, allData, byClass, 
   const candidates1 = sorted1.slice(0, topCount1);
   const candidates2 = sorted2.slice(0, topCount2);
 
-  const scoreBefore = calculateScore_Ultimate(idxList1, allData, globalStats, cls1Name, ctx, config) +
-                      calculateScore_Ultimate(idxList2, allData, globalStats, cls2Name, ctx, config);
+  // DELTA-SCORING : agrégats construits UNE fois par appel, puis chaque paire
+  // est simulée en O(1) (retrait/ajout dans les compteurs + score sur compteurs,
+  // puis restauration). Les scores sont des entiers/sommes d'entiers → la
+  // restauration par soustraction est exacte (pas de dérive flottante).
+  const agg1 = buildClassAgg_(idxList1, allData);
+  const agg2 = buildClassAgg_(idxList2, allData);
+  const scoreBefore = calculateScoreFromAgg_(agg1, globalStats, cls1Name, ctx, config) +
+                      calculateScoreFromAgg_(agg2, globalStats, cls2Name, ctx, config);
 
   let bestSwap = null;
   let maxGain = 0;
 
-  // SA : garder aussi le "moins pire" swap dégradant pour le recuit simulé
-  let leastBadSwap = null;
-  let leastBadGain = -Infinity;
+  // RECUIT : candidat dégradant tiré UNIFORMÉMENT (réservoir) parmi TOUS les
+  // swaps faisables dans la borne maxDegradation — et plus seulement le « moins
+  // pire ». L'ancien choix (gain le plus proche de 0, ~-5) faisait que les
+  // swaps déplaçant une tête (~-1000/-2000) n'étaient JAMAIS proposés : le SA
+  // avait la permission de les accepter (T₀=600, maxDeg=2500) mais on ne les
+  // lui présentait pas → il dégénérait en micro-marche aléatoire. Le tirage
+  // uniforme rend les franchissements de crête (maximin) réellement proposables ;
+  // Metropolis (e^(gain/T)) filtre ensuite selon la température.
+  const saMaxDeg = (config.sa && config.sa.enabled && config.sa.maxDegradation) || 0;
+  let saCandidate = null;
+  let saSeen = 0;
 
   // Tester les paires priorisées (top candidats seulement)
   for (let i = 0; i < candidates1.length; i++) {
@@ -507,12 +619,16 @@ function findBestSwapPrioritized_Ultimate(cls1Name, cls2Name, allData, byClass, 
         continue; // Swap interdit par contraintes LV2/OPT/DISSO
       }
 
-      // Simulation du swap
-      const tempList1 = idxList1.filter(idx => idx !== i1).concat([i2]);
-      const tempList2 = idxList2.filter(idx => idx !== i2).concat([i1]);
+      // Simulation O(1) du swap : s1 quitte cls1 pour cls2, s2 fait l'inverse
+      aggAdd_(agg1, s1, -1); aggAdd_(agg1, s2, 1);
+      aggAdd_(agg2, s2, -1); aggAdd_(agg2, s1, 1);
 
-      const scoreAfter = calculateScore_Ultimate(tempList1, allData, globalStats, cls1Name, ctx, config) +
-                         calculateScore_Ultimate(tempList2, allData, globalStats, cls2Name, ctx, config);
+      const scoreAfter = calculateScoreFromAgg_(agg1, globalStats, cls1Name, ctx, config) +
+                         calculateScoreFromAgg_(agg2, globalStats, cls2Name, ctx, config);
+
+      // Restauration exacte des agrégats
+      aggAdd_(agg1, s2, -1); aggAdd_(agg1, s1, 1);
+      aggAdd_(agg2, s1, -1); aggAdd_(agg2, s2, 1);
 
       const gain = scoreBefore - scoreAfter;
 
@@ -526,23 +642,27 @@ function findBestSwapPrioritized_Ultimate(cls1Name, cls2Name, allData, byClass, 
           gain: gain,
           reason: `Swap ${s1.isHead ? 'Tête' : 'Std'}/${s1.isNiv1 ? 'Niv1' : 'Std'}`
         };
-      } else if (gain < 0 && gain > leastBadGain) {
-        // SA : meilleur candidat dégradant (gain négatif le plus proche de 0)
-        leastBadGain = gain;
-        leastBadSwap = {
-          idx1: i1,
-          idx2: i2,
-          cls1: cls1Name,
-          cls2: cls2Name,
-          gain: gain,
-          reason: `SA-Swap ${s1.isHead ? 'Tête' : 'Std'}/${s1.isNiv1 ? 'Niv1' : 'Std'}`
-        };
+      } else if (saMaxDeg > 0 && gain < 0 && gain > -saMaxDeg) {
+        // Échantillonnage réservoir : chaque candidat dégradant faisable a la
+        // même probabilité d'être proposé (1/saSeen au moment de sa lecture).
+        saSeen++;
+        if (rng.next() < 1 / saSeen) {
+          saCandidate = {
+            idx1: i1,
+            idx2: i2,
+            cls1: cls1Name,
+            cls2: cls2Name,
+            gain: gain,
+            reason: `SA-Swap ${s1.isHead ? 'Tête' : 'Std'}/${s1.isNiv1 ? 'Niv1' : 'Std'}`
+          };
+        }
       }
     }
   }
 
-  // Si aucun swap améliorant trouvé, renvoyer le moins dégradant pour le recuit simulé
-  return bestSwap || leastBadSwap;
+  // Si aucun swap améliorant trouvé, renvoyer un candidat dégradant tiré au
+  // hasard pour le recuit simulé (null si SA inactif ou aucun candidat faisable)
+  return bestSwap || saCandidate;
 }
 
 /**
@@ -596,7 +716,9 @@ function loadAndClassifyData_Ultimate(ctx) {
       PART: headers.indexOf('PART'),
       ABS: headers.indexOf('ABSENCE') !== -1 ? headers.indexOf('ABSENCE') : headers.indexOf('ABS'),
       MOB: headers.indexOf('MOBILITE'),
-      FIXE: headers.indexOf('FIXE')
+      FIXE: headers.indexOf('FIXE'),
+      OPT: headers.indexOf('OPT'),
+      LV2: headers.indexOf('LV2')
     };
 
     for (let i = 1; i < data.length; i++) {
@@ -612,7 +734,9 @@ function loadAndClassifyData_Ultimate(ctx) {
         TRA: Number(row[idx.TRA]) || 2,
         PART: Number(row[idx.PART]) || 2,
         ABS: idx.ABS >= 0 ? (Number(row[idx.ABS]) || 2) : 2,
-        mobilite: String(row[idx.MOB] || row[idx.FIXE] || '').toUpperCase()
+        opt: idx.OPT >= 0 ? String(row[idx.OPT] || '').toUpperCase().trim() : '',
+        lv2: idx.LV2 >= 0 ? String(row[idx.LV2] || '').toUpperCase().trim() : '',
+        mobilite: deriveMobilite_(row, idx)
       };
 
       // --- CLASSIFICATION LOGIQUE ---
@@ -645,9 +769,21 @@ function calculateGlobalStats_Ultimate(allData) {
   const DEFAULT_AVG = 2.5;
   const DEFAULT_VAL = 2;
   let total = allData.length;
-  if (total === 0) return { ratioF: 0.5, avgCOM: DEFAULT_AVG, avgTRA: DEFAULT_AVG, avgPART: DEFAULT_AVG, avgABS: DEFAULT_AVG };
+  if (total === 0) return { ratioF: 0.5, avgCOM: DEFAULT_AVG, avgTRA: DEFAULT_AVG, avgPART: DEFAULT_AVG, avgABS: DEFAULT_AVG, headRatio: 0, niv1Ratio: 0 };
 
   const nbFilles = allData.filter(s => s.sexe === 'F').length;
+
+  // MAXIMIN : part globale de têtes et d'élèves fragiles → sert de cible
+  // proportionnelle par classe (part × effectif de la classe).
+  let nbHeads = 0, nbNiv1 = 0;
+  for (let k = 0; k < total; k++) {
+    const st = allData[k];
+    const cH = safe(st.COM, DEFAULT_VAL), tH = safe(st.TRA, DEFAULT_VAL), pH = safe(st.PART, DEFAULT_VAL);
+    const isH = (typeof isHeadStudent === 'function') ? isHeadStudent(cH, tH, pH) : (cH >= 4 || tH >= 4);
+    const isN = (typeof isNiv1Student === 'function') ? isNiv1Student(cH, tH) : (cH <= 1 || tH <= 1);
+    if (isH) nbHeads++;
+    if (isN) nbNiv1++;
+  }
   const sumCOM = allData.reduce((sum, s) => sum + safe(s.COM, DEFAULT_VAL), 0);
   const sumTRA = allData.reduce((sum, s) => sum + safe(s.TRA, DEFAULT_VAL), 0);
   const sumPART = allData.reduce((sum, s) => sum + safe(s.PART, DEFAULT_VAL), 0);
@@ -663,7 +799,9 @@ function calculateGlobalStats_Ultimate(allData) {
     avgCOM: avg(sumCOM),
     avgTRA: avg(sumTRA),
     avgPART: avg(sumPART),
-    avgABS: avg(sumABS)
+    avgABS: avg(sumABS),
+    headRatio: total > 0 ? nbHeads / total : 0,
+    niv1Ratio: total > 0 ? nbNiv1 / total : 0
   };
 }
 
@@ -704,6 +842,9 @@ function findPartnerClass_Ultimate(worstClass, byClass, allData, globalStats, rn
   const worstAvgCOM = worstStudents.reduce((s, st) => s + st.COM, 0) / worstTotal;
   // U2: Ajouter PART à la complémentarité
   const worstAvgPART = worstStudents.reduce((s, st) => s + (st.PART || 2), 0) / worstTotal;
+  // 2028 : options rares de la classe pauvre → un swap PERMUT option-compatible
+  // (ex. LATIN-4 ↔ LATIN-5) n'est possible qu'avec une classe qui partage l'option.
+  const worstOpts = collectRareOptions_(worstStudents);
 
   let bestPartner = null;
   let bestComplementarity = -Infinity;
@@ -748,6 +889,13 @@ function findPartnerClass_Ultimate(worstClass, byClass, allData, globalStats, rn
       comp += Math.abs(worstAvgPART - clsAvgPART) * 1.5;
     }
 
+    // 2028 : BONUS fort si la classe candidate partage une option rare avec la
+    // classe pauvre → seul cas où un swap PERMUT relevant le plancher de têtes
+    // est réellement autorisé par canSwapStudents_Ultimate. Sans ce guidage, le
+    // moteur appariait des classes non-compatibles et laissait dormir le vivier PERMUT.
+    const clsOpts = collectRareOptions_(clsStudents);
+    for (var _o in worstOpts) { if (clsOpts[_o]) { comp += 8; break; } }
+
     if (comp > bestComplementarity) {
       bestComplementarity = comp;
       bestPartner = cls;
@@ -763,25 +911,101 @@ function findPartnerClass_Ultimate(worstClass, byClass, allData, globalStats, rn
 }
 
 /**
- * Vérifie si un élève est "fixe" (non mobile)
+ * Dérive la mobilité d'un élève. Source de vérité = colonne MOBILITE (calculée
+ * par LEGACY_Mobility_Calculator : FIXE/PERMUT/LIBRE/ERREUR…). Repli SEULEMENT si
+ * MOBILITE absente : on mappe la colonne booléenne FIXE avec la BONNE sémantique
+ * (OUI=immobile→FIXE, NON=mobile→LIBRE) — jamais 'OUI'/'NON' brut dans mobilite.
+ */
+function deriveMobilite_(row, idx) {
+  var mob = String((idx.MOB >= 0 ? row[idx.MOB] : '') || '').toUpperCase().trim();
+  if (mob) return mob;
+  var fixeVal = String((idx.FIXE >= 0 ? row[idx.FIXE] : '') || '').toUpperCase().trim();
+  if (fixeVal === 'OUI') return 'FIXE';
+  if (fixeVal === 'NON') return 'LIBRE';
+  return '';
+}
+
+/**
+ * Vérifie si un élève est "fixe" (non déplaçable par le moteur de swaps).
+ * Seuls PERMUT et LIBRE sont déplaçables ; tout le reste (FIXE, GROUPE_FIXE,
+ * ERREUR/GROUPE_ERREUR = 0 classe compatible, SPEC, CONDI, statut inconnu) est
+ * immobile — prudence : ne jamais déplacer un élève au statut ambigu. Ne teste
+ * PLUS includes('NON') (qui inversait la sémantique et gelait le vivier mobile).
  */
 function isFixed(student) {
-  const mob = student.mobilite;
-  return mob.includes('FIXE') || mob.includes('NON');
+  var mob = String(student.mobilite || '').toUpperCase().trim();
+  // Déplaçables = tout ce qui CONTIENT 'PERMUT' ou 'LIBRE' : PERMUT, LIBRE,
+  // GROUPE_PERMUT, GROUPE_LIBRE (tous fixe=NON dans LEGACY_Mobility_Calculator).
+  // Immobiles = FIXE, GROUPE_FIXE, ERREUR, GROUPE_ERREUR, ou statut vide/inconnu.
+  return !(mob.indexOf('PERMUT') >= 0 || mob.indexOf('LIBRE') >= 0);
+}
+
+/**
+ * Options/LV2 NON universelles présentes dans un groupe d'élèves. Ce sont elles
+ * qui définissent le vivier PERMUT réellement échangeable (ex. LATIN, GREC, CHAV).
+ */
+function collectRareOptions_(students) {
+  var set = {};
+  var universal = { 'ESP': 1, 'ANG': 1, 'AGL': 1, 'ANGLAIS': 1, 'ESPAGNOL': 1 };
+  for (var i = 0; i < students.length; i++) {
+    var o = String(students[i].opt || '').toUpperCase().trim();
+    var l = String(students[i].lv2 || '').toUpperCase().trim();
+    if (o && !universal[o]) set[o] = 1;
+    if (l && !universal[l]) set[l] = 1;
+  }
+  return set;
 }
 
 /**
  * ✅ BUG #5 CORRECTION : Vérifie si un swap respecte les contraintes LV2/OPT/DISSO
  */
+// Index des colonnes de contraintes, mémoïsés par tableau headers (perf 2028 :
+// canSwapStudents_Ultimate est appelée ~1 fois par paire candidate, soit des
+// millions de fois par pipeline — 5 indexOf × O(nbColonnes) à chaque appel
+// représentaient ~10-20 % du CPU de la boucle chaude, pour un résultat constant).
+var _constraintIdxCache = { headers: null, idx: null };
+function getConstraintIdx_(headers) {
+  if (_constraintIdxCache.headers !== headers) {
+    _constraintIdxCache.headers = headers;
+    _constraintIdxCache.idx = {
+      LV2: headers.indexOf('LV2'),
+      OPT: headers.indexOf('OPT'),
+      DISSO: headers.indexOf('DISSO'),
+      ASSO: headers.indexOf('ASSO'),
+      IMPOSEE: headers.indexOf('CLASSE_IMPOSEE')
+    };
+  }
+  return _constraintIdxCache.idx;
+}
+
 function canSwapStudents_Ultimate(idx1, idx2, cls1Name, cls2Name, idxList1, idxList2, allData, headers, ctx) {
   const s1 = allData[idx1];
   const s2 = allData[idx2];
 
-  // Extraire LV2/OPT/ASSO des élèves
-  const idxLV2 = headers.indexOf('LV2');
-  const idxOPT = headers.indexOf('OPT');
-  const idxDISSO = headers.indexOf('DISSO');
-  const idxASSO = headers.indexOf('ASSO');
+  // Index de colonnes résolus une fois par run (mémoïsés sur l'identité de headers)
+  const cIdx = getConstraintIdx_(headers);
+  const idxLV2 = cIdx.LV2;
+  const idxOPT = cIdx.OPT;
+  const idxDISSO = cIdx.DISSO;
+  const idxASSO = cIdx.ASSO;
+
+  // 📌 CLASSE IMPOSÉE : un élève dont la colonne CLASSE_IMPOSEE restreint les
+  //    classes autorisées (ex. "4°2|4°3") NE DOIT JAMAIS atterrir hors de cet
+  //    ensemble. Le pré-placement (Phase 1) le pose bien, mais sans ce garde le
+  //    moteur de swap le déplaçait quand même (mobilité PERMUT = « déplaçable »,
+  //    et la classe cible proposait la même LV2/OPT). s1 part vers cls2, s2 vers
+  //    cls1 : on refuse le swap si la destination n'est pas dans l'ensemble imposé.
+  const idxImposee = cIdx.IMPOSEE;
+  if (idxImposee !== -1) {
+    const imp1 = String(s1.row[idxImposee] || '').trim();
+    if (imp1 && imp1.split('|').map(function (c) { return c.trim(); }).indexOf(cls2Name) === -1) {
+      return false; // s1 imposé ailleurs → ne peut pas aller en cls2
+    }
+    const imp2 = String(s2.row[idxImposee] || '').trim();
+    if (imp2 && imp2.split('|').map(function (c) { return c.trim(); }).indexOf(cls1Name) === -1) {
+      return false; // s2 imposé ailleurs → ne peut pas aller en cls1
+    }
+  }
 
   // HARMONY FIX : Vérifier ASSO - ne jamais séparer un groupe ASSO
   if (idxASSO >= 0) {
@@ -807,10 +1031,11 @@ function canSwapStudents_Ultimate(idx1, idx2, cls1Name, cls2Name, idxList1, idxL
     }
   }
 
-  // ✅ SAFETY CHECK: Vérifier que les colonnes critiques existent
-  if (idxDISSO === -1) {
-    logLine('ERROR', '❌ CRITIQUE: Colonne DISSO non trouvée dans les headers! Headers: ' + headers.join(', '));
-    // Ne pas autoriser le swap si on ne peut pas valider DISSO
+  // ✅ SAFETY CHECK: Vérifier que les colonnes critiques existent. Fail-CLOSED :
+  //    sans DISSO **ou** ASSO on ne peut pas valider les contraintes de groupe →
+  //    refuser le swap (avant, ASSO absente = fail-OPEN → groupes séparables sans garde-fou).
+  if (idxDISSO === -1 || idxASSO === -1) {
+    logLine('ERROR', '❌ CRITIQUE: Colonne DISSO ou ASSO absente — swap refusé (validation groupes impossible). Headers: ' + headers.join(', '));
     return false;
   }
 
@@ -823,10 +1048,11 @@ function canSwapStudents_Ultimate(idx1, idx2, cls1Name, cls2Name, idxList1, idxL
   if (isOPTAnomalyLV2(opt_s1)) opt_s1 = '';
   if (isOPTAnomalyLV2(opt_s2)) opt_s2 = '';
 
-  // Bloquer swap si combinaison LV2+OPT interdite dans la classe cible
-  if (!isLV2OPTCompatible(lv2_s2, opt_s2) || !isLV2OPTCompatible(lv2_s1, opt_s1)) {
-    return false;
-  }
+  // Combinaison LV2+OPT intrinsèquement interdite (ex. ITA+CHAV) : l'élève ne peut
+  // pas suivre les deux → on NEUTRALISE l'OPT (traité comme LV2 seule) au lieu de
+  // GELER l'élève à vie (l'ancien return false l'immobilisait pour toujours).
+  if (!isLV2OPTCompatible(lv2_s1, opt_s1)) opt_s1 = '';
+  if (!isLV2OPTCompatible(lv2_s2, opt_s2)) opt_s2 = '';
   const disso_s1 = String(s1.row[idxDISSO] || '').trim().toUpperCase();
   const disso_s2 = String(s2.row[idxDISSO] || '').trim().toUpperCase();
 

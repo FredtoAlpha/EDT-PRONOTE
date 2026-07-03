@@ -919,11 +919,13 @@
       card.dataset.id = eleve.id;
       card.classList.add(`sexe-${eleve.sexe}`);
 
-      // 🔒 Liseré de mobilité (bord gauche, voir CSS .mob-fixe / .mob-permut).
-      //    Posé sur la racine de la carte AVANT les branches de mode → visible
-      //    de la même façon dans les 3 modes (simple / essentiel / détaillé).
-      if (eleve.mobilite === 'FIXE') card.classList.add('mob-fixe');
-      else if (eleve.mobilite === 'PERMUT') card.classList.add('mob-permut');
+      // 🔒 Pastille de mobilité (carré à LETTRE au bord gauche, voir CSS
+      //    .mob-fixe/.mob-permut/.mob-libre/.mob-condi/.mob-spec). F=Fixe,
+      //    P=Permut, L=Libre, C=Condi, S=Spéc. Posée sur la racine AVANT les
+      //    branches de mode → identique dans les 3 vues, lisible au projecteur.
+      const _mobMap = { FIXE: 'mob-fixe', PERMUT: 'mob-permut', LIBRE: 'mob-libre', CONDI: 'mob-condi', SPEC: 'mob-spec' };
+      const _mobCls = _mobMap[String(eleve.mobilite || '').toUpperCase()];
+      if (_mobCls) card.classList.add(_mobCls, 'has-mob');
 
       // Attributs ARIA pour la carte élève
       const nomCompletAria = eleve.prenom ? `${eleve.nom} ${eleve.prenom}` : eleve.nom;

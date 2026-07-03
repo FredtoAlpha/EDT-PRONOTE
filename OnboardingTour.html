@@ -363,21 +363,21 @@
       buttons: nav(8)
     });
 
-    // Etape 9 : Mode Reunion
+    // Etape 9 : Mode Présentation
     tour.addStep({
-      id: 'reunion',
+      id: 'presentation',
       text: `
-        <div class="step-meta">Etape 9 / ${TOTAL} - Reunion</div>
-        <div class="step-title">Mode Reunion</div>
+        <div class="step-meta">Etape 9 / ${TOTAL} - Présentation</div>
+        <div class="step-title">Mode Présentation</div>
         <div class="step-body">
-          En reunion avec videoprojecteur, activez le <strong>Mode Reunion</strong>
-          (bouton dans la barre d'harmonie, ou touche <kbd style="background:#e2e8f0;padding:2px 6px;border-radius:4px;font-size:13px">R</kbd>).
+          En réunion avec vidéoprojecteur, activez le <strong>Mode Présentation</strong>
+          (bouton dans le header, ou touche <kbd style="background:#e2e8f0;padding:2px 6px;border-radius:4px;font-size:13px">R</kbd>).
           <br><br>
-          Il active automatiquement : echanges, contraste eleve,
-          noms agrandis, et masque les controles admin.
+          Plein écran sans la barre du haut, colonnes et noms agrandis,
+          et des outils flottants (tri, parité, recherche) déplaçables.
         </div>
       `,
-      when: { show: () => highlight('[data-tour="reunion-btn"]') },
+      when: { show: () => highlight('[data-tour="presentation-btn"]') },
       buttons: nav(9)
     });
 

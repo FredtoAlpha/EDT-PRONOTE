@@ -300,27 +300,10 @@
   // R6 - MODE REUNION
   // ═══════════════════════════════════════════════════
 
-  var modeReunionActive = false;
-
-  function toggleModeReunion() {
-    modeReunionActive = !modeReunionActive;
-    document.body.classList.toggle('mode-reunion', modeReunionActive);
-
-    if (modeReunionActive) {
-      // Activer swap si pas deja actif
-      if (typeof STATE !== 'undefined' && !STATE.swapMode && typeof window.toggleSwapMode === 'function') {
-        window.toggleSwapMode();
-      }
-      document.body.classList.remove('header-xl');
-      document.body.classList.add('contrast-high');
-      if (typeof toast === 'function') toast('Mode Reunion active', 'info');
-    } else {
-      document.body.classList.remove('contrast-high');
-      if (typeof toast === 'function') toast('Mode Reunion desactive', 'info');
-    }
-    updateSwapHeaderState();
-  }
-  window.toggleModeReunion = toggleModeReunion;
+  // R6 - Mode Réunion : SUPPRIMÉ (branche 2027). Il était redondant et à moitié
+  // mort (classe mode-reunion sans CSS, header rétréci au lieu d'agrandi).
+  // Remplacé par le Mode Présentation plein écran, plus complet :
+  // InterfaceV2_PresentationMode.html (bouton « Présentation » + touche R).
 
   // ═══════════════════════════════════════════════════
   // R10 - TOOLTIPS CONTEXTUELS SUR BADGES
@@ -418,9 +401,7 @@
     // R5 - Intercepter les clicks swap
     patchHandleCardClick();
 
-    // R6 - Mode Reunion
-    var rBtn = document.getElementById('btnModeReunion');
-    if (rBtn) rBtn.addEventListener('click', toggleModeReunion);
+    // R6 - Mode Réunion supprimé (voir Mode Présentation, branche 2027).
 
     // R10 - Tooltips
     addBadgeTooltips();
