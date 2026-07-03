@@ -13,8 +13,11 @@
  * Le pipeline OPTI (SCORE INTERFACE → Prof) utilise
  * Phase4_balanceScoresSwaps_BASEOPTI_V3 (Phases_BASEOPTI_V3_COMPLETE.js).
  *
- * AUTEUR : Gemini (Expert Apps Script)
- * DATE : 19/11/2025
+ * Dernière modification : 2026-07-03 — branche 2028
+ * (objectif MAXIMIN proportionnel têtes/fragiles, recuit T₀=600 avec
+ *  proposition par réservoir, delta-scoring O(1) via calculateScoreFromAgg_,
+ *  budget temps ctx.deadlineMs, balayage final toutes-paires.
+ *  Vérification rapide de version : Ctrl+F « initialTemp: 600 »)
  * ===================================================================
  */
 

@@ -8,8 +8,9 @@
  * LIT : Onglets TEST
  * ÉCRIT : Onglets TEST (update _CLASS_ASSIGNED)
  *
- * Date : 2025-11-13
- * Branche : claude/prime-legacy-cleanup-015Zz6D3gh1QcbpR19TUYMLw
+ * Dernière modification : 2026-07-01 — branche 2028
+ * (parité alignée sur le RATIO GLOBAL F/M, cohérente avec Phase 4 : voir
+ *  globalRatioF/excess1/excess2 vers la ligne ~320)
  *
  * ===================================================================
  */
